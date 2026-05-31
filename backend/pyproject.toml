@@ -1,0 +1,9 @@
+[project]
+name = "task-web-backend"
+version = "0.1.0"
+description = "task-web 后端 API 服务"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.111",
+    "uvicorn[standard]>=0.29",
+]

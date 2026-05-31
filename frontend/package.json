@@ -1,0 +1,23 @@
+{
+  "name": "task-web-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@dagrejs/dagre": "^1.1.8",
+    "d3": "^7.9.0",
+    "vue": "^3.4.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.0.0",
+    "@vue/typescript-plugin": "^3.3.1",
+    "typescript": "^6.0.3",
+    "vite": "^5.0.0",
+    "vue-tsc": "^3.3.1"
+  }
+}

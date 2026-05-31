@@ -1,5 +1,8 @@
+# Rust 编译产物
+backend-rust/target/
+
 # Python
-__pycache__/
+__pycache/
 *.pyc
 *.pyo
 .venv/

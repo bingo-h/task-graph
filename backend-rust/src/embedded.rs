@@ -14,10 +14,10 @@
 //! 否则编译会因找不到 dist 目录而失败。
 
 use axum::{
-    body::Body,
-    http::{header, HeaderValue, StatusCode, Uri},
-    response::Response,
     Router,
+    body::Body,
+    http::{HeaderValue, StatusCode, Uri, header},
+    response::Response,
 };
 use rust_embed::RustEmbed;
 
@@ -64,7 +64,10 @@ async fn static_handler(uri: Uri) -> Response {
         None => match FrontendAssets::get("index.html") {
             Some(content) => Response::builder()
                 .status(StatusCode::OK)
-                .header(header::CONTENT_TYPE, HeaderValue::from_static("text/html; charset=utf-8"))
+                .header(
+                    header::CONTENT_TYPE,
+                    HeaderValue::from_static("text/html; charset=utf-8"),
+                )
                 .body(Body::from(content.data.into_owned()))
                 .unwrap(),
             None => Response::builder()
@@ -79,14 +82,14 @@ async fn static_handler(uri: Uri) -> Response {
 fn mime_type(path: &str) -> &'static str {
     match path.rsplit('.').next() {
         Some("html") => "text/html; charset=utf-8",
-        Some("js")   => "application/javascript",
-        Some("css")  => "text/css",
-        Some("svg")  => "image/svg+xml",
-        Some("png")  => "image/png",
-        Some("ico")  => "image/x-icon",
+        Some("js") => "application/javascript",
+        Some("css") => "text/css",
+        Some("svg") => "image/svg+xml",
+        Some("png") => "image/png",
+        Some("ico") => "image/x-icon",
         Some("json") => "application/json",
         Some("woff") => "font/woff",
-        Some("woff2")=> "font/woff2",
-        _            => "application/octet-stream",
+        Some("woff2") => "font/woff2",
+        _ => "application/octet-stream",
     }
 }

@@ -128,7 +128,7 @@ const indentStyle = computed(() => ({
     min-height: 28px;
 }
 .tree-node:hover {
-    background: rgba(255, 255, 0.05);
+    background: rgba(122, 162, 247, 0.05);
 }
 .tree-node.selected {
     background: var(--bg-select);

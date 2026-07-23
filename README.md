@@ -31,16 +31,25 @@
 
 ### 后端
 
+#### Python 实现
+
 ```bash
 cd backend
 
 # 使用 uv（推荐）
+
 uv sync
 uv run uvicorn main:app --reload --port 8765
 
 # 或使用 pip
 pip install fastapi "uvicorn[standard]"
 uvicorn main:app --reload --port 8765
+```
+
+#### Rust 实现
+
+```bash
+
 ```
 
 ### 前端

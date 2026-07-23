@@ -1,39 +1,12 @@
 //! 任务数据结构。
 //!
-//! 核心结构复用自 task-tui，在此基础上增加了：
-//! - `is_overdue`、`is_due_today`、`is_locked`：派生字段，供前端直接使用
-//! - `blocking`：被哪些任务依赖（depends 的反向关系）
-//! - `TaskView`：序列化为 API 响应的视图结构（日期转为 ISO 字符串）
+//! Task 是内部表示，同时也是 API 序列化的视图
+//! 日期统一使用 ISO 8601 字符串存储和传输
 
-use chrono::{DateTime, NaiveDateTime, Utc};
-use serde::{Deserialize, Deserializer, Serialize};
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 
-// ── 日期反序列化 ──────────────────────────────────────────────────────────────
-
-/// 反序列化 Taskwarrior 的紧凑日期格式 `"20260518T043412Z"`。
-///
-/// Taskwarrior 使用无连字符/冒号的紧凑 UTC 格式，
-/// chrono 默认不支持，需要手动解析。
-pub fn deserialize_tw_datetime<'de, D>(
-    deserializer: D,
-) -> Result<Option<DateTime<Utc>>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let s: Option<String> = Option::deserialize(deserializer)?;
-    match s {
-        None => Ok(None),
-        Some(s) => NaiveDateTime::parse_from_str(&s, "%Y%m%dT%H%M%SZ")
-            .map(|ndt| Some(ndt.and_utc()))
-            .map_err(|e| {
-                serde::de::Error::custom(format!("无法解析日期 {:?}：{}", s, e))
-            }),
-    }
-}
-
-// ── 枚举定义 ──────────────────────────────────────────────────────────────────
-
-/// 任务生命周期状态。
+/// 任务生命周期状态
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum TaskStatus {
@@ -41,18 +14,17 @@ pub enum TaskStatus {
     Completed,
     Deleted,
     Waiting,
-    Recurring,
 }
 
+/// 枚举定义
 impl TaskStatus {
     /// 返回状态的英文小写标签，用于 API 响应。
     pub fn as_str(&self) -> &'static str {
         match self {
-            TaskStatus::Pending   => "pending",
+            TaskStatus::Pending => "pending",
             TaskStatus::Completed => "completed",
-            TaskStatus::Deleted   => "deleted",
-            TaskStatus::Waiting   => "waiting",
-            TaskStatus::Recurring => "recurring",
+            TaskStatus::Deleted => "deleted",
+            TaskStatus::Waiting => "waiting",
         }
     }
 }
@@ -60,9 +32,12 @@ impl TaskStatus {
 /// 任务优先级。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Priority {
-    #[serde(rename = "H")] High,
-    #[serde(rename = "M")] Medium,
-    #[serde(rename = "L")] Low,
+    #[serde(rename = "H")]
+    High,
+    #[serde(rename = "M")]
+    Medium,
+    #[serde(rename = "L")]
+    Low,
 }
 
 // ── 原始任务结构（从 task export JSON 反序列化）────────────────────────────────
@@ -73,9 +48,9 @@ pub enum Priority {
 /// 此结构仅用于内部处理，不直接序列化为 API 响应。
 #[derive(Debug, Clone, Deserialize)]
 pub struct RawTask {
-    pub uuid:        String,
+    pub uuid: String,
     pub description: String,
-    pub status:      TaskStatus,
+    pub status: TaskStatus,
 
     #[serde(default)]
     pub project: Option<String>,
@@ -127,22 +102,22 @@ pub struct Annotation {
 /// - 增加反向依赖字段：`blocking`
 #[derive(Debug, Clone, Serialize)]
 pub struct TaskView {
-    pub uuid:        String,
+    pub uuid: String,
     pub description: String,
-    pub status:      String,
+    pub status: String,
 
-    pub project:  Option<String>,
-    pub tags:     Vec<String>,
+    pub project: Option<String>,
+    pub tags: Vec<String>,
     pub priority: Option<String>,
-    pub urgency:  f64,
+    pub urgency: f64,
 
     /// ISO 8601 格式的日期字符串，例如 "2026-05-20T14:00:00Z"
-    pub due:       Option<String>,
+    pub due: Option<String>,
     pub scheduled: Option<String>,
-    pub entry:     Option<String>,
-    pub end:       Option<String>,
+    pub entry: Option<String>,
+    pub end: Option<String>,
 
-    pub depends:     Vec<String>,
+    pub depends: Vec<String>,
     pub annotations: Vec<AnnotationView>,
 
     /// 依赖此任务的任务 UUID 列表（depends 的反向关系）
@@ -159,7 +134,7 @@ pub struct TaskView {
 /// 备注的 API 视图（日期转为 ISO 字符串）。
 #[derive(Debug, Clone, Serialize)]
 pub struct AnnotationView {
-    pub entry:       Option<String>,
+    pub entry: Option<String>,
     pub description: String,
 }
 
@@ -173,13 +148,17 @@ pub fn fmt_dt(dt: Option<DateTime<Utc>>) -> Option<String> {
 impl RawTask {
     /// 判断任务是否逾期。
     pub fn is_overdue(&self) -> bool {
-        if self.status != TaskStatus::Pending { return false; }
+        if self.status != TaskStatus::Pending {
+            return false;
+        }
         self.due.map_or(false, |d| d < Utc::now())
     }
 
     /// 判断任务是否在今日 24 小时内到期。
     pub fn is_due_today(&self) -> bool {
-        if self.status != TaskStatus::Pending { return false; }
+        if self.status != TaskStatus::Pending {
+            return false;
+        }
         self.due.map_or(false, |d| {
             let delta = d.signed_duration_since(Utc::now());
             delta.num_seconds() >= 0 && delta.num_hours() < 24
@@ -191,30 +170,37 @@ impl RawTask {
     /// `blocking` 和 `is_locked` 在批量处理时由 `build_task_views` 统一计算。
     pub fn to_view(&self) -> TaskView {
         TaskView {
-            uuid:        self.uuid.clone(),
+            uuid: self.uuid.clone(),
             description: self.description.clone(),
-            status:      self.status.as_str().to_string(),
-            project:     self.project.clone(),
-            tags:        self.tags.clone().unwrap_or_default(),
-            priority:    self.priority.as_ref().map(|p| match p {
-                Priority::High   => "H",
-                Priority::Medium => "M",
-                Priority::Low    => "L",
-            }.to_string()),
-            urgency:     self.urgency,
-            due:         fmt_dt(self.due),
-            scheduled:   fmt_dt(self.scheduled),
-            entry:       fmt_dt(self.entry),
-            end:         fmt_dt(self.end),
-            depends:     self.depends.clone(),
-            annotations: self.annotations.iter().map(|a| AnnotationView {
-                entry:       fmt_dt(a.entry),
-                description: a.description.clone(),
-            }).collect(),
-            blocking:     Vec::new(), // 由 build_task_views 填充
-            is_overdue:   self.is_overdue(),
+            status: self.status.as_str().to_string(),
+            project: self.project.clone(),
+            tags: self.tags.clone().unwrap_or_default(),
+            priority: self.priority.as_ref().map(|p| {
+                match p {
+                    Priority::High => "H",
+                    Priority::Medium => "M",
+                    Priority::Low => "L",
+                }
+                .to_string()
+            }),
+            urgency: self.urgency,
+            due: fmt_dt(self.due),
+            scheduled: fmt_dt(self.scheduled),
+            entry: fmt_dt(self.entry),
+            end: fmt_dt(self.end),
+            depends: self.depends.clone(),
+            annotations: self
+                .annotations
+                .iter()
+                .map(|a| AnnotationView {
+                    entry: fmt_dt(a.entry),
+                    description: a.description.clone(),
+                })
+                .collect(),
+            blocking: Vec::new(), // 由 build_task_views 填充
+            is_overdue: self.is_overdue(),
             is_due_today: self.is_due_today(),
-            is_locked:    false,      // 由 build_task_views 填充
+            is_locked: false, // 由 build_task_views 填充
         }
     }
 }
@@ -235,14 +221,12 @@ pub fn build_task_views(raw_tasks: &[RawTask]) -> Vec<TaskView> {
     let edges: Vec<(usize, String)> = views
         .iter()
         .enumerate()
-        .flat_map(|(child_idx, v)| {
-            v.depends.iter().map(move |dep| (child_idx, dep.clone()))
-        })
+        .flat_map(|(child_idx, v)| v.depends.iter().map(move |dep| (child_idx, dep.clone())))
         .collect();
 
     // 先收集所有需要修改的操作，再统一应用，避免同时持有可变和不可变借用
     let mut blocking_updates: Vec<(usize, String)> = Vec::new(); // (parent_idx, child_uuid)
-    let mut lock_updates: Vec<usize> = Vec::new();               // child_idx
+    let mut lock_updates: Vec<usize> = Vec::new(); // child_idx
 
     for (child_idx, dep_uuid) in &edges {
         if let Some(&parent_idx) = uuid_to_idx.get(dep_uuid.as_str()) {

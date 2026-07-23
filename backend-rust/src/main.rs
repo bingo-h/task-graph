@@ -12,12 +12,14 @@
 
 mod api;
 mod constants;
-mod data;
+mod db;
 mod embedded;
-mod project;
-mod task;
+mod models;
 
-use axum::{routing::{get, post}, Router};
+use axum::{
+    Router,
+    routing::{get, post},
+};
 use tower_http::cors::{Any, CorsLayer};
 use tracing::info;
 
@@ -31,13 +33,13 @@ async fn main() {
 
     // ── API 路由 ──────────────────────────────────────────────────────────────
     let api_router = Router::new()
-        .route("/tasks",       get(api::get_tasks))
-        .route("/task/add",    post(api::add_task))
+        .route("/tasks", get(api::get_tasks))
+        .route("/task/add", post(api::add_task))
         .route("/task/modify", post(api::modify_task))
-        .route("/task/done",   post(api::done_task))
+        .route("/task/done", post(api::done_task))
         .route("/task/delete", post(api::delete_task))
-        .route("/task/start",  post(api::start_task))
-        .route("/task/stop",   post(api::stop_task));
+        .route("/task/start", post(api::start_task))
+        .route("/task/stop", post(api::stop_task));
 
     // ── CORS（允许 Vite 开发服务器 localhost:5173 跨域访问）──────────────────
     let cors = CorsLayer::new()
@@ -59,7 +61,10 @@ async fn main() {
     // ── 启动 ──────────────────────────────────────────────────────────────────
     let addr = format!("0.0.0.0:{}", constants::DEFAULT_PORT);
     let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
-    info!("task-web 启动：http://localhost:{}", constants::DEFAULT_PORT);
+    info!(
+        "task-web 启动：http://localhost:{}",
+        constants::DEFAULT_PORT
+    );
 
     axum::serve(listener, app).await.unwrap();
 }

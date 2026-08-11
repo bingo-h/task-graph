@@ -25,3 +25,6 @@ frontend/.vite/
 # 环境变量
 .env
 .env.local
+
+# direnv
+.direnv/

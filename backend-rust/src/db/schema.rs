@@ -13,18 +13,18 @@ const MIGRATIONS: &[&str] = &[
     // 版本 1: 初始化表结构
     r#"
     CREATE TABLE IF NOT EXISTS tasks (
-        uuid TEXT PRIMARY KEY,
+        uuid        TEXT PRIMARY KEY,
         description TEXT NOT NULL,
-        status TEXT NOT NULL DEFAULT 'pending',
-        project TEXT,
-        priority TEXT,
-        urgency REAL NOT NULL DEFAULT 0,
-        due TEXT,
-        scheduled TEXT,
-        entry TEXT NOT NULL,
-        end TEXT,
-        tags TEXT NOT NULL DEFAULT '[]',
-        depends TEXT NOT NULL DEFAULT '[]',
+        status      TEXT NOT NULL DEFAULT 'pending',
+        project     TEXT,
+        priority    TEXT,
+        urgency     REAL NOT NULL DEFAULT 0,
+        due         TEXT,
+        scheduled   TEXT,
+        entry       TEXT NOT NULL,
+        end         TEXT,
+        tags        TEXT NOT NULL DEFAULT '[]',
+        depends     TEXT NOT NULL DEFAULT '[]',
         annotations TEXT NOT NULL DEFAULT '[]',
     );
     
@@ -58,5 +58,5 @@ pub fn init(conn: &Connection) -> Result<()> {
         }
     }
 
-    OK(())
+    Ok(())
 }

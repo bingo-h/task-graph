@@ -37,7 +37,7 @@ pub enum Priority {
 /// 任务备注
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Annotation {
-    pub entry: Option<String>,
+    pub created_at: Option<String>,
     pub description: String,
 }
 
@@ -56,8 +56,55 @@ pub struct Task {
     pub priority: Option<Priority>,
 
     pub urgency: f64,
-
     pub due: Option<String>,
+    pub scheduled: Option<String>,
+
+    /// 创建日期
+    pub created_at: String,
+
+    /// 截止日期
+    pub end: Option<String>,
+
+    pub tags: Vec<String>,
+    pub depends: Vec<String>,
+    pub annotations: Vec<Annotation>,
+
+    /// 派生字段 (不入库，由 API 层计算后得出)
+    pub blocking: Vec<String>,
+    pub is_overdue: bool,
+    pub is_due_today: bool,
+    pub is_locked: bool,
+}
+
+impl Task {
+    /// 计算任务是否逾期
+    pub fn compute_overdue(&self) -> bool {
+        if self.status != TaskStatus::Pending {
+            return false;
+        }
+
+        self.due.as_deref().map_or(false, |d: &str| {
+            chrono::DateTime::parse_from_rfc3339(d)
+                .map(|dt| dt < chrono::Utc::now())
+                .unwrap_or(false)
+        })
+    }
+
+    /// 计算任务是否今天到期
+    pub fn compute_due_today(&self) -> bool {
+        if self.status != TaskStatus::Pending {
+            return false;
+        }
+
+        self.due.as_deref().map_or(false, |d| {
+            chrono::DateTime::parse_from_rfc3339(d)
+                .map(|dt| {
+                    let delta = dt.signed_duration_since(chrono::Utc::now());
+                    delta.num_seconds() >= 0 && delta.num_hours() < 24
+                })
+                .unwrap_or(false)
+        })
+    }
 }
 
 fn serialize_status<S: serde::Serializer>(status: &TaskStatus, s: S) -> Result<S::Ok, S::Error> {

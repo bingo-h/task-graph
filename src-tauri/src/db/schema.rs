@@ -44,6 +44,31 @@ const MIGRATIONS: &[&str] = &[
     CREATE INDEX IF NOT EXISTS idx_time_entries_task_uuid
         ON time_entries (task_uuid);
     "#,
+    // 版本 3: 项目表，允许项目独立于任务存在
+    r#"
+    CREATE TABLE IF NOT EXISTS projects (
+        path       TEXT PRIMARY KEY,
+        created_at TEXT NOT NULL
+    );
+    "#,
+    // 版本 4: 项目归档状态
+    r#"
+    ALTER TABLE projects ADD COLUMN archived INTEGER NOT NULL DEFAULT 0;
+    "#,
+    // 版本 5: 项目阶段（计划中 / 进行中），未设置时默认视为进行中
+    r#"
+    ALTER TABLE projects ADD COLUMN stage TEXT NOT NULL DEFAULT 'active';
+    "#,
+    // 版本 6: 项目废纸篓（软删除），trashed_at 用于计算自动彻底删除的到期时间
+    r#"
+    ALTER TABLE projects ADD COLUMN trashed INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE projects ADD COLUMN trashed_at TEXT;
+    "#,
+    // 版本 7: 计时记录的回忆总结（每段专注结束时可填写标题+正文，事后也能修改）
+    r#"
+    ALTER TABLE time_entries ADD COLUMN note_title TEXT;
+    ALTER TABLE time_entries ADD COLUMN note_body TEXT;
+    "#,
 ];
 
 /// 初始化数据库 schema ，自动执行尚未应用的迁移

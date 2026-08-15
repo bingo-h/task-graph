@@ -218,13 +218,17 @@ function edgePath(edge, uuidToPos) {
  * @returns {Array} 返回一系列 CSS 设置
  */
 function nodeClass(n) {
-    // 1. 判断当前整个画布是不是处于“某条链路被高亮”的状态，且当前这个节点是不是不属于这条链路
-    const dimmed =
-        props.highlightSet.size > 0 && !props.highlightSet.has(n.uuid);
+    const inSet = props.highlightSet.has(n.uuid);
+    // 1. 判断当前整个画布是不是处于"某条链路被高亮"的状态，且当前这个节点是不是不属于这条链路
+    const dimmed = props.highlightSet.size > 0 && !inSet;
+    // 2. 属于高亮链路但不是选中节点本身：需要单独给一个视觉提示，
+    //    否则它和"完全没有选中任何节点"时的默认外观完全一样，看起来像没高亮
+    const highlighted = inSet && n.uuid !== props.selected;
 
     return [
         "node", // 基础类名
         n.uuid === props.selected ? "selected" : "", // 如果当前节点被选中了，加上 .selected
+        highlighted ? "highlighted" : "", // 链路上的相关节点，加上.highlighted
         dimmed ? "dimmed" : "", // 如果不相关，加上.dimmed让它变透明
     ]
         .filter(Boolean)
@@ -419,7 +423,7 @@ defineExpose({ resetZoom });
     background: var(--bg-panel);
     border: 1px solid var(--border);
     color: var(--fg-dim);
-    font-size: 18px;
+    font-size: 1.3846rem;
     display: flex;
     align-items: center;
     justify-content: center;

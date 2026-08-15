@@ -28,6 +28,8 @@ const emit = defineEmits([
     "delete",
     "modify",
     "select",
+    "edit-time-entry-note",
+    "delete-time-entry",
 ]);
 
 const modifyInput = ref("");
@@ -54,6 +56,19 @@ tickTimer = setInterval(() => {
 }, 1000);
 onUnmounted(() => clearInterval(tickTimer));
 
+/** 拉取当前任务的计时记录明细 */
+async function loadTimeEntries() {
+    if (!props.task) {
+        timeEntries.value = [];
+        return;
+    }
+    try {
+        timeEntries.value = await listTimeEntries(props.task.uuid);
+    } catch {
+        timeEntries.value = [];
+    }
+}
+
 // 每次拿到新的任务数据（切换任务，或完成/计时等写操作触发刷新）时，
 // 记下这一刻的 total_seconds 快照及拿到快照的时间点，
 // 用于计算之后每秒实时递增的显示值
@@ -64,19 +79,13 @@ watch(
     async (task) => {
         snapshotSeconds.value = task?.total_seconds ?? 0;
         snapshotAt.value = Date.now();
-
-        if (!task) {
-            timeEntries.value = [];
-            return;
-        }
-        try {
-            timeEntries.value = await listTimeEntries(task.uuid);
-        } catch {
-            timeEntries.value = [];
-        }
+        await loadTimeEntries();
     },
     { immediate: true },
 );
+
+// 供父组件在保存计时回忆总结后调用，刷新当前列表
+defineExpose({ refresh: loadTimeEntries });
 
 /** 当前任务累计耗时（秒），正在计时时随 nowTick 实时递增 */
 const displayTotalSeconds = computed(() => {
@@ -257,7 +266,7 @@ function statusLabel(s) {
                         {{ task.priority }}
                     </span>
 
-                    <span v-if="task.is_blocked" class="badge-extra locked">
+                    <span v-if="task.is_locked" class="badge-extra locked">
                         🔒 锁定
                     </span>
 
@@ -322,7 +331,7 @@ function statusLabel(s) {
             </div>
 
             <!-- 锁定说明 -->
-            <div v-if="task.is_blocked" class="detail-section locked-hint">
+            <div v-if="task.is_locked" class="detail-section locked-hint">
                 <p>🔒 此任务有未完成的前置任务，无法开始</p>
             </div>
 
@@ -359,7 +368,7 @@ function statusLabel(s) {
                         {{ blockingTask.description }}
                     </span>
 
-                    <span v-if="blockingTask.is_blocked" class="dep-locked">
+                    <span v-if="blockingTask.is_locked" class="dep-locked">
                         🔒
                     </span>
                 </div>
@@ -388,6 +397,9 @@ function statusLabel(s) {
                 <button
                     v-if="task.status === 'pending'"
                     class="btn-done"
+                    :class="{ 'btn-disabled': task.is_locked }"
+                    :disabled="task.is_locked"
+                    :title="task.is_locked ? '存在未完成的前置任务，无法完成' : ''"
                     @click="emit('done', task.uuid)"
                 >
                     ✔ 完成
@@ -434,6 +446,9 @@ function statusLabel(s) {
                     <button
                         v-else-if="task.status === 'pending'"
                         class="btn-timer btn-timer-start"
+                        :class="{ 'btn-disabled': task.is_locked }"
+                        :disabled="task.is_locked"
+                        :title="task.is_locked ? '存在未完成的前置任务，无法开始计时' : ''"
                         @click="emit('start-timer', task.uuid)"
                     >
                         ▶ 开始计时
@@ -494,7 +509,9 @@ function statusLabel(s) {
                                     </span>
                                     <span
                                         class="time-entry-duration"
-                                        :class="{ 'timer-active': !entry.end }"
+                                        :class="{
+                                            'timer-active': !entry.end,
+                                        }"
                                     >
                                         {{
                                             formatDuration(
@@ -512,6 +529,31 @@ function statusLabel(s) {
                                             )
                                         }}
                                     </span>
+
+                                    <!-- 回忆总结：默认只显示一个折叠图标，点击弹窗查看/修改完整标题和正文 -->
+                                    <button
+                                        class="time-entry-note-icon"
+                                        :class="{ 'has-note': entry.note_title }"
+                                        :title="
+                                            entry.note_title || '添加回忆总结'
+                                        "
+                                        @click="
+                                            emit('edit-time-entry-note', entry)
+                                        "
+                                    >
+                                        📝
+                                    </button>
+
+                                    <!-- 删除这一段计时记录（不可恢复） -->
+                                    <button
+                                        class="time-entry-delete"
+                                        title="删除这段计时记录"
+                                        @click="
+                                            emit('delete-time-entry', entry.id)
+                                        "
+                                    >
+                                        ✗
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -568,7 +610,7 @@ function statusLabel(s) {
     align-items: center;
     justify-content: center;
     color: var(--fg-dim);
-    font-size: 13px;
+    font-size: 1rem;
 }
 
 /* 标题区 */
@@ -579,7 +621,7 @@ function statusLabel(s) {
 }
 
 .detail-title {
-    font-size: 15px;
+    font-size: 1.1538rem;
     font-weight: 700;
     color: var(--fg);
     line-height: 1.4;
@@ -594,7 +636,7 @@ function statusLabel(s) {
 
 /* 状态徽章 */
 .badge-status {
-    font-size: 11px;
+    font-size: 0.8462rem;
     padding: 2px 8px;
     border-radius: 4px;
     font-weight: 600;
@@ -618,7 +660,7 @@ function statusLabel(s) {
 
 /* 优先级徽章 */
 .badge-priority {
-    font-size: 11px;
+    font-size: 0.8462rem;
     padding: 2px 8px;
     border-radius: 4px;
     font-weight: 700;
@@ -638,7 +680,7 @@ function statusLabel(s) {
 
 /* 状态徽章 (锁定/逾期/今日) */
 .badge-extra {
-    font-size: 11px;
+    font-size: 0.8462rem;
 }
 .badge-extra.locked {
     color: var(--yellow);
@@ -660,7 +702,7 @@ function statusLabel(s) {
 }
 
 .section-title {
-    font-size: 11px;
+    font-size: 0.8462rem;
     font-weight: 700;
     color: var(--fg-dim);
     text-transform: uppercase;
@@ -675,14 +717,14 @@ function statusLabel(s) {
 }
 
 .detail-key {
-    font-size: 11px;
+    font-size: 0.8462rem;
     color: var(--fg-dim);
     width: 44px;
     flex-shrink: 0;
 }
 
 .detail-val {
-    font-size: 12px;
+    font-size: 0.9231rem;
     color: var(--fg);
     word-break: break-all;
 }
@@ -703,7 +745,7 @@ function statusLabel(s) {
     gap: 4px;
 }
 .tag-chip {
-    font-size: 11px;
+    font-size: 0.8462rem;
     padding: 1px 6px;
     border-radius: 3px;
     background: rgba(187, 154, 247, 0.15);
@@ -732,7 +774,7 @@ function statusLabel(s) {
 .btn-timer {
     padding: 5px 12px;
     border-radius: 6px;
-    font-size: 12px;
+    font-size: 0.9231rem;
     font-weight: 600;
     transition: background 0.15s;
     flex-shrink: 0;
@@ -758,7 +800,7 @@ function statusLabel(s) {
     margin-top: 4px;
 }
 .time-entries-toggle {
-    font-size: 11px;
+    font-size: 0.8462rem;
     color: var(--fg-dim);
     padding: 2px 0;
 }
@@ -774,7 +816,7 @@ function statusLabel(s) {
     padding: 2px 8px;
     border-radius: 4px;
     border: 1px solid var(--border);
-    font-size: 11px;
+    font-size: 0.8462rem;
     color: var(--fg-dim);
     transition: all 0.15s;
 }
@@ -801,14 +843,16 @@ function statusLabel(s) {
     gap: 2px;
 }
 .time-entries-date {
-    font-size: 10px;
+    font-size: 0.7692rem;
     color: var(--fg-dim);
     font-weight: 700;
 }
 .time-entry-row {
     display: flex;
+    align-items: center;
     justify-content: space-between;
-    font-size: 11px;
+    gap: 6px;
+    font-size: 0.8462rem;
     color: var(--fg);
     padding: 1px 0 1px 8px;
 }
@@ -820,9 +864,46 @@ function statusLabel(s) {
     color: var(--green);
 }
 
+/* 回忆总结：默认折叠成一个小图标，不占用额外的行，点击才弹窗展开详情 */
+.time-entry-note-icon {
+    flex-shrink: 0;
+    font-size: 0.7692rem;
+    line-height: 1;
+    padding: 2px;
+    border-radius: 4px;
+    opacity: 0.25;
+    transition: all 0.15s;
+}
+.time-entry-note-icon:hover {
+    opacity: 1;
+    background: rgba(0, 0, 0, 0.05);
+}
+.time-entry-note-icon.has-note {
+    opacity: 0.9;
+}
+
+/* 删除按钮：默认隐藏，悬停这一行时才显示，避免误触 */
+.time-entry-delete {
+    flex-shrink: 0;
+    font-size: 0.6923rem;
+    line-height: 1;
+    padding: 2px 3px;
+    border-radius: 4px;
+    color: var(--fg-dark);
+    opacity: 0;
+    transition: all 0.15s;
+}
+.time-entry-row:hover .time-entry-delete {
+    opacity: 1;
+}
+.time-entry-delete:hover {
+    color: var(--red);
+    background: rgba(247, 118, 142, 0.15);
+}
+
 /* 锁定提示区 */
 .locked-hint {
-    font-size: 12px;
+    font-size: 0.9231rem;
     color: var(--yellow);
     background: rgba(224, 175, 104, 0.1);
     padding: 8px;
@@ -838,7 +919,7 @@ function statusLabel(s) {
     padding: 5px 8px;
     border-radius: 5px;
     cursor: pointer;
-    font-size: 12px;
+    font-size: 0.9231rem;
     transition: background 0.12s;
 }
 .dep-item:hover {
@@ -856,14 +937,14 @@ function statusLabel(s) {
     color: var(--fg);
 }
 .dep-locked {
-    font-size: 11px;
+    font-size: 0.8462rem;
 }
 
 /* 备注 */
 .annotation {
     display: flex;
     gap: 8px;
-    font-size: 11px;
+    font-size: 0.8462rem;
 }
 .annotation-date {
     color: var(--fg-dim);
@@ -888,7 +969,7 @@ function statusLabel(s) {
     border-radius: 6px;
     background: rgba(158, 206, 106, 0.2);
     color: var(--green);
-    font-size: 12px;
+    font-size: 0.9231rem;
     font-weight: 600;
     border: 1px solid rgba(158, 206, 106, 0.3);
     transition: background 0.15s;
@@ -897,13 +978,21 @@ function statusLabel(s) {
     background: rgba(158, 206, 106, 0.35);
 }
 
+.btn-disabled,
+.btn-disabled:hover {
+    background: rgba(0, 0, 0, 0.05);
+    color: var(--fg-dim);
+    border-color: var(--border);
+    cursor: not-allowed;
+}
+
 .btn-undone {
     flex: 1;
     padding: 6px;
     border-radius: 6px;
     background: rgba(224, 175, 104, 0.2);
     color: var(--orange, #e0af68);
-    font-size: 12px;
+    font-size: 0.9231rem;
     font-weight: 600;
     border: 1px solid rgba(224, 175, 104, 0.3);
     transition: background 0.15s;
@@ -918,7 +1007,7 @@ function statusLabel(s) {
     border-radius: 6px;
     background: rgba(122, 162, 247, 0.15);
     color: var(--blue);
-    font-size: 12px;
+    font-size: 0.9231rem;
     font-weight: 600;
     border: 1px solid rgba(122, 162, 247, 0.3);
     transition: background 0.15s;
@@ -932,7 +1021,7 @@ function statusLabel(s) {
     border-radius: 6px;
     background: rgba(247, 118, 142, 0.1);
     color: var(--red);
-    font-size: 12px;
+    font-size: 0.9231rem;
     border: 1px solid rgba(247, 118, 142, 0.2);
     transition: background 0.15s;
 }
@@ -942,7 +1031,7 @@ function statusLabel(s) {
 
 /* UUID 尾部 */
 .detail-uuid {
-    font-size: 10px;
+    font-size: 0.7692rem;
     color: var(--fg-dark);
     margin-top: auto;
     padding-top: 8px;

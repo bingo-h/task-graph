@@ -29,6 +29,54 @@ export async function fetchTasks() {
   return call("get_tasks");
 }
 
+/**
+ * 新建项目，允许在没有任何任务的情况下独立创建。path 如 "personal.reading"。
+ * stage: "planned"（计划中）| "active"（进行中），不传时后端默认 "active"。
+ */
+export async function createProject(path, stage) {
+  return call("create_project", { args: { path, stage } });
+}
+
+/** 设置项目归档状态，归档会级联到所有子项目。 */
+export async function setProjectArchived(path, archived) {
+  return call("set_project_archived", { args: { path, archived } });
+}
+
+/** 设置项目所属阶段："planned"（计划中）| "active"（进行中）。 */
+export async function setProjectStage(path, stage) {
+  return call("set_project_stage", { args: { path, stage } });
+}
+
+/** 将项目移入废纸篓（软删除，级联到所有子项目，可恢复）。 */
+export async function trashProject(path) {
+  return call("trash_project", { path });
+}
+
+/** 从废纸篓恢复项目。 */
+export async function restoreProject(path) {
+  return call("restore_project", { path });
+}
+
+/** 彻底删除项目，级联删除该项目及所有子项目下的任务，不可恢复。 */
+export async function purgeProject(path) {
+  return call("purge_project", { path });
+}
+
+/** 移动项目（及其子项目、任务）到新的父项目下；newParent 为 null/空 表示移到顶层。 */
+export async function moveProject(path, newParent) {
+  return call("move_project", { args: { path, new_parent: newParent || null } });
+}
+
+/** 获取应用设置：{ trash_retention_days, font_size }。 */
+export async function getSettings() {
+  return call("get_settings");
+}
+
+/** 保存应用设置：{ trash_retention_days, font_size }。 */
+export async function saveSettings(settings) {
+  return call("save_settings", { settings });
+}
+
 /** 新建任务，传结构化字段：{description, project, priority, due, scheduled, tags, depends} */
 export async function addTask(fields) {
   return call("add_task", { args: fields });
@@ -67,4 +115,19 @@ export async function stopTimer() {
 /** 获取某任务的全部计时记录，按开始时间倒序。 */
 export async function listTimeEntries(uuid) {
   return call("list_time_entries", { uuid });
+}
+
+/** 获取所有任务的全部计时记录（用于首页仪表盘按天聚合统计）。 */
+export async function listAllTimeEntries() {
+  return call("list_all_time_entries");
+}
+
+/** 保存/修改某段计时记录的回忆总结（标题 + 正文）。 */
+export async function saveTimeEntryNote(id, title, body) {
+  return call("save_time_entry_note", { args: { id, title, body } });
+}
+
+/** 删除某条计时记录（不可恢复）。 */
+export async function deleteTimeEntry(id) {
+  return call("delete_time_entry", { id });
 }

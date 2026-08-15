@@ -214,7 +214,7 @@ onBeforeUnmount(() => {
 }
 
 .date-icon {
-    font-size: 12px;
+    font-size: 0.9231rem;
     opacity: 0.7;
 }
 
@@ -238,7 +238,7 @@ onBeforeUnmount(() => {
     margin-bottom: 8px;
 }
 .panel-title {
-    font-size: 12px;
+    font-size: 0.9231rem;
     font-weight: 700;
     color: var(--fg);
 }
@@ -250,7 +250,7 @@ onBeforeUnmount(() => {
     justify-content: center;
     border-radius: 4px;
     color: var(--fg-dim);
-    font-size: 14px;
+    font-size: 1.0769rem;
 }
 .nav-btn:hover {
     background: rgba(0, 0, 0, 0.06);
@@ -264,7 +264,7 @@ onBeforeUnmount(() => {
 }
 .weekday-row span {
     text-align: center;
-    font-size: 10px;
+    font-size: 0.7692rem;
     color: var(--fg-dim);
 }
 
@@ -279,7 +279,7 @@ onBeforeUnmount(() => {
     align-items: center;
     justify-content: center;
     border-radius: 5px;
-    font-size: 12px;
+    font-size: 0.9231rem;
     color: var(--fg);
     transition: background 0.12s;
 }
@@ -311,7 +311,7 @@ onBeforeUnmount(() => {
     flex: 1;
     padding: 4px 0;
     border-radius: 5px;
-    font-size: 11px;
+    font-size: 0.8462rem;
     color: var(--fg-dim);
     transition: all 0.12s;
 }

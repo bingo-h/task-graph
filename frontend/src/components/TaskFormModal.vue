@@ -223,7 +223,9 @@ function submit() {
                 <!-- 标题栏 -->
                 <div class="modal-header">
                     <span class="modal-title">{{ title }}</span>
-                    <button @click="emit('close')">×</button>
+                    <button class="modal-close" @click="emit('close')">
+                        ×
+                    </button>
                 </div>
 
                 <!-- 表单内容 -->
@@ -432,12 +434,12 @@ function submit() {
     border-bottom: 1px solid var(--border);
 }
 .modal-title {
-    font-size: 15px;
+    font-size: 1.1538rem;
     font-weight: 700;
     color: var(--cyan);
 }
 .modal-close {
-    font-size: 20px;
+    font-size: 1.5385rem;
     color: var(--fg-dim);
     line-height: 1;
     padding: 0 4px;
@@ -471,7 +473,7 @@ function submit() {
     gap: 6px;
 }
 .form-label {
-    font-size: 11px;
+    font-size: 0.8462rem;
     font-weight: 700;
     color: var(--fg-dim);
     text-transform: uppercase;
@@ -493,7 +495,7 @@ function submit() {
     padding: 5px 16px;
     border-radius: 6px;
     border: 1px solid var(--border);
-    font-size: 12px;
+    font-size: 0.9231rem;
     font-weight: 600;
     color: var(--fg-dim);
     transition: all 0.15s;
@@ -550,10 +552,10 @@ function submit() {
     border-radius: 4px;
     background: rgba(187, 154, 247, 0.15);
     color: var(--magenta);
-    font-size: 12px;
+    font-size: 0.9231rem;
 }
 .tag-remove {
-    font-size: 14px;
+    font-size: 1.0769rem;
     line-height: 1;
     color: var(--fg-dim);
     padding: 0 2px;
@@ -567,7 +569,7 @@ function submit() {
     background: transparent;
     outline: none;
     padding: 0;
-    font-size: 12px;
+    font-size: 0.9231rem;
     color: var(--fg);
     min-width: 100px;
     flex: 1;
@@ -595,7 +597,7 @@ function submit() {
     text-align: left;
     padding: 6px 8px;
     border-radius: 4px;
-    font-size: 12px;
+    font-size: 0.9231rem;
     color: var(--fg);
     transition: background 0.12s;
 }
@@ -632,7 +634,7 @@ function submit() {
     border-radius: 5px;
     cursor: pointer;
     transition: background 0.12s;
-    font-size: 12px;
+    font-size: 0.9231rem;
 }
 .depends-item:hover {
     background: rgba(0, 0, 0, 0.05);
@@ -650,12 +652,12 @@ function submit() {
 }
 .depends-project {
     color: var(--fg-dim);
-    font-size: 11px;
+    font-size: 0.8462rem;
 }
 
 .empty-hint {
     color: var(--fg-dim);
-    font-size: 12px;
+    font-size: 0.9231rem;
     padding: 8px;
 }
 
@@ -673,7 +675,7 @@ function submit() {
     background: var(--blue);
     color: var(--bg);
     font-weight: 700;
-    font-size: 13px;
+    font-size: 1rem;
     transition: opacity 0.15s;
 }
 .btn-submit:hover {
@@ -688,7 +690,7 @@ function submit() {
     border-radius: 6px;
     border: 1px solid var(--border);
     color: var(--fg-dim);
-    font-size: 13px;
+    font-size: 1rem;
     transition: all 0.15s;
 }
 .btn-cancel:hover {

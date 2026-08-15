@@ -10,4 +10,8 @@ pub struct TimeEntry {
     pub task_uuid: String,
     pub start: String,
     pub end: Option<String>,
+
+    /// 这段专注结束时填写的回忆总结（标题 + 正文），可事后修改，均可为空
+    pub note_title: Option<String>,
+    pub note_body: Option<String>,
 }

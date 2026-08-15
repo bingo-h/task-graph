@@ -10,6 +10,16 @@
 <script setup>
 import { ref, computed, watch } from "vue";
 import { formatDuration, DEFAULT_DURATION_FORMAT } from "../composables/useDuration";
+import { getVersion } from "@tauri-apps/api/app";
+import {
+    updateStatus,
+    updateError,
+    latestVersion,
+    updateNotes,
+    checkForUpdate,
+    downloadAndInstallUpdate,
+    restartToApply,
+} from "../composables/useUpdater";
 
 const props = defineProps({
     visible: { type: Boolean, required: true },
@@ -25,8 +35,12 @@ const emit = defineEmits(["close", "save", "update:highlight-mode"]);
 const SECTIONS = [
     { key: "general", label: "通用" },
     { key: "duration", label: "时长格式" },
+    { key: "about", label: "关于" },
 ];
 const activeSection = ref("general");
+
+const currentVersion = ref("");
+getVersion().then((v) => (currentVersion.value = v));
 
 const highlightModeOptions = [
     { key: "ancestors", label: "祖先链路" },
@@ -232,6 +246,83 @@ function submit() {
                                 </table>
                             </div>
                         </template>
+
+                        <!-- 关于 -->
+                        <template v-else-if="activeSection === 'about'">
+                            <div class="form-row">
+                                <label class="form-label">
+                                    当前版本
+                                    <span class="form-hint">v{{ currentVersion }}</span>
+                                </label>
+                            </div>
+
+                            <div class="form-row">
+                                <label class="form-label">检查更新</label>
+
+                                <button
+                                    v-if="
+                                        updateStatus === 'idle' ||
+                                        updateStatus === 'up-to-date' ||
+                                        updateStatus === 'error'
+                                    "
+                                    class="mode-btn"
+                                    @click="checkForUpdate"
+                                >
+                                    检查更新
+                                </button>
+                                <span
+                                    v-else-if="updateStatus === 'checking'"
+                                    class="form-hint"
+                                >
+                                    正在检查…
+                                </span>
+
+                                <div
+                                    v-if="updateStatus === 'up-to-date'"
+                                    class="form-hint"
+                                >
+                                    已是最新版本
+                                </div>
+
+                                <div v-if="updateStatus === 'error'" class="form-hint update-error">
+                                    检查失败：{{ updateError }}
+                                </div>
+
+                                <template v-if="updateStatus === 'available'">
+                                    <div class="form-hint">
+                                        发现新版本 v{{ latestVersion }}
+                                    </div>
+                                    <div v-if="updateNotes" class="update-notes">
+                                        {{ updateNotes }}
+                                    </div>
+                                    <button
+                                        class="mode-btn active"
+                                        @click="downloadAndInstallUpdate"
+                                    >
+                                        下载并安装
+                                    </button>
+                                </template>
+
+                                <div
+                                    v-if="updateStatus === 'downloading'"
+                                    class="form-hint"
+                                >
+                                    正在下载安装…
+                                </div>
+
+                                <template v-if="updateStatus === 'ready'">
+                                    <div class="form-hint">
+                                        已安装完成，重启后生效
+                                    </div>
+                                    <button
+                                        class="mode-btn active"
+                                        @click="restartToApply"
+                                    >
+                                        立即重启
+                                    </button>
+                                </template>
+                            </div>
+                        </template>
                     </div>
                 </div>
 
@@ -433,6 +524,18 @@ function submit() {
     color: var(--blue);
     border-color: var(--blue);
     background: rgba(122, 162, 247, 0.1);
+}
+
+.update-notes {
+    font-size: 0.8462rem;
+    color: var(--fg-dim);
+    white-space: pre-wrap;
+    background: rgba(0, 0, 0, 0.15);
+    border-radius: 6px;
+    padding: 8px 10px;
+}
+.update-error {
+    color: var(--red, #f7768e);
 }
 
 .modal-footer {

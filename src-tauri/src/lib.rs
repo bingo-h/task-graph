@@ -18,6 +18,8 @@ pub fn run() {
     }
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         // 窗口即将关闭时（无论是自绘的关闭按钮、系统标题栏、Alt+F4 还是任务栏关闭），
         // 先结束当前正在进行的计时段，避免留下一条 end 为空、之后统计时长会一直
         // 往后漂移的"僵尸"计时记录。这里直接同步操作数据库，不经过前端，

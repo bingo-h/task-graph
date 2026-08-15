@@ -15,6 +15,7 @@ use std::path::PathBuf;
 pub mod project;
 pub mod schema;
 pub mod task;
+pub mod time_entry;
 
 /// 获取数据库文件路径
 pub fn db_path() -> PathBuf {

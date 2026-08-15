@@ -53,3 +53,18 @@ export async function undoneTask(uuid) {
 export async function deleteTask(uuid) {
   return call("delete_task", { uuid });
 }
+
+/** 开始为指定任务计时（若有其他任务正在计时会自动先结束）。 */
+export async function startTimer(uuid) {
+  return call("start_timer", { uuid });
+}
+
+/** 停止当前正在进行的计时。 */
+export async function stopTimer() {
+  return call("stop_timer");
+}
+
+/** 获取某任务的全部计时记录，按开始时间倒序。 */
+export async function listTimeEntries(uuid) {
+  return call("list_time_entries", { uuid });
+}

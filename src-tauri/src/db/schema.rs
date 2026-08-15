@@ -32,6 +32,18 @@ const MIGRATIONS: &[&str] = &[
         version INTEGER NOT NULL
     );
     "#,
+    // 版本 2: 任务计时记录表
+    r#"
+    CREATE TABLE IF NOT EXISTS time_entries (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        task_uuid   TEXT NOT NULL,
+        start       TEXT NOT NULL,
+        end         TEXT
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_time_entries_task_uuid
+        ON time_entries (task_uuid);
+    "#,
 ];
 
 /// 初始化数据库 schema ，自动执行尚未应用的迁移

@@ -253,5 +253,8 @@ fn row_to_task(row: &rusqlite::Row) -> rusqlite::Result<Task> {
         is_overdue: false,
         is_due_today: false,
         is_locked: false,
+        total_seconds: 0,
+        is_timing: false,
+        active_since: None,
     })
 }

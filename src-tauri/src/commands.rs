@@ -76,7 +76,7 @@ fn build_graph() -> anyhow::Result<GraphResponse> {
     let conn = db::open()?;
 
     let mut tasks = db::task::list_all(&conn)?;
-    apply_derived_fields(&mut tasks);
+    apply_derived_fields(&conn, &mut tasks)?;
 
     let edges: Vec<Edge> = tasks
         .iter()
@@ -98,11 +98,20 @@ fn build_graph() -> anyhow::Result<GraphResponse> {
     })
 }
 
-/// 计算并填充派生字段：is_overdue / is_due_today / blocking / is_locked
-fn apply_derived_fields(tasks: &mut Vec<Task>) {
+/// 计算并填充派生字段：is_overdue / is_due_today / blocking / is_locked / total_seconds / is_timing / active_since
+fn apply_derived_fields(conn: &rusqlite::Connection, tasks: &mut Vec<Task>) -> anyhow::Result<()> {
+    let (totals, active_task, active_since) = db::time_entry::totals_by_task(conn)?;
+
     for task in tasks.iter_mut() {
         task.is_overdue = task.compute_overdue();
         task.is_due_today = task.compute_due_today();
+        task.total_seconds = totals.get(&task.uuid).copied().unwrap_or(0);
+        task.is_timing = active_task.as_deref() == Some(task.uuid.as_str());
+        task.active_since = if task.is_timing {
+            active_since.clone()
+        } else {
+            None
+        };
     }
 
     let uuid_to_idx: HashMap<String, usize> = tasks
@@ -143,6 +152,8 @@ fn apply_derived_fields(tasks: &mut Vec<Task>) {
     for idx in lock_updates {
         tasks[idx].is_locked = true;
     }
+
+    Ok(())
 }
 
 // Tauri 命令
@@ -224,6 +235,36 @@ pub fn undone_task(uuid: String) -> Result<GraphResponse, String> {
     db::task::mark_pending(&conn, &uuid).map_err(|e| e.to_string())?;
 
     build_graph().map_err(|e| e.to_string())
+}
+
+/// 开始为指定任务计时，若有其他任务正在计时则自动先结束
+#[tauri::command]
+pub fn start_timer(uuid: String) -> Result<GraphResponse, String> {
+    let conn = db::open().map_err(|e| e.to_string())?;
+
+    db::time_entry::start(&conn, &uuid).map_err(|e| e.to_string())?;
+
+    build_graph().map_err(|e| e.to_string())
+}
+
+/// 停止当前正在进行的计时
+#[tauri::command]
+pub fn stop_timer() -> Result<GraphResponse, String> {
+    let conn = db::open().map_err(|e| e.to_string())?;
+
+    db::time_entry::stop_active(&conn).map_err(|e| e.to_string())?;
+
+    build_graph().map_err(|e| e.to_string())
+}
+
+/// 获取某任务的全部计时记录，按开始时间倒序
+#[tauri::command]
+pub fn list_time_entries(
+    uuid: String,
+) -> Result<Vec<crate::models::time_entry::TimeEntry>, String> {
+    let conn = db::open().map_err(|e| e.to_string())?;
+
+    db::time_entry::list_by_task(&conn, &uuid).map_err(|e| e.to_string())
 }
 
 /// 删除任务

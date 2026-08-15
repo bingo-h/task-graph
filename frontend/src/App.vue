@@ -6,7 +6,7 @@
 -->
 
 <script setup>
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, onUnmounted } from "vue";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 
 import TaskFormModal from "./components/TaskFormModal.vue";
@@ -14,6 +14,7 @@ import ProjectTree from "./components/ProjectTree.vue";
 import TaskGraph from "./components/TaskGraph.vue";
 import TaskDetail from "./components/TaskDetail.vue";
 import { computeHighlight } from "./composables/useLayout";
+import { formatDuration } from "./composables/useDuration";
 import {
     fetchTasks,
     addTask,
@@ -21,6 +22,8 @@ import {
     doneTask,
     undoneTask,
     deleteTask,
+    startTimer,
+    stopTimer,
 } from "./composables/useApi";
 
 // 无边框窗口：自定义标题栏控制
@@ -56,6 +59,27 @@ const selectedTask = computed(
 const highlightSet = computed(() =>
     computeHighlight(selectedUUID.value, edges.value, hlMode.value),
 );
+
+// ----------------------------------------
+// 全局计时状态（标题栏悬浮秒表）
+// ----------------------------------------
+/** 当前正在计时的任务（全局至多一个） */
+const activeTimingTask = computed(
+    () => nodes.value.find((n) => n.is_timing) || null,
+);
+
+const nowTick = ref(Date.now()); // 每秒刷新，驱动秒表实时跳动
+const tickTimer = setInterval(() => {
+    nowTick.value = Date.now();
+}, 1000);
+onUnmounted(() => clearInterval(tickTimer));
+
+/** 本次专注时长（秒）：从这一段计时开始到现在，不含之前的历史累计 */
+const activeSessionSeconds = computed(() => {
+    const since = activeTimingTask.value?.active_since;
+    if (!since) return 0;
+    return Math.max(0, Math.floor((nowTick.value - new Date(since).getTime()) / 1000));
+});
 
 // 添加/修改任务
 const showModal = ref(false); // 是否显示添加任务界面
@@ -172,6 +196,33 @@ async function onUndone(uuid) {
 }
 
 /**
+ * 开始为指定任务计时
+ *
+ * @description 由 TaskDetail 的 @start-timer 事件触发
+ * @param {string} uuid - 任务UUID
+ */
+async function onStartTimer(uuid) {
+    try {
+        applyUpdate(await startTimer(uuid));
+    } catch (e) {
+        error.value = e.message;
+    }
+}
+
+/**
+ * 停止当前正在进行的计时
+ *
+ * @description 由 TaskDetail 的 @stop-timer 事件触发
+ */
+async function onStopTimer() {
+    try {
+        applyUpdate(await stopTimer());
+    } catch (e) {
+        error.value = e.message;
+    }
+}
+
+/**
  * 删除任务，需用户二次确认
  *
  * @param {string} uuid - 任务 UUID
@@ -210,6 +261,27 @@ onMounted(load);
                     @click="hlMode = m.key"
                 >
                     {{ m.label }}
+                </button>
+            </div>
+
+            <!-- 当前活跃计时任务：悬浮秒表，点击任务名可跳转，点击方块停止 -->
+            <div v-if="activeTimingTask" class="active-timer-pill">
+                <span class="active-timer-dot"></span>
+                <span
+                    class="active-timer-desc"
+                    @click="selectedUUID = activeTimingTask.uuid"
+                >
+                    {{ activeTimingTask.description }}
+                </span>
+                <span class="active-timer-clock">
+                    {{ formatDuration(activeSessionSeconds) }}
+                </span>
+                <button
+                    class="active-timer-stop"
+                    title="停止计时"
+                    @click="onStopTimer"
+                >
+                    ■
                 </button>
             </div>
 
@@ -280,6 +352,8 @@ onMounted(load);
                 :all-tasks="nodes"
                 @done="onDone"
                 @undone="onUndone"
+                @start-timer="onStartTimer"
+                @stop-timer="onStopTimer"
                 @delete="onDelete"
                 @modify="openModify"
                 @select="selectedUUID = $event"
@@ -329,6 +403,68 @@ onMounted(load);
     align-items: center;
     gap: 4px;
     margin-left: auto;
+}
+
+/* 标题栏悬浮秒表：当前活跃计时任务 */
+.active-timer-pill {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 3px 10px 3px 8px;
+    border-radius: 999px;
+    background: rgba(158, 206, 106, 0.12);
+    border: 1px solid rgba(158, 206, 106, 0.35);
+    max-width: 280px;
+}
+
+.active-timer-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--green);
+    flex-shrink: 0;
+    animation: active-timer-pulse 1.6s ease-in-out infinite;
+}
+@keyframes active-timer-pulse {
+    0%,
+    100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.35;
+    }
+}
+
+.active-timer-desc {
+    font-size: 12px;
+    color: var(--fg);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: pointer;
+}
+.active-timer-desc:hover {
+    color: var(--green);
+}
+
+.active-timer-clock {
+    font-size: 12px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--green);
+    flex-shrink: 0;
+}
+
+.active-timer-stop {
+    font-size: 9px;
+    color: var(--green);
+    opacity: 0.7;
+    flex-shrink: 0;
+    padding: 2px;
+    transition: opacity 0.15s;
+}
+.active-timer-stop:hover {
+    opacity: 1;
 }
 
 .mode-label {

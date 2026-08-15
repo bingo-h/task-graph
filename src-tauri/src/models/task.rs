@@ -84,6 +84,18 @@ pub struct Task {
     pub is_overdue: bool,
     pub is_due_today: bool,
     pub is_locked: bool,
+
+    /// 派生字段：累计花费在该任务上的秒数（含正在进行的计时段）
+    #[serde(default)]
+    pub total_seconds: i64,
+
+    /// 派生字段：该任务当前是否正在计时
+    #[serde(default)]
+    pub is_timing: bool,
+
+    /// 派生字段：若正在计时，这一段计时的开始时间
+    #[serde(default)]
+    pub active_since: Option<String>,
 }
 
 impl Task {

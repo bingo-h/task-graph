@@ -24,6 +24,9 @@ pub fn run() {
             commands::done_task,
             commands::undone_task,
             commands::delete_task,
+            commands::start_timer,
+            commands::stop_timer,
+            commands::list_time_entries,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

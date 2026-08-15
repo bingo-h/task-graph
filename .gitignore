@@ -1,5 +1,11 @@
-# Rust 编译产物
-backend-rust/target/
+# Rust / Tauri
+src-tauri/target/
+src-tauri/gen/
+
+# 数据库（本地开发数据不入库）
+*.db
+*.db-wal
+*.db-shm
 
 # Python
 __pycache/

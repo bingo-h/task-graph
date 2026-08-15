@@ -1,21 +1,21 @@
-/* Tokyo Night 配色 */
+/* 亮色配色 */
 :root {
-    --bg: #1a1b26;
-    --bg-dark: #16161e;
-    --bg-panel: #1f2335;
-    --bg-select: #283457;
-    --bg-popup: #24283b;
-    --fg: #c0caf5;
-    --fg-dim: #565f89;
-    --fg-dark: #414868;
-    --blue: #7aa2f7;
-    --magenta: #bb9af7;
-    --cyan: #7dcfff;
-    --green: #9ece6a;
-    --yellow: #e0af68;
-    --orange: #ff9e64;
-    --red: #f7768e;
-    --border: #292e42;
+    --bg: #f5f6f8;
+    --bg-dark: #ffffff;
+    --bg-panel: #ffffff;
+    --bg-select: #e3ecfb;
+    --bg-popup: #ffffff;
+    --fg: #24292f;
+    --fg-dim: #6e7781;
+    --fg-dark: #afb6c0;
+    --blue: #1a73e8;
+    --magenta: #8250df;
+    --cyan: #0598bc;
+    --green: #1a7f37;
+    --yellow: #9a6700;
+    --orange: #bc4c00;
+    --red: #d1242f;
+    --border: #d0d7de;
 }
 
 /* Reset */
@@ -78,7 +78,7 @@ input:focus {
 .node.selected rect {
     stroke: var(--blue);
     stroke-width: 2.5;
-    filter: drop-shadow(0 0 6px rgba(122, 162, 247, 0.5));
+    filter: drop-shadow(0 0 6px rgba(26, 115, 232, 0.4));
 }
 
 /* 节点填充色 (按任务状态) */
@@ -87,23 +87,23 @@ input:focus {
 }
 
 .rect-done {
-    fill: #1a2a1a;
+    fill: #e6f4ea;
 }
 
 .rect-overdue {
-    fill: #2a1a1a;
+    fill: #fbe9e9;
 }
 
 .rect-today {
-    fill: #2a2010;
+    fill: #fdf0dd;
 }
 
 .rect-locked {
-    fill: #1e1e2e;
+    fill: #eceef1;
 }
 
 .rect-waiting {
-    fill: #1e1e30;
+    fill: #e9edf5;
 }
 
 /* 节点文字 */

@@ -18,7 +18,7 @@ const props = defineProps({
     allTasks: { type: Array, required: true }, // 所有任务列表，用于查找依赖任务描述
 });
 
-const emit = defineEmits(["done", "delete", "modify", "select"]);
+const emit = defineEmits(["done", "undone", "delete", "modify", "select"]);
 
 const modifyInput = ref("");
 const modifyError = ref("");
@@ -237,6 +237,14 @@ function statusLabel(s) {
                     ✔ 完成
                 </button>
 
+                <button
+                    v-if="task.status === 'completed'"
+                    class="btn-undone"
+                    @click="emit('undone', task.uuid)"
+                >
+                    ↺ 取消完成
+                </button>
+
                 <!-- 修改：emit 完整任务对象，由父组件（App.vue）打开 TaskFormModal -->
                 <button class="btn-modify" @click="emit('modify', task)">
                     ✏ 修改
@@ -445,7 +453,7 @@ function statusLabel(s) {
     transition: background 0.12s;
 }
 .dep-item:hover {
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(0, 0, 0, 0.05);
 }
 .dep-item.dep-done {
     opacity: 0.5;
@@ -498,6 +506,21 @@ function statusLabel(s) {
 }
 .btn-done:hover {
     background: rgba(158, 206, 106, 0.35);
+}
+
+.btn-undone {
+    flex: 1;
+    padding: 6px;
+    border-radius: 6px;
+    background: rgba(224, 175, 104, 0.2);
+    color: var(--orange, #e0af68);
+    font-size: 12px;
+    font-weight: 600;
+    border: 1px solid rgba(224, 175, 104, 0.3);
+    transition: background 0.15s;
+}
+.btn-undone:hover {
+    background: rgba(224, 175, 104, 0.35);
 }
 
 .btn-modify {

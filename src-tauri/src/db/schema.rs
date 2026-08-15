@@ -21,11 +21,11 @@ const MIGRATIONS: &[&str] = &[
         urgency     REAL NOT NULL DEFAULT 0,
         due         TEXT,
         scheduled   TEXT,
-        entry       TEXT NOT NULL,
+        created_at  TEXT NOT NULL,
         end         TEXT,
         tags        TEXT NOT NULL DEFAULT '[]',
         depends     TEXT NOT NULL DEFAULT '[]',
-        annotations TEXT NOT NULL DEFAULT '[]',
+        annotations TEXT NOT NULL DEFAULT '[]'
     );
     
     CREATE TABLE IF NOT EXISTS schema_version (

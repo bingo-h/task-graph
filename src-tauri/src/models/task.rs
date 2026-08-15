@@ -34,6 +34,16 @@ pub enum Priority {
     Low,
 }
 
+impl Priority {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Priority::High => "H",
+            Priority::Medium => "M",
+            Priority::Low => "L",
+        }
+    }
+}
+
 /// 任务备注
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Annotation {

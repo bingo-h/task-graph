@@ -7,6 +7,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from "vue";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 
 import TaskFormModal from "./components/TaskFormModal.vue";
 import ProjectTree from "./components/ProjectTree.vue";
@@ -18,8 +19,21 @@ import {
     addTask,
     modifyTask,
     doneTask,
+    undoneTask,
     deleteTask,
 } from "./composables/useApi";
+
+// 无边框窗口：自定义标题栏控制
+const appWindow = getCurrentWindow();
+function minimizeWindow() {
+    appWindow.minimize();
+}
+function toggleMaximizeWindow() {
+    appWindow.toggleMaximize();
+}
+function closeWindow() {
+    appWindow.close();
+}
 
 // 全局状态
 const nodes = ref([]); // 所有任务节点
@@ -109,14 +123,14 @@ function openModify(task) {
  * 弹窗提交
  * @param {string} mode - 模式：新建/修改
  * @param {string} uuid
- * @param {string} command - 命令字符串
+ * @param {object} fields - 结构化任务字段
  */
-async function onModalSubmit({ mode, uuid, command }) {
+async function onModalSubmit({ mode, uuid, fields }) {
     try {
         if (mode === "add") {
-            applyUpdate(await addTask(command));
+            applyUpdate(await addTask(fields));
         } else {
-            applyUpdate(await modifyTask(uuid, command));
+            applyUpdate(await modifyTask(uuid, fields));
         }
 
         showModal.value = false;
@@ -144,6 +158,20 @@ async function onDone(uuid) {
 }
 
 /**
+ * 取消任务完成，恢复为待办
+ *
+ * @description 由 TaskDetail 的 @undone 事件触发
+ * @param {string} uuid - 任务UUID
+ */
+async function onUndone(uuid) {
+    try {
+        applyUpdate(await undoneTask(uuid));
+    } catch (e) {
+        error.value = e.message;
+    }
+}
+
+/**
  * 删除任务，需用户二次确认
  *
  * @param {string} uuid - 任务 UUID
@@ -163,9 +191,9 @@ onMounted(load);
 
 <template>
     <div class="app">
-        <!-- 顶部导航栏 -->
-        <header class="topbar">
-            <span class="app-title">task-web</span>
+        <!-- 顶部导航栏（兼具自定义标题栏，可拖拽） -->
+        <header class="topbar" data-tauri-drag-region>
+            <span class="app-title" data-tauri-drag-region>task-web</span>
 
             <!-- 高亮模式选择 -->
             <div class="hightlight-mode">
@@ -192,6 +220,31 @@ onMounted(load);
             <button class="btn-refresh" @click="load" :disabled="loading">
                 {{ loading ? "加载中…" : "↺ 刷新" }}
             </button>
+
+            <!-- 窗口控制按钮（无边框窗口自绘） -->
+            <div class="window-controls">
+                <button
+                    class="win-btn win-min"
+                    title="最小化"
+                    @click="minimizeWindow"
+                >
+                    &#x2212;
+                </button>
+                <button
+                    class="win-btn win-max"
+                    title="最大化/还原"
+                    @click="toggleMaximizeWindow"
+                >
+                    &#x25A1;
+                </button>
+                <button
+                    class="win-btn win-close"
+                    title="关闭"
+                    @click="closeWindow"
+                >
+                    &#x2715;
+                </button>
+            </div>
         </header>
 
         <!-- 错误提示 -->
@@ -226,6 +279,7 @@ onMounted(load);
                 :task="selectedTask"
                 :all-tasks="nodes"
                 @done="onDone"
+                @undone="onUndone"
                 @delete="onDelete"
                 @modify="openModify"
                 @select="selectedUUID = $event"
@@ -331,6 +385,38 @@ onMounted(load);
 .btn-refresh:disabled {
     opacity: 0.4;
     cursor: default;
+}
+
+/* 无边框窗口的自绘控制按钮 */
+.window-controls {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    margin-left: auto;
+    height: 100%;
+}
+
+.win-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 100%;
+    font-size: 13px;
+    color: var(--fg-dim);
+    transition:
+        background 0.12s,
+        color 0.12s;
+}
+
+.win-btn:hover {
+    background: rgba(0, 0, 0, 0.06);
+    color: var(--fg);
+}
+
+.win-btn.win-close:hover {
+    background: var(--red);
+    color: #fff;
 }
 
 /* 错误提示栏 */

@@ -8,6 +8,7 @@
 <script setup>
 import constants from "../config/constants";
 import { computed, ref, watch } from "vue";
+import DatePicker from "./DatePicker.vue";
 
 const props = defineProps({
     // 是否显示弹窗
@@ -28,7 +29,7 @@ const props = defineProps({
 
 const emit = defineEmits([
     "close", // 关闭弹窗
-    "submit", // 提交: { mode: 'add'|'modify', uuid?, command }
+    "submit", // 提交: { mode: 'add'|'modify', uuid?, fields }
 ]);
 
 // 表单字段
@@ -38,6 +39,7 @@ const due = ref(""); // 格式: YYYY-MM-DD
 const priority = ref(""); // H | M | L
 const tags = ref([]);
 const tagInput = ref(""); // 标签输入框临时值
+const showTagDropdown = ref(false); // 是否显示标签下拉建议框
 const depends = ref([]); // 任务的uuid
 
 // 根据模式设置表单标题
@@ -50,6 +52,24 @@ const projectOptions = computed(() =>
         .filter((p) => p != "(无项目)")
         .sort(),
 );
+
+// 所有已存在的标签（从全部任务中去重收集）
+const allTagOptions = computed(() => {
+    const set = new Set();
+    for (const t of props.allTasks) {
+        for (const tag of t.tags || []) set.add(tag);
+    }
+    return [...set].sort();
+});
+
+// 下拉框中显示的候选标签：排除已选，随输入过滤
+const filteredTagOptions = computed(() => {
+    const keyword = tagInput.value.trim().toLowerCase();
+    return allTagOptions.value.filter((t) => {
+        if (tags.value.includes(t)) return false;
+        return !keyword || t.toLowerCase().includes(keyword);
+    });
+});
 
 // 所有已存在的任务列表
 const dependsOptions = computed(() =>
@@ -95,17 +115,31 @@ watch(
 // ----------------------------------------
 // 标签操作
 // ----------------------------------------
-/** 回车或逗号确认添加标签 */
-function addTag() {
-    const t = tagInput.value.trim().replace(/^[+]/, "");
+/** 回车、逗号确认添加标签，或从下拉框点击选择已有标签 */
+function addTag(tag) {
+    const t = (tag ?? tagInput.value).trim().replace(/^[+]/, "");
     if (t && !tags.value.includes(t)) {
         tags.value.push(t);
     }
     tagInput.value = "";
+    showTagDropdown.value = false;
 }
 
 function removeTag(tag) {
     tags.value = tags.value.filter((t) => t !== tag);
+}
+
+/** 输入框为空时按退格键，快速删除最后一个已输入的标签 */
+function removeLastTagOnBackspace() {
+    if (tagInput.value) return;
+    tags.value = tags.value.slice(0, -1);
+}
+
+/** 输入框失焦时延迟隐藏下拉框，使下拉项的点击事件能先触发 */
+function hideTagDropdownDelayed() {
+    setTimeout(() => {
+        showTagDropdown.value = false;
+    }, 150);
 }
 
 // ----------------------------------------
@@ -123,74 +157,61 @@ function toggleDepend(uuid) {
 // 提交命令
 // ----------------------------------------
 /**
- * 将表单字段拼装为 taskwarrior 命令字符串并提交。
+ * 将表单字段整理为结构化对象并提交，直接对应后端
+ * AddTaskArgs / ModifyTaskArgs 的字段形状。
  *
- * 新建：command = "描述 project:xxx due:... priority:... +tag1 depends:uuid1,uuid2"
- * 修改：command = "project:xxx due:... ..."（不含描述，描述单独处理）
- *
- * 空字段不附加到命令中。
- * 修改模式下若某字段被清空，用 "field:" 语法告知 taskwarrior 删除该字段。
+ * 修改模式下若某字段被清空，用 clear_* 标志告知后端删除该字段。
  */
 function submit() {
     if (!description.value.trim()) return;
 
-    const parts = [];
-
     if (isModify.value) {
-        // 修改模式：描述变化时附加新描述
+        const fields = {
+            tags: tags.value,
+            depends: depends.value,
+        };
+
         if (description.value !== props.prefill.description) {
-            parts.push(description.value);
+            fields.description = description.value;
         }
+
+        if (project.value) {
+            fields.project = project.value;
+        } else if (props.prefill.project) {
+            fields.clear_project = true;
+        }
+
+        if (due.value) {
+            fields.due = due.value;
+        } else if (props.prefill.due) {
+            fields.clear_due = true;
+        }
+
+        if (priority.value) {
+            fields.priority = priority.value;
+        } else if (props.prefill.priority) {
+            fields.clear_priority = true;
+        }
+
+        emit("submit", {
+            mode: "modify",
+            uuid: props.prefill.uuid,
+            fields,
+        });
     } else {
-        // 新建模式：描述必须放在最前面
-        parts.push(description.value);
+        emit("submit", {
+            mode: "add",
+            fields: {
+                description: description.value,
+                project: project.value || null,
+                due: due.value || null,
+                priority: priority.value || null,
+                scheduled: null,
+                tags: tags.value,
+                depends: depends.value,
+            },
+        });
     }
-
-    // project
-    if (project.value) {
-        parts.push(`project:${project.value}`);
-    } else if (isModify.value && props.prefill.project) {
-        // 修改时清空了项目，用 "project:" 告知 taskwarrior 删除
-        parts.push("project:");
-    }
-
-    // due
-    if (due.value) {
-        parts.push(`due:${due.value}`);
-    } else if (isModify.value && props.prefill.due) {
-        parts.push("due:");
-    }
-
-    // priority
-    if (priority.value) {
-        parts.push(`priority:${priority.value}`);
-    } else if (isModify.value && props.prefill.priority) {
-        parts.push("priority:");
-    }
-
-    // tags：对比原有标签，生成 +新增 -删除 的差量
-    if (isModify.value) {
-        const oldTags = props.prefill.tags || [];
-        const added = tags.value.filter((t) => !oldTags.includes(t));
-        const removed = oldTags.filter((t) => !tags.value.includes(t));
-        added.forEach((t) => parts.push(`+${t}`));
-        removed.forEach((t) => parts.push(`-${t}`));
-    } else {
-        tags.value.forEach((t) => parts.push(`+${t}`));
-    }
-
-    // depends
-    if (depends.value.length > 0) {
-        parts.push(`depends:${depends.value.join(",")}`);
-    } else if (isModify.value && props.prefill.depends?.length > 0) {
-        parts.push("depends:");
-    }
-
-    emit("submit", {
-        mode: isModify.value ? "modify" : "add",
-        uuid: props.prefill?.uuid,
-        command: parts.join(" "),
-    });
 }
 </script>
 
@@ -242,7 +263,7 @@ function submit() {
                     <!-- 截止日期 -->
                     <div class="form-row">
                         <label class="form-label">截止日期</label>
-                        <input v-model="due" class="form-input" type="date" />
+                        <DatePicker v-model="due" />
                     </div>
 
                     <!-- 优先级 -->
@@ -267,7 +288,7 @@ function submit() {
                     </div>
 
                     <!-- 标签 -->
-                    <div class="form-row">
+                    <div class="form-row tags-row">
                         <label class="form-label">标签</label>
                         <div class="tags-editor">
                             <!-- 已存在的标签 -->
@@ -285,14 +306,39 @@ function submit() {
                                 </button>
                             </span>
 
-                            <!-- 输入新标签 -->
+                            <!-- 输入新标签，随输入过滤下拉建议 -->
                             <input
                                 class="tag-input"
                                 v-model="tagInput"
-                                @keydown.enter.prevent="addTag"
-                                @keydown.comma.prevent="addTag"
-                                placeholder="输入标签后回车"
+                                @focus="showTagDropdown = true"
+                                @blur="hideTagDropdownDelayed"
+                                @keydown.enter.prevent="addTag()"
+                                @keydown.comma.prevent="addTag()"
+                                @keydown.down.prevent="
+                                    showTagDropdown = true
+                                "
+                                @keydown.delete="removeLastTagOnBackspace"
+                                placeholder="输入标签，回车确认或从下拉选择"
                             />
+                        </div>
+
+                        <!-- 已有标签下拉建议框 -->
+                        <div
+                            v-if="
+                                showTagDropdown &&
+                                filteredTagOptions.length > 0
+                            "
+                            class="tag-dropdown"
+                        >
+                            <button
+                                v-for="opt in filteredTagOptions"
+                                :key="opt"
+                                type="button"
+                                class="tag-dropdown-item"
+                                @mousedown.prevent="addTag(opt)"
+                            >
+                                {{ opt }}
+                            </button>
                         </div>
                     </div>
 
@@ -472,12 +518,15 @@ function submit() {
     border-color: var(--blue);
 }
 .priority-btn.active.priority-none {
-    background: rgba(255, 255, 255, 0.08);
+    background: rgba(0, 0, 0, 0.08);
     color: var(--fg);
     border-color: var(--fg-dark);
 }
 
 /* 标签编辑器 */
+.tags-row {
+    position: relative;
+}
 .tags-editor {
     display: flex;
     flex-wrap: wrap;
@@ -524,6 +573,37 @@ function submit() {
     flex: 1;
 }
 
+/* 标签下拉建议框 */
+.tag-dropdown {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    z-index: 10;
+    max-height: 160px;
+    overflow-y: auto;
+    background: var(--bg-popup);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+    padding: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.tag-dropdown-item {
+    text-align: left;
+    padding: 6px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    color: var(--fg);
+    transition: background 0.12s;
+}
+.tag-dropdown-item:hover {
+    background: var(--bg-select);
+    color: var(--magenta);
+}
+
 /* 前置任务多选 */
 .depends-list {
     display: flex;
@@ -555,7 +635,7 @@ function submit() {
     font-size: 12px;
 }
 .depends-item:hover {
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(0, 0, 0, 0.05);
 }
 .depends-item.selected {
     background: var(--bg-select);

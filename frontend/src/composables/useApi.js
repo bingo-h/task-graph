@@ -9,78 +9,47 @@
  * @date 2026-05-29
  */
 
-import constants from "../config/constants";
-
-const BASE = constants.API_BASE;
+import { invoke } from "@tauri-apps/api/core";
 
 /**
- * 统一 fetch 封装
- * @param {{}} [options={}]
- * @param {string} path - 路径
+ * 统一错误处理：Tauri command 失败时 invoke() 会 reject 一个字符串，
+ * 这里转换成标准 Error 对象，便于上层用 e.message 统一处理。
  */
-async function request(path, options = {}) {
-  const res = await fetch(BASE + path, {
-    headers: { "Content-Type": "application/json" },
-    ...options,
-  });
-
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: res.statusText }));
-    throw new Error(err.detail || "请求失败");
+async function call(command, args) {
+  try {
+    return await invoke(command, args);
+  } catch (err) {
+    // Tauri command 的 Err(String) 会原样作为 reject 的值
+    throw new Error(typeof err === "string" ? err : "请求失败");
   }
-
-  return res.json();
 }
 
-/** 获取所有任务和项目树数据 */
+/** 获取所有任务和项目树数据。 */
 export async function fetchTasks() {
-  return request("/tasks");
+  return call("get_tasks");
 }
 
-/**
- * 新建任务
- * @param {string} command - 原生 taskwarrior 语法，如 "修复 bug project:work due:2026-05-20"
- */
-export async function addTask(command) {
-  return request("/task/add", {
-    method: "POST",
-    body: JSON.stringify({ command }),
-  });
+/** 新建任务，传结构化字段：{description, project, priority, due, scheduled, tags, depends} */
+export async function addTask(fields) {
+  return call("add_task", { args: fields });
 }
 
-/**
- * 修改任务
- * @param {string} uuid
- * @param {string} command - 修改参数，如 "due:2026-05-25 priority:H"
- */
-export async function modifyTask(uuid, command) {
-  console.log("modifyTask payload:", { uuid, command }); // 加这行
-  return request("/task/modify", {
-    method: "POST",
-    body: JSON.stringify({ uuid, command }),
-  });
+/** 修改任务，传结构化字段（含 clear_* 清空标志）。 */
+export async function modifyTask(uuid, fields) {
+  return call("modify_task", { args: { uuid, ...fields } });
 }
 
-/** 将任务标记为完成 */
+/** 将任务标记为完成。 */
 export async function doneTask(uuid) {
-  return request("/task/done", {
-    method: "POST",
-    body: JSON.stringify({ uuid }),
-  });
+  return call("done_task", { uuid });
 }
 
-/** 将任务标记为进行中 */
-export async function startTask(uuid) {
-  return request("/task/start", {
-    method: "POST",
-    body: JSON.stringify({ uuid }),
-  });
+/** 取消任务完成，恢复为待办。 */
+export async function undoneTask(uuid) {
+  return call("undone_task", { uuid });
 }
 
-/** 删除任务 */
+/** 删除任务。 */
 export async function deleteTask(uuid) {
-  return request("/task/delete", {
-    method: "POST",
-    body: JSON.stringify({ uuid }),
-  });
+  return call("delete_task", { uuid });
 }

@@ -8,13 +8,13 @@
 //!   2. `~/.local/share/task-web/tasks.db`（Linux）
 //!   3. `%APPDATA%\task-web\tasks.db`（Windows）
 
-pub mod project;
-pub mod schema;
-pub mod task;
-
 use anyhow::{Context, Result};
 use rusqlite::Connection;
 use std::path::PathBuf;
+
+pub mod project;
+pub mod schema;
+pub mod task;
 
 /// 获取数据库文件路径
 pub fn db_path() -> PathBuf {
@@ -22,30 +22,25 @@ pub fn db_path() -> PathBuf {
         return PathBuf::from(path);
     }
 
-    let base = dirs::data_local_dir().unwrap_or_else(|| PathBuf::from("."));
+    let exe_dir = std::env::current_exe()
+        .ok()
+        .and_then(|p| p.parent().map(|p| p.to_path_buf()))
+        .unwrap_or_else(|| PathBuf::from("."));
 
-    base.join("task-web").join("tasks.db")
+    exe_dir.join("tasks.db")
 }
 
-/// 打开数据库连接并初始化表结构
-///
-/// 如果数据库文件不存在，自动创建
-/// 如果表结构不存在，自动建表
+/// 打开数据库连接并确保表结构已经初始化
 pub fn open() -> Result<Connection> {
     let path = db_path();
 
-    // 确保父目录存在
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)
             .with_context(|| format!("无法创建数据目录：{:?}", parent))?;
     }
 
     let conn = Connection::open(&path).with_context(|| format!("无法打开数据库：{:?}", path))?;
-
-    // 启用 WAL 模式，提升并发读性能
-    conn.execute_batch("PRAGMA journal_mode=WAL;");
-
-    // 初始化表结构
+    conn.execute_batch("PRAGMA journal_mode=WAL;")?;
     schema::init(&conn)?;
 
     Ok(conn)

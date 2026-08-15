@@ -79,11 +79,19 @@ pub struct Task {
     pub depends: Vec<String>,
     pub annotations: Vec<Annotation>,
 
+    /// 标记为"今日任务"时的日期（UTC，YYYY-MM-DD）；过了这一天会在下次读取时自动清除
+    #[serde(skip_serializing)]
+    pub today_marked_date: Option<String>,
+
     /// 派生字段 (不入库，由 API 层计算后得出)
     pub blocking: Vec<String>,
     pub is_overdue: bool,
     pub is_due_today: bool,
     pub is_locked: bool,
+
+    /// 派生字段：是否被标记为"今日任务"（由 today_marked_date 是否等于今天算出）
+    #[serde(default)]
+    pub is_today: bool,
 
     /// 派生字段：累计花费在该任务上的秒数（含正在进行的计时段）
     #[serde(default)]

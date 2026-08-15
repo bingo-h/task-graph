@@ -18,6 +18,8 @@ pub struct CreateTaskRequest {
     pub scheduled: Option<String>,
     pub tags: Vec<String>,
     pub depends: Vec<String>,
+    /// 非空时作为第一条 annotation 附加到新任务上
+    pub annotation: Option<String>,
 }
 
 /// 请求体：更新任务
@@ -34,13 +36,16 @@ pub struct UpdateTaskRequest {
     pub clear_priority: bool,
     pub clear_due: bool,
     pub clear_scheduled: bool,
+    /// 非空时追加为一条新的 annotation，不影响已有的历史备注
+    pub annotation: Option<String>,
 }
 
 /// 查询所有非删除状态的任务
 pub fn list_all(conn: &Connection) -> Result<Vec<Task>> {
     let mut stmt = conn.prepare(
         "SELECT uuid, description, status, project, priority, urgency,
-             due, scheduled, created_at, end, tags, depends, annotations
+             due, scheduled, created_at, end, tags, depends, annotations,
+             today_marked_date
         FROM tasks WHERE status != 'deleted' ORDER BY urgency DESC",
     )?;
 
@@ -55,13 +60,43 @@ pub fn list_all(conn: &Connection) -> Result<Vec<Task>> {
 pub fn get_by_uuid(conn: &Connection, uuid: &str) -> Result<Option<Task>> {
     let mut stmt = conn.prepare(
         "SELECT uuid, description, status, project, priority, urgency,
-                    due, scheduled, created_at, end, tags, depends, annotations
+                    due, scheduled, created_at, end, tags, depends, annotations,
+                    today_marked_date
               FROM tasks WHERE uuid = ?1",
     )?;
 
     let mut rows = stmt.query_map([uuid], row_to_task)?;
 
     Ok(rows.next().transpose()?)
+}
+
+/// 设置/取消"今日任务"标记，标记时记录当前 UTC 日期
+pub fn set_today(conn: &Connection, uuid: &str, marked: bool) -> Result<()> {
+    let date = if marked {
+        Some(chrono::Utc::now().format("%Y-%m-%d").to_string())
+    } else {
+        None
+    };
+
+    conn.execute(
+        "UPDATE tasks SET today_marked_date = ?2 WHERE uuid = ?1",
+        params![uuid, date],
+    )?;
+
+    Ok(())
+}
+
+/// 清除已经跨天的"今日任务"标记（不等于今天的 today_marked_date 一律清空）
+pub fn reset_stale_today_marks(conn: &Connection) -> Result<()> {
+    let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
+
+    conn.execute(
+        "UPDATE tasks SET today_marked_date = NULL
+             WHERE today_marked_date IS NOT NULL AND today_marked_date != ?1",
+        params![today],
+    )?;
+
+    Ok(())
 }
 
 /// 创建新任务，返回创建后的任务结构体
@@ -78,12 +113,21 @@ pub fn create(conn: &Connection, req: &CreateTaskRequest) -> Result<Task> {
         &req.depends,
     );
 
+    let annotations = match req.annotation.as_deref().map(str::trim) {
+        Some(text) if !text.is_empty() => vec![Annotation {
+            created_at: Some(created_at.clone()),
+            description: text.to_string(),
+        }],
+        _ => Vec::new(),
+    };
+    let annotations_json = serde_json::to_string(&annotations)?;
+
     conn.execute(
         "
             INSERT INTO tasks
                 (uuid, description, status, project, priority, urgency,
                  due, scheduled, created_at, tags, depends, annotations)
-            VALUES (?1, ?2, 'pending', ?3, ?4, ?5, ?6, ?7, ?8,?9, ?10, '[]')
+            VALUES (?1, ?2, 'pending', ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
         ",
         params![
             uuid,
@@ -95,7 +139,8 @@ pub fn create(conn: &Connection, req: &CreateTaskRequest) -> Result<Task> {
             req.scheduled,
             created_at,
             tags_json,
-            depends_json
+            depends_json,
+            annotations_json
         ],
     )?;
 
@@ -142,10 +187,22 @@ pub fn update(conn: &Connection, uuid: &str, req: &UpdateTaskRequest) -> Result<
     let depends_json = serde_json::to_string(depends)?;
     let urgency = compute_urgency(priority, due, &current.created_at, tags, depends);
 
+    // 备注是追加语义：不会覆盖或编辑已有的历史条目，只在非空时新增一条
+    let mut annotations = current.annotations.clone();
+    if let Some(text) = req.annotation.as_deref().map(str::trim) {
+        if !text.is_empty() {
+            annotations.push(Annotation {
+                created_at: Some(chrono::Utc::now().to_rfc3339()),
+                description: text.to_string(),
+            });
+        }
+    }
+    let annotations_json = serde_json::to_string(&annotations)?;
+
     conn.execute(
         "UPDATE tasks SET
                 description=?2, project=?3, priority=?4, urgency=?5,
-                due=?6, scheduled=?7, tags=?8, depends=?9
+                due=?6, scheduled=?7, tags=?8, depends=?9, annotations=?10
              WHERE uuid=?1
         ",
         params![
@@ -157,7 +214,8 @@ pub fn update(conn: &Connection, uuid: &str, req: &UpdateTaskRequest) -> Result<
             due,
             scheduled,
             tags_json,
-            depends_json
+            depends_json,
+            annotations_json
         ],
     )?;
 
@@ -249,10 +307,12 @@ fn row_to_task(row: &rusqlite::Row) -> rusqlite::Result<Task> {
         tags,
         depends,
         annotations,
+        today_marked_date: row.get(13)?,
         blocking: Vec::new(),
         is_overdue: false,
         is_due_today: false,
         is_locked: false,
+        is_today: false,
         total_seconds: 0,
         is_timing: false,
         active_since: None,

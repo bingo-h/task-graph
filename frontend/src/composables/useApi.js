@@ -97,6 +97,11 @@ export async function undoneTask(uuid) {
   return call("undone_task", { uuid });
 }
 
+/** 设置/取消"今日任务"标记，过了当天会在下次读取数据时自动清除。 */
+export async function setTaskToday(uuid, marked) {
+  return call("set_task_today", { uuid, marked });
+}
+
 /** 删除任务。 */
 export async function deleteTask(uuid) {
   return call("delete_task", { uuid });

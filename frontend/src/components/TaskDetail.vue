@@ -30,6 +30,7 @@ const emit = defineEmits([
     "select",
     "edit-time-entry-note",
     "delete-time-entry",
+    "set-today",
 ]);
 
 const modifyInput = ref("");
@@ -251,7 +252,21 @@ function statusLabel(s) {
         <template v-else>
             <!-- 标题区 -->
             <div class="detail-header">
-                <h2 class="detail-title">{{ task.description }}</h2>
+                <div class="detail-title-row">
+                    <h2 class="detail-title">{{ task.description }}</h2>
+                    <button
+                        class="btn-today-icon"
+                        :class="{ active: task.is_today }"
+                        :title="
+                            task.is_today ? '取消今日任务' : '设为今日任务'
+                        "
+                        @click="
+                            emit('set-today', task.uuid, !task.is_today)
+                        "
+                    >
+                        ☀
+                    </button>
+                </div>
 
                 <div class="detail-badges">
                     <span class="badge-status" :class="`status-${task.status}`">
@@ -274,7 +289,7 @@ function statusLabel(s) {
                         ⚠ 逾期
                     </span>
 
-                    <span v-if="task.is_overdue" class="badge-extra today">
+                    <span v-if="task.is_due_today" class="badge-extra today">
                         📅 今日到期
                     </span>
                 </div>
@@ -375,15 +390,15 @@ function statusLabel(s) {
             </div>
 
             <!-- 备注 -->
-            <div>
+            <div v-if="task.annotations.length > 0">
                 <div class="section-title">备注</div>
                 <div
                     v-for="annotation in task.annotations"
-                    :key="annotation.entry"
+                    :key="annotation.created_at + annotation.description"
                     class="annotation"
                 >
                     <span class="annotation-date">
-                        {{ formatDate(ann.entry) }}
+                        {{ formatDate(annotation.created_at) }}
                     </span>
 
                     <span class="annotation-text">
@@ -620,12 +635,44 @@ function statusLabel(s) {
     gap: 8px;
 }
 
+.detail-title-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+}
+
 .detail-title {
+    flex: 1;
+    min-width: 0;
     font-size: 1.1538rem;
     font-weight: 700;
     color: var(--fg);
     line-height: 1.4;
     word-break: break-word;
+}
+
+/* 今日任务：点击标题旁的太阳图标切换，亮/暗表示状态，不占操作按钮行的空间 */
+.btn-today-icon {
+    flex-shrink: 0;
+    width: 26px;
+    height: 26px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    font-size: 1rem;
+    color: var(--fg-dark);
+    opacity: 0.5;
+    transition: all 0.15s;
+}
+.btn-today-icon:hover {
+    opacity: 0.85;
+    background: rgba(0, 0, 0, 0.05);
+}
+.btn-today-icon.active {
+    color: var(--orange);
+    opacity: 1;
+    background: rgba(255, 158, 100, 0.15);
 }
 
 .detail-badges {
@@ -691,7 +738,6 @@ function statusLabel(s) {
 .badge-extra.today {
     color: var(--orange);
 }
-
 /* 分区 */
 .detail-section {
     border-top: 1px solid var(--border);

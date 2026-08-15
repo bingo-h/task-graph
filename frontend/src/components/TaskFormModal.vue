@@ -41,6 +41,7 @@ const tags = ref([]);
 const tagInput = ref(""); // 标签输入框临时值
 const showTagDropdown = ref(false); // 是否显示标签下拉建议框
 const depends = ref([]); // 任务的uuid
+const annotationInput = ref(""); // 备注输入框：提交时追加为一条新备注，不预填已有备注
 
 // 根据模式设置表单标题
 const isModify = computed(() => !!props.prefill);
@@ -109,6 +110,8 @@ watch(
         }
 
         tagInput.value = "";
+        // 备注是"新增一条"的语义，不管新建还是修改都从空白开始
+        annotationInput.value = "";
     },
 );
 
@@ -169,6 +172,7 @@ function submit() {
         const fields = {
             tags: tags.value,
             depends: depends.value,
+            annotation: annotationInput.value.trim() || null,
         };
 
         if (description.value !== props.prefill.description) {
@@ -209,6 +213,7 @@ function submit() {
                 scheduled: null,
                 tags: tags.value,
                 depends: depends.value,
+                annotation: annotationInput.value.trim() || null,
             },
         });
     }
@@ -380,6 +385,26 @@ function submit() {
                             </span>
                         </div>
                     </div>
+
+                    <!-- 备注：追加语义，不会覆盖已有的历史备注 -->
+                    <div class="form-row">
+                        <label class="form-label">
+                            备注
+                            <span
+                                v-if="prefill?.annotations?.length"
+                                class="form-hint"
+                            >
+                                已有 {{ prefill.annotations.length }}
+                                条备注，这里填写的内容会作为新的一条追加，不会覆盖
+                            </span>
+                        </label>
+                        <textarea
+                            v-model="annotationInput"
+                            class="form-textarea"
+                            rows="3"
+                            placeholder="记录一些补充说明…"
+                        ></textarea>
+                    </div>
                 </div>
 
                 <!-- 底部按钮 -->
@@ -473,17 +498,42 @@ function submit() {
     gap: 6px;
 }
 .form-label {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
     font-size: 0.8462rem;
     font-weight: 700;
     color: var(--fg-dim);
     text-transform: uppercase;
     letter-spacing: 0.05em;
 }
+.form-hint {
+    font-size: 0.8462rem;
+    font-weight: 400;
+    text-transform: none;
+    letter-spacing: normal;
+    color: var(--fg-dark);
+}
 .required {
     color: var(--red);
 }
 .form-input {
     width: 100%;
+}
+.form-textarea {
+    width: 100%;
+    resize: vertical;
+    font: inherit;
+    color: var(--fg);
+    background: var(--bg-dark);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 10px;
+    outline: none;
+    line-height: 1.5;
+}
+.form-textarea:focus {
+    border-color: var(--blue);
 }
 
 /* 优先级单选组 */

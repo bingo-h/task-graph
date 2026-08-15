@@ -37,6 +37,7 @@ import {
     modifyTask,
     doneTask,
     undoneTask,
+    setTaskToday,
     deleteTask,
     startTimer,
     stopTimer,
@@ -80,6 +81,17 @@ function applyFontSize(size) {
 
 // 当前页面："home" 首页仪表盘 / "board" 任务看板（原有的三栏视图）
 const currentPage = ref("home");
+
+/**
+ * 首页"今日任务"里点击某个任务，跳转到任务看板并选中它
+ *
+ * @description 由 Dashboard 的 @jump-to-task 事件触发
+ * @param {string} uuid - 任务 UUID
+ */
+function onJumpToTask(uuid) {
+    currentPage.value = "board";
+    selectedUUID.value = uuid;
+}
 
 // 当前状态
 const selectedUUID = ref(null);
@@ -384,6 +396,21 @@ async function onUndone(uuid) {
 }
 
 /**
+ * 设置/取消"今日任务"标记
+ *
+ * @description 由 TaskDetail 的 @set-today 事件触发
+ * @param {string} uuid - 任务 UUID
+ * @param {boolean} marked - 目标状态
+ */
+async function onSetToday(uuid, marked) {
+    try {
+        applyUpdate(await setTaskToday(uuid, marked));
+    } catch (e) {
+        error.value = e.message;
+    }
+}
+
+/**
  * 开始为指定任务计时
  *
  * @description 由 TaskDetail 的 @start-timer 事件触发
@@ -585,7 +612,11 @@ onMounted(() => {
         </div>
 
         <!-- 首页仪表盘 -->
-        <Dashboard v-show="currentPage === 'home'" :nodes="nodes" />
+        <Dashboard
+            v-show="currentPage === 'home'"
+            :nodes="nodes"
+            @jump-to-task="onJumpToTask"
+        />
 
         <!-- 主体三栏（任务看板） -->
         <div v-show="currentPage === 'board'" class="main">
@@ -633,6 +664,7 @@ onMounted(() => {
                 @select="selectedUUID = $event"
                 @edit-time-entry-note="onEditTimeEntryNote"
                 @delete-time-entry="onDeleteTimeEntry"
+                @set-today="onSetToday"
             />
         </div>
 

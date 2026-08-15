@@ -274,6 +274,13 @@ const dueSoonTasks = computed(() =>
 function formatDueLabel(due) {
     return monthDayFormatter.format(new Date(due));
 }
+
+// ----------------------------------------
+// 今日任务：手动标记的、今天要专注处理的任务；过了这一天后端会自动清除标记
+// ----------------------------------------
+const emit = defineEmits(["jump-to-task"]);
+
+const todayTasks = computed(() => props.nodes.filter((t) => t.is_today));
 </script>
 
 <template>
@@ -324,6 +331,45 @@ function formatDueLabel(due) {
                         >%</span
                     ></span
                 >
+            </div>
+        </div>
+
+        <!-- 今日任务：手动标记的、今天要专注处理的任务；点击跳转到任务看板并选中 -->
+        <div class="today-tasks-card">
+            <div class="chart-header">
+                <span class="chart-title">☀ 今日任务</span>
+                <span v-if="todayTasks.length > 0" class="chart-hint">
+                    {{
+                        todayTasks.filter((t) => t.status === "pending")
+                            .length
+                    }}
+                    个待完成，共 {{ todayTasks.length }} 个
+                </span>
+            </div>
+
+            <div v-if="todayTasks.length === 0" class="empty-hint">
+                还没有任务被标记为今日任务，去任务详情里点"设为今日任务"添加
+            </div>
+            <div v-else class="today-tasks-list">
+                <button
+                    v-for="t in todayTasks"
+                    :key="t.uuid"
+                    class="today-task-item"
+                    :class="{ done: t.status === 'completed' }"
+                    @click="emit('jump-to-task', t.uuid)"
+                >
+                    <span class="today-task-status">{{
+                        t.status === "completed" ? "✔" : "○"
+                    }}</span>
+                    <span class="today-task-desc">{{ t.description }}</span>
+                    <span
+                        v-if="t.priority"
+                        class="today-task-priority"
+                        :class="`priority-${t.priority.toLowerCase()}`"
+                    >
+                        {{ t.priority }}
+                    </span>
+                </button>
             </div>
         </div>
 
@@ -613,7 +659,81 @@ function formatDueLabel(due) {
     color: var(--fg-dim);
 }
 
-/* 图表卡片 */
+/* 今日任务卡片 */
+.today-tasks-card {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    flex-shrink: 0;
+}
+.chart-hint {
+    font-size: 0.8462rem;
+    color: var(--fg-dim);
+}
+
+.today-tasks-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.today-task-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border-radius: 7px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    transition: all 0.15s;
+}
+.today-task-item:hover {
+    border-color: var(--cyan);
+    background: rgba(125, 207, 255, 0.08);
+}
+.today-task-item.done {
+    opacity: 0.55;
+}
+.today-task-status {
+    flex-shrink: 0;
+    font-size: 0.8462rem;
+    color: var(--green);
+}
+.today-task-item:not(.done) .today-task-status {
+    color: var(--fg-dark);
+}
+.today-task-desc {
+    font-size: 0.8462rem;
+    color: var(--fg);
+    white-space: normal;
+    word-break: break-word;
+}
+.today-task-item.done .today-task-desc {
+    text-decoration: line-through;
+}
+.today-task-priority {
+    flex-shrink: 0;
+    font-size: 0.6923rem;
+    font-weight: 700;
+    padding: 0 4px;
+    border-radius: 3px;
+}
+.today-task-priority.priority-h {
+    color: var(--red);
+    background: rgba(247, 118, 142, 0.15);
+}
+.today-task-priority.priority-m {
+    color: var(--yellow);
+    background: rgba(224, 175, 104, 0.15);
+}
+.today-task-priority.priority-l {
+    color: var(--blue);
+    background: rgba(122, 162, 247, 0.15);
+}
+
 /* 图表卡片 + 任务汇总卡片并排布局 */
 .dashboard-lower {
     display: flex;

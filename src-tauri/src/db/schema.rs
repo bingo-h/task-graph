@@ -69,6 +69,10 @@ const MIGRATIONS: &[&str] = &[
     ALTER TABLE time_entries ADD COLUMN note_title TEXT;
     ALTER TABLE time_entries ADD COLUMN note_body TEXT;
     "#,
+    // 版本 8: "今日任务"标记，记录标记时的日期（UTC），过了这一天会在下次读取时自动清除
+    r#"
+    ALTER TABLE tasks ADD COLUMN today_marked_date TEXT;
+    "#,
 ];
 
 /// 初始化数据库 schema ，自动执行尚未应用的迁移

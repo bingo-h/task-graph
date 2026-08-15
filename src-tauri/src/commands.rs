@@ -48,6 +48,10 @@ pub struct AddTaskArgs {
 
     #[serde(default)]
     pub depends: Vec<String>,
+
+    /// 备注：非空时作为第一条 annotation 附加到新任务上
+    #[serde(default)]
+    pub annotation: Option<String>,
 }
 
 /// 修改任务参数
@@ -73,6 +77,10 @@ pub struct ModifyTaskArgs {
 
     #[serde(default)]
     pub clear_scheduled: bool,
+
+    /// 非空时追加为一条新的 annotation（保留原有的历史备注，不会覆盖）
+    #[serde(default)]
+    pub annotation: Option<String>,
 }
 
 /// 无项目归属任务的虚拟项目路径标识符，与 `db::project` 内的常量保持一致
@@ -115,6 +123,7 @@ fn build_graph() -> anyhow::Result<GraphResponse> {
 
     let retention_days = crate::settings::load()?.trash_retention_days;
     db::project::purge_expired(&conn, retention_days)?;
+    db::task::reset_stale_today_marks(&conn)?;
 
     let mut tasks = db::task::list_all(&conn)?;
     apply_derived_fields(&conn, &mut tasks)?;
@@ -149,13 +158,15 @@ fn build_graph() -> anyhow::Result<GraphResponse> {
     })
 }
 
-/// 计算并填充派生字段：is_overdue / is_due_today / blocking / is_locked / total_seconds / is_timing / active_since
+/// 计算并填充派生字段：is_overdue / is_due_today / is_today / blocking / is_locked / total_seconds / is_timing / active_since
 fn apply_derived_fields(conn: &rusqlite::Connection, tasks: &mut Vec<Task>) -> anyhow::Result<()> {
     let (totals, active_task, active_since) = db::time_entry::totals_by_task(conn)?;
+    let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
 
     for task in tasks.iter_mut() {
         task.is_overdue = task.compute_overdue();
         task.is_due_today = task.compute_due_today();
+        task.is_today = task.today_marked_date.as_deref() == Some(today.as_str());
         task.total_seconds = totals.get(&task.uuid).copied().unwrap_or(0);
         task.is_timing = active_task.as_deref() == Some(task.uuid.as_str());
         task.active_since = if task.is_timing {
@@ -407,6 +418,7 @@ pub fn add_task(args: AddTaskArgs) -> Result<GraphResponse, String> {
             scheduled: args.scheduled,
             tags: args.tags,
             depends: args.depends,
+            annotation: args.annotation,
         },
     )
     .map_err(|e| e.to_string())?;
@@ -434,6 +446,7 @@ pub fn modify_task(args: ModifyTaskArgs) -> Result<GraphResponse, String> {
             clear_priority: args.clear_priority,
             clear_due: args.clear_due,
             clear_scheduled: args.clear_scheduled,
+            annotation: args.annotation,
         },
     )
     .map_err(|e| e.to_string())?;
@@ -457,6 +470,16 @@ pub fn undone_task(uuid: String) -> Result<GraphResponse, String> {
     let conn = db::open().map_err(|e| e.to_string())?;
 
     db::task::mark_pending(&conn, &uuid).map_err(|e| e.to_string())?;
+
+    build_graph().map_err(|e| e.to_string())
+}
+
+/// 设置/取消"今日任务"标记
+#[tauri::command]
+pub fn set_task_today(uuid: String, marked: bool) -> Result<GraphResponse, String> {
+    let conn = db::open().map_err(|e| e.to_string())?;
+
+    db::task::set_today(&conn, &uuid, marked).map_err(|e| e.to_string())?;
 
     build_graph().map_err(|e| e.to_string())
 }

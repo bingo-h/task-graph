@@ -46,6 +46,7 @@ pub fn run() {
             commands::modify_task,
             commands::done_task,
             commands::undone_task,
+            commands::set_task_today,
             commands::delete_task,
             commands::start_timer,
             commands::stop_timer,

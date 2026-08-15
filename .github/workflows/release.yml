@@ -62,8 +62,13 @@ jobs:
           restore-keys: |
             ${{ matrix.platform }}-cargo-
 
+      # ~/.cargo/bin 被缓存了，命中缓存时 tauri-cli 已存在，需跳过避免 cargo install 报错
       - name: 安装 tauri-cli
-        run: cargo install tauri-cli --version "^2" --locked
+        shell: bash
+        run: |
+          if ! command -v cargo-tauri &> /dev/null; then
+            cargo install tauri-cli --version "^2" --locked
+          fi
 
       - name: 安装前端依赖
         working-directory: frontend

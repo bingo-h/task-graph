@@ -69,6 +69,20 @@ jobs:
         working-directory: frontend
         run: npm ci
 
+      # 用 tag 名（去掉 v 前缀）覆盖 tauri.conf.json 的 version 字段，
+      # 确保打包产物文件名的版本号与 Release tag 一致，仅在本次 CI checkout 中生效
+      - name: 同步版本号到 tag
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          node -e "
+            const fs = require('fs');
+            const p = 'src-tauri/tauri.conf.json';
+            const conf = JSON.parse(fs.readFileSync(p, 'utf8'));
+            conf.version = '$VERSION';
+            fs.writeFileSync(p, JSON.stringify(conf, null, 2) + '\n');
+          "
+
       # cargo tauri build 会根据 tauri.conf.json 的 beforeBuildCommand
       # 自动执行 `npm run build --prefix frontend`，无需单独构建前端
       - name: 构建 Tauri 应用

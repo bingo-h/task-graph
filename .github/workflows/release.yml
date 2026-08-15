@@ -36,7 +36,7 @@ jobs:
       - name: 安装 Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
 
@@ -148,25 +148,47 @@ jobs:
       # 应用内自动更新（tauri-plugin-updater）依赖这份 latest.json：
       # 它固定从 releases/latest/download/latest.json 读取，描述各平台安装包的
       # 下载地址和签名（签名内容就是 CI 构建时生成的 .sig 文件原文）
+      # actions/upload-artifact 会保留相对公共父目录（bundle/）的子路径，
+      # 所以下载下来的文件实际带着 nsis/、msi/、appimage/、deb/ 这层子目录，
+      # 这里用递归查找而不是写死平铺路径，避免目录结构一变就 ENOENT
       - name: 生成 latest.json
         run: |
           node -e "
             const fs = require('fs');
+            const path = require('path');
             const version = '${{ steps.version.outputs.VERSION }}';
             const repo = '${{ github.repository }}';
             const base = \`https://github.com/\${repo}/releases/download/v\${version}\`;
-            const readSig = (p) => fs.readFileSync(p, 'utf8').trim();
+
+            function findFile(dir, name) {
+              for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+                const full = path.join(dir, entry.name);
+                if (entry.isDirectory()) {
+                  const found = findFile(full, name);
+                  if (found) return found;
+                } else if (entry.name === name) {
+                  return full;
+                }
+              }
+              return null;
+            }
+            const readSig = (dir, name) => {
+              const p = findFile(dir, name);
+              if (!p) throw new Error(\`找不到文件: \${name}（搜索目录: \${dir}）\`);
+              return fs.readFileSync(p, 'utf8').trim();
+            };
+
             const manifest = {
               version,
               notes: 'task-web v' + version,
               pub_date: new Date().toISOString(),
               platforms: {
                 'windows-x86_64': {
-                  signature: readSig(\`dist/windows/task-web_\${version}_x64-setup.exe.sig\`),
+                  signature: readSig('dist/windows', \`task-web_\${version}_x64-setup.exe.sig\`),
                   url: \`\${base}/task-web_\${version}_x64-setup.exe\`,
                 },
                 'linux-x86_64': {
-                  signature: readSig(\`dist/linux/task-web_\${version}_amd64.AppImage.sig\`),
+                  signature: readSig('dist/linux', \`task-web_\${version}_amd64.AppImage.sig\`),
                   url: \`\${base}/task-web_\${version}_amd64.AppImage\`,
                 },
               },
@@ -197,10 +219,8 @@ jobs:
 
             应用内「设置 → 关于 → 检查更新」支持自动检查并安装新版本。
           files: |
-            dist/windows/*.exe
-            dist/windows/*.msi
-            dist/linux/*.AppImage
-            dist/linux/*.deb
+            dist/windows/**
+            dist/linux/**
             latest.json
           draft: false
           prerelease: false

@@ -49,7 +49,7 @@ const title = computed(() => (isModify.value ? "修改任务" : "添加任务"))
 // 所有已存在的项目列表
 const projectOptions = computed(() =>
     Object.keys(props.projects)
-        .filter((p) => p != "(无项目)")
+        .filter((p) => p != constants.INBOX_PROJECT)
         .sort(),
 );
 

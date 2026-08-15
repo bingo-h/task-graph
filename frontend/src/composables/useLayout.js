@@ -90,7 +90,7 @@ export function computeLayout(nodes, edges, projectFilter) {
  * 按项目路径过滤节点
  * @description
  *  null：显示全部
- *  "(无项目)"：只显示无项目归属的任务
+ *  "无项目"：只显示无项目归属的任务
  *  其他路径：显示该项目及所有子项目的任务
  * @param {Array} nodes - 所有任务
  * @param {String} projectFilter - 项目过滤

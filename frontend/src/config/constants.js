@@ -6,8 +6,8 @@
  */
 
 const constants = {
-  /** 无项目归属任务的虚拟项目路径标识符 */
-  INBOX_PROJECT: "(无项目)",
+  /** 无项目归属任务的虚拟项目路径标识符，需要和后端 commands.rs 里的 INBOX_PROJECT 保持一致 */
+  INBOX_PROJECT: "无项目",
 
   /** 状态显示文字 */
   PENDING: "待办",

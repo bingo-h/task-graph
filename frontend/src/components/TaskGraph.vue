@@ -6,6 +6,7 @@
       - 平移和缩放（d3-zoom）
       - 节点点击选中
       - 选中后高亮链路，其余节点淡化
+      - Ctrl/Cmd + 点击、右键长按拖拽框选：多选任务，弹出批量操作工具栏
       - 带动画的状态切换
       - 锁定节点显示🔒图标
       - 边上的箭头指示依赖方向
@@ -14,7 +15,7 @@
 -->
 
 <script setup>
-import { ref, onMounted, watch, nextTick } from "vue";
+import { ref, computed, onMounted, watch, nextTick } from "vue";
 import * as d3 from "d3";
 import {
     computeLayout,
@@ -673,6 +674,7 @@ onMounted(() => {
         .attr("class", "arrow-head");
 
     initZoom();
+    initBoxSelect();
     render();
 });
 
@@ -682,8 +684,10 @@ watch(
         () => props.nodes,
         () => props.edges,
         () => props.projectFilter,
+        () => props.tagFilter,
         () => props.selected,
         () => props.highlightSet,
+        () => props.multiSelected,
     ],
     async () => {
         await nextTick();
@@ -692,9 +696,9 @@ watch(
     { deep: true },
 );
 
-// 切换项目后自动重置视图
+// 切换项目/标签过滤后自动重置视图
 watch(
-    () => props.projectFilter,
+    [() => props.projectFilter, () => props.tagFilter],
     async () => {
         await nextTick();
         render();
@@ -813,6 +817,96 @@ defineExpose({ resetZoom });
 .reset-zoom-btn:hover {
     color: var(--fg);
     border-color: var(--fg-dark);
+}
+
+/* 标签筛选提示条：左上角悬浮，颜色跟随该标签自己的颜色 */
+.tag-filter-badge {
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 8px 5px 12px;
+    border-radius: 999px;
+    background: var(--bg-panel);
+    border: 1px solid;
+    font-size: 0.85rem;
+    font-weight: 600;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.tag-filter-clear {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    color: inherit;
+    opacity: 0.7;
+    transition:
+        opacity 0.15s,
+        background 0.15s;
+}
+.tag-filter-clear:hover {
+    opacity: 1;
+    background: var(--bg-select);
+}
+
+/* 批量操作工具栏：框选 / Ctrl+点击多选后，悬浮在画布顶部中间 */
+.multi-select-toolbar {
+    position: absolute;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+
+.ms-count {
+    font-size: 0.85rem;
+    color: var(--fg-dim);
+    margin-right: 4px;
+    white-space: nowrap;
+}
+
+.ms-btn {
+    padding: 5px 10px;
+    font-size: 0.85rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg);
+    color: var(--fg);
+    white-space: nowrap;
+    transition: all 0.15s;
+}
+
+.ms-btn:hover:not(:disabled) {
+    border-color: var(--blue);
+    color: var(--blue);
+}
+
+.ms-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.ms-btn-danger:hover:not(:disabled) {
+    border-color: var(--red);
+    color: var(--red);
+}
+
+.ms-btn-ghost {
+    background: transparent;
+    border-color: transparent;
+    color: var(--fg-dim);
 }
 
 /*

@@ -87,9 +87,43 @@ export async function modifyTask(uuid, fields) {
   return call("modify_task", { args: { uuid, ...fields } });
 }
 
+/**
+ * 改变一条依赖关系的终点（拖拽图谱里已有连线的终点）：
+ * newTargetUuid 传 null 表示拖到空白处，直接删除这条依赖。
+ */
+export async function reconnectDependency(sourceUuid, oldTargetUuid, newTargetUuid) {
+  return call("reconnect_dependency", {
+    args: {
+      source_uuid: sourceUuid,
+      old_target_uuid: oldTargetUuid,
+      new_target_uuid: newTargetUuid || null,
+    },
+  });
+}
+
+/** 重命名标签（用到旧名字的任务一起改名）；若新名字已存在则合并为同一个标签。 */
+export async function renameTag(oldTag, newTag) {
+  return call("rename_tag", { old_tag: oldTag, new_tag: newTag });
+}
+
+/** 设置标签颜色，color 传 null/空字符串表示清空（前端回退到默认颜色）。 */
+export async function setTagColor(name, color) {
+  return call("set_tag_color", { args: { name, color: color || null } });
+}
+
+/** 彻底删除一个标签，解除它和所有任务的关联。 */
+export async function deleteTag(name) {
+  return call("delete_tag", { name });
+}
+
 /** 将任务标记为完成。 */
 export async function doneTask(uuid) {
   return call("done_task", { uuid });
+}
+
+/** 批量将多个任务标记为完成（框选/Ctrl 多选后的批量操作）。 */
+export async function doneTasks(uuids) {
+  return call("done_tasks", { uuids });
 }
 
 /** 取消任务完成，恢复为待办。 */
@@ -102,9 +136,19 @@ export async function setTaskToday(uuid, marked) {
   return call("set_task_today", { uuid, marked });
 }
 
+/** 批量设置多个任务的"今日任务"标记（框选/Ctrl 多选后的批量操作）。 */
+export async function setTasksToday(uuids, marked) {
+  return call("set_tasks_today", { args: { uuids, marked } });
+}
+
 /** 删除任务。 */
 export async function deleteTask(uuid) {
   return call("delete_task", { uuid });
+}
+
+/** 批量删除多个任务（框选/Ctrl 多选后的批量操作）。 */
+export async function deleteTasks(uuids) {
+  return call("delete_tasks", { uuids });
 }
 
 /** 开始为指定任务计时（若有其他任务正在计时会自动先结束）。 */

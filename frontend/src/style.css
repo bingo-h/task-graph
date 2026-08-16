@@ -96,6 +96,70 @@ input:focus {
     filter: drop-shadow(0 0 3px rgba(26, 115, 232, 0.25));
 }
 
+/* 框选 / Ctrl+点击多选命中的节点：用洋红描边区分于单选的蓝色，避免和链路高亮混淆 */
+.node.multi-selected rect {
+    stroke: var(--magenta);
+    stroke-width: 2.5;
+    stroke-dasharray: 4 2;
+    filter: drop-shadow(0 0 6px rgba(130, 80, 223, 0.4));
+}
+
+/* 右键长按拖拽框选时的选框 */
+.select-box {
+    fill: rgba(130, 80, 223, 0.12);
+    stroke: var(--magenta);
+    stroke-width: 1;
+    stroke-dasharray: 4 2;
+    pointer-events: none;
+}
+
+/* 连接点：拖出去可以建立依赖关系，默认隐藏，鼠标靠近节点时才出现。
+   opacity 控制可见性，pointer-events 跟着一起切换，避免看不见时还能被点到 */
+.connect-dot {
+    fill: var(--bg-panel);
+    stroke: var(--fg-dark);
+    stroke-width: 1.5;
+    opacity: 0;
+    pointer-events: none;
+    cursor: crosshair;
+    transition:
+        opacity 0.15s,
+        stroke 0.15s,
+        fill 0.15s;
+}
+.node:hover .connect-dot {
+    opacity: 1;
+    pointer-events: all;
+}
+.connect-dot:hover {
+    fill: var(--blue);
+    stroke: var(--blue);
+}
+.connect-dot-left:hover {
+    fill: var(--orange);
+    stroke: var(--orange);
+}
+
+/* 拖拽连接线：右侧点拉出去用蓝色（这个节点将成为目标的前置任务），
+   左侧点拉出去用橙色（这个节点将成为目标的后置任务），和连接点的悬浮色呼应 */
+.connect-drag-line {
+    stroke: var(--blue);
+    stroke-width: 2;
+    stroke-dasharray: 5 3;
+    fill: none;
+    pointer-events: none;
+}
+.connect-drag-line-left {
+    stroke: var(--orange);
+}
+
+/* 拖拽连接过程中，鼠标当前悬停、松开即可建立连接的目标节点 */
+.node.connect-target rect {
+    stroke: var(--green);
+    stroke-width: 3;
+    filter: drop-shadow(0 0 8px rgba(26, 127, 55, 0.5));
+}
+
 /* 节点填充色 (按任务状态) */
 .rect-pending {
     fill: var(--bg-panel);

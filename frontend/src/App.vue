@@ -108,9 +108,13 @@ function onJumpToTask(uuid) {
 // 当前状态
 const selectedUUID = ref(null);
 const selectedProject = ref(null);
+const tagFilter = ref(null); // 任务看板按标签筛选，null 表示不筛选
 const hlMode = ref("ancestors"); // 高亮模式
 const loading = ref(false);
 const error = ref("");
+
+// 任务看板图谱里框选 / Ctrl+点击多选中的任务，用于批量操作工具栏
+const multiSelectedUUIDs = ref(new Set());
 
 // 派生状态
 const selectedTask = computed(
@@ -215,6 +219,18 @@ function applyUpdate(data) {
         !data.nodes.find((n) => n.uuid === selectedUUID.value)
     ) {
         selectedUUID.value = null;
+    }
+
+    // 清理多选集合里已经不存在的任务（比如被其他地方删除了）
+    if (multiSelectedUUIDs.value.size > 0) {
+        const stillValid = new Set(
+            [...multiSelectedUUIDs.value].filter((uuid) =>
+                data.nodes.some((n) => n.uuid === uuid),
+            ),
+        );
+        if (stillValid.size !== multiSelectedUUIDs.value.size) {
+            multiSelectedUUIDs.value = stillValid;
+        }
     }
 }
 

@@ -28,12 +28,29 @@ const props = defineProps({
     selected: { type: String, default: null }, // 选中任务的路径
     highlightSet: { type: Object, default: () => new Set() }, // Set(uuid)
     projectFilter: { type: String, default: null },
+    tagFilter: { type: String, default: null }, // 按标签名过滤，和 projectFilter 同时生效取交集
+    tags: { type: Object, default: () => ({}) }, // 标签名 -> { name, color, task_count }
+    multiSelected: { type: Object, default: () => new Set() }, // Set(uuid)，框选/Ctrl 多选的任务
+    hasActiveTimer: { type: Boolean, default: false }, // 是否已有任务（单个或一批）正在计时
 });
 
-const emit = defineEmits(["select"]);
+const emit = defineEmits([
+    "select",
+    "toggle-multi-select",
+    "box-select",
+    "clear-multi-select",
+    "bulk-done",
+    "bulk-delete",
+    "bulk-today",
+    "bulk-start-timer",
+    "clear-tag-filter",
+    "connect-nodes", // 拖拽节点边框的连接点建立依赖关系：{ fromUuid, fromSide, toUuid }
+    "reconnect-edge", // 拖拽已有连线的终点：{ sourceUuid, oldTargetUuid, newTargetUuid }
+]);
 
 const svgRef = ref(null);
 let zoomBehavior = null;
+let layoutNodes = []; // 最近一次布局计算出的节点（含 x/y），供框选命中检测使用
 
 // ----------------------------------------
 // 渲染函数
@@ -49,13 +66,17 @@ function render() {
         props.nodes,
         props.edges,
         props.projectFilter,
+        props.tagFilter,
     );
 
     if (nodes.length === 0) {
         // 如果过滤后发现没有任务，则清空画布
         svg.select("g.canvas").selectAll("*").remove();
+        layoutNodes = [];
         return;
     }
+
+    layoutNodes = nodes;
 
     // 计算画布尺寸
     const maxX = d3.max(nodes, (n) => n.x + NODE_WIDTH) + 80;
@@ -63,32 +84,49 @@ function render() {
 
     const canvas = svg.select("g.canvas");
 
-    // 渲染边
+    // 渲染边：每条边是一个 <g class="edge-wrap">，包含连线本身和终点的拖拽手柄
+    // （手柄再拉出去，拖到空白处删除依赖、拖到另一个节点则改指向它）
     const uuidToPos = Object.fromEntries(nodes.map((n) => [n.uuid, n]));
     const edgeSel = canvas
-        .selectAll("path.edge")
+        .selectAll("g.edge-wrap")
         .data(edges, (e) => `${e.source}-${e.target}`);
 
-    edgeSel
+    const edgeEnter = edgeSel
         .enter()
+        .append("g")
+        .attr("class", "edge-wrap")
+        .style("opacity", 0);
+
+    edgeEnter
         .append("path")
         .attr("class", "edge")
         .attr("marker-end", "url(#arrow)")
         .attr("fill", "none")
-        .attr("d", (e) => edgePath(e, uuidToPos))
-        .style("opacity", 1);
+        .attr("d", (e) => edgePath(e, uuidToPos));
 
-    edgeSel
+    const handleEnter = edgeEnter
+        .append("g")
+        .attr("class", "edge-handle")
+        .on("mousedown", (event, e) => startEdgeEndDrag(event, e));
+    handleEnter.append("circle").attr("class", "edge-handle-hit").attr("r", 10);
+    handleEnter.append("circle").attr("class", "edge-handle-dot").attr("r", 4);
+
+    edgeEnter.style("opacity", 1);
+
+    const edgeUpdate = edgeSel.merge(edgeEnter);
+
+    // 链路高亮时只淡化节点，连线本身保持原样，不跟着透明化
+    edgeUpdate
+        .select("path.edge")
         .transition()
         .duration(300)
         .attr("d", (e) => edgePath(e, uuidToPos))
-        .attr("class", (e) => {
-            const dimmed =
-                props.highlightSet.size > 0 &&
-                !props.highlightSet.has(e.source) &&
-                !props.highlightSet.has(e.target);
-            return `edge ${dimmed ? "dimmed" : ""}`;
-        });
+        .attr("class", "edge");
+
+    edgeUpdate.select(".edge-handle").attr("transform", (e) => {
+        const p = edgeEndpoint(e, uuidToPos);
+        return p ? `translate(${p.x},${p.y})` : null;
+    });
 
     edgeSel.exit().transition().duration(200).style("opacity", 0).remove();
 
@@ -103,9 +141,12 @@ function render() {
         .attr("transform", (n) => `translate(${n.x},${n.y})`)
         .style("opacity", 0)
         .style("cursor", "pointer")
-        .on("click", (_, n) => {
-            console.log("node clicked:", n.uuid); // 加这行
-            emit("select", n.uuid === props.selected ? null : n.uuid);
+        .on("click", (event, n) => {
+            if (event.ctrlKey || event.metaKey) {
+                emit("toggle-multi-select", n.uuid);
+            } else {
+                emit("select", n.uuid === props.selected ? null : n.uuid);
+            }
         });
 
     nodeEnter
@@ -144,6 +185,26 @@ function render() {
         .attr("x", NODE_WIDTH - 20)
         .attr("y", 42);
 
+    // 连接点：鼠标靠近节点时才会显示（CSS 控制），按住拖到另一个节点上可以建立依赖关系。
+    // 右侧点拖出去：这个任务是目标任务的前置任务；左侧点拖出去：这个任务是目标任务的后置任务
+    nodeEnter
+        .append("circle")
+        .attr("class", "connect-dot connect-dot-left")
+        .attr("cx", 0)
+        .attr("cy", NODE_HEIGHT / 2)
+        .attr("r", 6)
+        .on("mousedown", (event, n) => startConnectDrag(event, n, "left"))
+        .on("click", (event) => event.stopPropagation());
+
+    nodeEnter
+        .append("circle")
+        .attr("class", "connect-dot connect-dot-right")
+        .attr("cx", NODE_WIDTH)
+        .attr("cy", NODE_HEIGHT / 2)
+        .attr("r", 6)
+        .on("mousedown", (event, n) => startConnectDrag(event, n, "right"))
+        .on("click", (event) => event.stopPropagation());
+
     nodeEnter.style("opacity", 1);
 
     // 更新节点位置和样式
@@ -164,8 +225,10 @@ function render() {
         .duration(300)
         .attr("class", (n) => rectClass(n));
 
-    // 更新
-    nodeUpdate.select(".node-desc").text((n) => truncate(n.description, 15));
+    // 更新：按实际渲染宽度截断，避免中文等宽字体下按字符数截断仍超出节点边框
+    nodeUpdate.select(".node-desc").each(function (n) {
+        truncateToWidth(d3.select(this), n.description, NODE_WIDTH - 40);
+    });
 
     // 更新副标题
     nodeUpdate.select(".node-sub").text((n) => subText(n));
@@ -213,6 +276,26 @@ function edgePath(edge, uuidToPos) {
 }
 
 /**
+ * 算出一条边实际画出来的终点坐标，供拖拽手柄定位。
+ * 一个节点有多条入边时，dagre 不会把它们都挤到同一个点，而是在左边框上错开分布，
+ * 所以手柄不能简单固定在节点左边框正中间，得跟 edgePath 用同一份 points 数据才能对上。
+ * curveBasis 这种曲线生成器保证画出来的线一定经过第一个/最后一个数据点，因此直接取
+ * points 的最后一个点即可，和视觉上箭头落点完全一致。
+ * @param {Object} edge
+ * @param {Object} uuidToPos
+ * @returns {{x:number, y:number}|null}
+ */
+function edgeEndpoint(edge, uuidToPos) {
+    if (edge.points && edge.points.length > 0) {
+        const last = edge.points[edge.points.length - 1];
+        return { x: last.x, y: last.y };
+    }
+
+    const t = uuidToPos[edge.target];
+    return t ? { x: t.x, y: t.y + NODE_HEIGHT / 2 } : null;
+}
+
+/**
  * 节点容器 CSS 动态生成
  * @param {Object} n - 一个任务节点数据
  * @returns {Array} 返回一系列 CSS 设置
@@ -230,6 +313,7 @@ function nodeClass(n) {
         n.uuid === props.selected ? "selected" : "", // 如果当前节点被选中了，加上 .selected
         highlighted ? "highlighted" : "", // 链路上的相关节点，加上.highlighted
         dimmed ? "dimmed" : "", // 如果不相关，加上.dimmed让它变透明
+        props.multiSelected.has(n.uuid) ? "multi-selected" : "", // 框选/Ctrl 多选命中
     ]
         .filter(Boolean)
         .join(" ");
@@ -265,13 +349,250 @@ function subText(n) {
 }
 
 /**
- * 截断超长文字并加省略号
+ * 按实际渲染宽度截断并加省略号，写入 SVG text 选区
+ * 不能按字符数截断：中文等宽字符比英文宽很多，固定字符数在字符较宽时仍会超出节点边框
+ * @param {import("d3").Selection} selection 单个 SVG text 元素的 d3 选区
  * @param {string} text
- * @param {number} maxLen
- * @returns {string} 返回截断后的字符串
+ * @param {number} maxWidth 允许的最大渲染宽度（像素）
  */
-function truncate(text, maxLen) {
-    return text.length > maxLen ? text.slice(0, maxLen) + "..." : text;
+function truncateToWidth(selection, text, maxWidth) {
+    selection.text(text);
+    const el = selection.node();
+    if (!el || el.getComputedTextLength() <= maxWidth) return;
+
+    let shown = text;
+    while (shown.length > 1 && el.getComputedTextLength() > maxWidth) {
+        shown = shown.slice(0, -1);
+        selection.text(shown + "…");
+    }
+}
+
+/**
+ * 计算矩形框（屏幕坐标）与当前布局中各节点的命中结果
+ * @param {number} x - 框选矩形左上角 x（相对 svg 左上角）
+ * @param {number} y - 框选矩形左上角 y
+ * @param {number} w - 框选矩形宽度
+ * @param {number} h - 框选矩形高度
+ * @returns {string[]} 与框选矩形有重叠的节点 uuid 列表
+ */
+function hitTestBox(x, y, w, h) {
+    const transform = d3.zoomTransform(svgRef.value);
+    const x2 = x + w;
+    const y2 = y + h;
+
+    return layoutNodes
+        .filter((n) => {
+            // 节点世界坐标换算成当前缩放/平移下的屏幕坐标，再判断矩形是否重叠
+            const sx1 = transform.applyX(n.x);
+            const sy1 = transform.applyY(n.y);
+            const sx2 = transform.applyX(n.x + NODE_WIDTH);
+            const sy2 = transform.applyY(n.y + NODE_HEIGHT);
+            return sx1 < x2 && sx2 > x && sy1 < y2 && sy2 > y;
+        })
+        .map((n) => n.uuid);
+}
+
+/**
+ * 初始化右键长按拖拽框选：按住右键拖出一个矩形，松开后选中矩形范围内的所有任务节点。
+ * 用右键而非左键，是因为左键拖拽已经用于平移画布（d3-zoom）。
+ */
+function initBoxSelect() {
+    const svg = d3.select(svgRef.value);
+    const svgEl = svgRef.value;
+
+    // 拖拽结束时松开的是右键，阻止浏览器/系统弹出右键菜单
+    svg.on("contextmenu", (event) => event.preventDefault());
+
+    svg.on("mousedown", (event) => {
+        if (event.button !== 2) return; // 只响应右键
+        event.preventDefault();
+
+        const bounds = svgEl.getBoundingClientRect();
+        const startX = event.clientX - bounds.left;
+        const startY = event.clientY - bounds.top;
+        let moved = false;
+        let box = { x: startX, y: startY, w: 0, h: 0 };
+
+        const boxEl = svg
+            .append("rect")
+            .attr("class", "select-box")
+            .attr("x", startX)
+            .attr("y", startY);
+
+        function onMove(e) {
+            const curX = e.clientX - bounds.left;
+            const curY = e.clientY - bounds.top;
+            if (Math.abs(curX - startX) > 2 || Math.abs(curY - startY) > 2) {
+                moved = true;
+            }
+
+            box = {
+                x: Math.min(startX, curX),
+                y: Math.min(startY, curY),
+                w: Math.abs(curX - startX),
+                h: Math.abs(curY - startY),
+            };
+            boxEl
+                .attr("x", box.x)
+                .attr("y", box.y)
+                .attr("width", box.w)
+                .attr("height", box.h);
+
+            // 实时预览命中的节点，松开后再统一通知父组件
+            const hits = new Set(hitTestBox(box.x, box.y, box.w, box.h));
+            svg.selectAll("g.node").classed("multi-selected", (n) =>
+                hits.has(n.uuid),
+            );
+        }
+
+        function onUp() {
+            window.removeEventListener("mousemove", onMove);
+            window.removeEventListener("mouseup", onUp);
+            boxEl.remove();
+
+            if (!moved) {
+                // 未拖动，视为一次单纯的右键点击：清空多选
+                emit("clear-multi-select");
+                return;
+            }
+
+            emit("box-select", hitTestBox(box.x, box.y, box.w, box.h));
+        }
+
+        window.addEventListener("mousemove", onMove);
+        window.addEventListener("mouseup", onUp);
+    });
+}
+
+/** 按 uuid 在最近一次布局结果里查找节点（含 x/y），找不到返回 null */
+function nodePosByUuid(uuid) {
+    return layoutNodes.find((n) => n.uuid === uuid) || null;
+}
+
+/**
+ * 从固定原点拖出一条临时连接线，实时跟踪鼠标悬停的目标节点；
+ * 松开时回调 onDrop(hoveredUuid)（没有指向任何节点时为 null），由调用方决定接下来做什么。
+ * 供"节点连接点建立依赖"和"已有连线终点改指向/删除"两个交互复用。
+ *
+ * @param {MouseEvent} event
+ * @param {{x:number, y:number}} origin - 连线固定起点的世界坐标
+ * @param {string} lineClass - 临时连线的额外 CSS 类（区分方向配色）
+ * @param {string} excludeUuid - 命中检测时要排除的节点（一般是连线自己的起点任务）
+ * @param {(hoveredUuid: string|null) => void} onDrop
+ */
+function dragConnectionLine(event, origin, lineClass, excludeUuid, onDrop) {
+    event.stopPropagation(); // 阻止触发 d3-zoom 的平移，以及节点自身的点击选中
+    event.preventDefault();
+
+    const svg = d3.select(svgRef.value);
+    const svgEl = svgRef.value;
+    const bounds = svgEl.getBoundingClientRect();
+    const canvas = svg.select("g.canvas");
+
+    // 挂在 g.canvas 下面，直接用世界坐标画线，会自动跟着当前的平移/缩放走
+    const lineEl = canvas
+        .append("path")
+        .attr("class", `connect-drag-line ${lineClass}`)
+        .attr("marker-end", "url(#arrow)")
+        .attr("d", `M${origin.x},${origin.y} L${origin.x},${origin.y}`);
+
+    let hoveredUuid = null;
+
+    function pointToWorld(clientX, clientY) {
+        const transform = d3.zoomTransform(svgEl);
+        return transform.invert([clientX - bounds.left, clientY - bounds.top]);
+    }
+
+    function onMove(e) {
+        const [wx, wy] = pointToWorld(e.clientX, e.clientY);
+        lineEl.attr("d", `M${origin.x},${origin.y} L${wx},${wy}`);
+
+        const el = document.elementFromPoint(e.clientX, e.clientY);
+        const targetGroup = el?.closest("g.node");
+        const targetData = targetGroup ? d3.select(targetGroup).datum() : null;
+        hoveredUuid =
+            targetData && targetData.uuid !== excludeUuid ? targetData.uuid : null;
+
+        svg.selectAll("g.node").classed(
+            "connect-target",
+            (n) => n.uuid === hoveredUuid,
+        );
+    }
+
+    function onUp() {
+        window.removeEventListener("mousemove", onMove);
+        window.removeEventListener("mouseup", onUp);
+        lineEl.remove();
+        svg.selectAll("g.node").classed("connect-target", false);
+        onDrop(hoveredUuid);
+    }
+
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+}
+
+/**
+ * 拖拽节点边框上的连接点，建立任务依赖关系。
+ * 右侧点拖出去：这个节点是目标节点的前置任务；左侧点拖出去：这个节点是目标节点的后置任务
+ * （具体转换成 depends 怎么写，由父组件根据 fromSide 解析，这里只负责交互和命中检测）
+ *
+ * @param {MouseEvent} event
+ * @param {Object} node - 起点任务（带 x/y 的布局节点）
+ * @param {"left"|"right"} side
+ */
+function startConnectDrag(event, node, side) {
+    const origin = {
+        x: side === "right" ? node.x + NODE_WIDTH : node.x,
+        y: node.y + NODE_HEIGHT / 2,
+    };
+
+    dragConnectionLine(
+        event,
+        origin,
+        `connect-drag-line-${side}`,
+        node.uuid,
+        (hoveredUuid) => {
+            if (!hoveredUuid) return;
+            emit("connect-nodes", {
+                fromUuid: node.uuid,
+                fromSide: side,
+                toUuid: hoveredUuid,
+            });
+        },
+    );
+}
+
+/**
+ * 拖拽一条已有依赖连线的终点：连线起点（前置任务）固定不动，
+ * 拖到空白处删除这条依赖，拖到另一个节点则把依赖关系改指向它。
+ *
+ * @param {MouseEvent} event
+ * @param {{source:string, target:string}} edge - 被拖拽的这条边
+ */
+function startEdgeEndDrag(event, edge) {
+    const sourceNode = nodePosByUuid(edge.source);
+    if (!sourceNode) return;
+
+    const origin = {
+        x: sourceNode.x + NODE_WIDTH,
+        y: sourceNode.y + NODE_HEIGHT / 2,
+    };
+
+    dragConnectionLine(
+        event,
+        origin,
+        "connect-drag-line-right",
+        edge.source,
+        (hoveredUuid) => {
+            if (hoveredUuid === edge.target) return; // 松回原处，没有变化
+
+            emit("reconnect-edge", {
+                sourceUuid: edge.source,
+                oldTargetUuid: edge.target,
+                newTargetUuid: hoveredUuid, // null 表示拖到空白处，删除这条依赖
+            });
+        },
+    );
 }
 
 /**
@@ -381,6 +702,11 @@ watch(
     },
 );
 
+// 标签筛选提示条的颜色：用该标签自己的颜色，没设置就用默认洋红
+const tagFilterColor = computed(
+    () => props.tags[props.tagFilter]?.color || "#8250df",
+);
+
 defineExpose({ resetZoom });
 </script>
 
@@ -395,6 +721,60 @@ defineExpose({ resetZoom });
         <button class="reset-zoom-btn" title="重置视图按钮" @click="resetZoom">
             ⊙
         </button>
+
+        <!-- 标签筛选提示：点击某个标签跳转过来后显示，点 ✕ 清除筛选 -->
+        <div
+            v-if="tagFilter"
+            class="tag-filter-badge"
+            :style="{
+                borderColor: tagFilterColor,
+                color: tagFilterColor,
+            }"
+        >
+            <span>🏷 {{ tagFilter }}</span>
+            <button
+                class="tag-filter-clear"
+                title="清除标签筛选"
+                @click="emit('clear-tag-filter')"
+            >
+                ✕
+            </button>
+        </div>
+
+        <!-- 批量操作工具栏：框选 / Ctrl+点击多选后出现 -->
+        <div v-if="multiSelected.size > 0" class="multi-select-toolbar">
+            <span class="ms-count">已选中 {{ multiSelected.size }} 个任务</span>
+
+            <button
+                class="ms-btn"
+                @click="emit('bulk-done', [...multiSelected])"
+            >
+                ✔ 完成
+            </button>
+            <button
+                class="ms-btn"
+                @click="emit('bulk-today', [...multiSelected])"
+            >
+                ☀ 设为今日任务
+            </button>
+            <button
+                class="ms-btn"
+                :disabled="hasActiveTimer"
+                :title="hasActiveTimer ? '已有任务在计时，请先停止' : ''"
+                @click="emit('bulk-start-timer', [...multiSelected])"
+            >
+                ▶ 开始计时
+            </button>
+            <button
+                class="ms-btn ms-btn-danger"
+                @click="emit('bulk-delete', [...multiSelected])"
+            >
+                🗑 删除
+            </button>
+            <button class="ms-btn ms-btn-ghost" @click="emit('clear-multi-select')">
+                ✕ 取消选择
+            </button>
+        </div>
     </div>
 </template>
 

@@ -63,7 +63,7 @@
           frontendDir = "frontend";
 
           # 第一次先用 fakeHash 跑,拿到真实哈希后替换
-          npmDepsHash = "sha256-VFkKfM0s50kjgkjCXtCuUEtQiAz8/tDpiTPSm0uNbIY=";
+          npmDepsHash = "sha256-D4K6k6yDJn7S/AX1AFi1rOLCJ9lHNt/BuJeU3QasiDw=";
           # npmDepsHash = "sha256-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx=";
         };
     };

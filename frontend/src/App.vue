@@ -14,10 +14,11 @@ import ProjectTree from "./components/ProjectTree.vue";
 import TaskGraph from "./components/TaskGraph.vue";
 import TaskDetail from "./components/TaskDetail.vue";
 import SettingsModal from "./components/SettingsModal.vue";
+import TagManagerModal from "./components/TagManagerModal.vue";
 import Dashboard from "./components/Dashboard.vue";
 import ChartsPage from "./components/ChartsPage.vue";
 import TimeEntryNoteModal from "./components/TimeEntryNoteModal.vue";
-import { computeHighlight } from "./composables/useLayout";
+import { computeHighlight, wouldCreateCycle } from "./composables/useLayout";
 import {
     formatDuration,
     setDurationFormat,
@@ -36,12 +37,20 @@ import {
     saveSettings,
     addTask,
     modifyTask,
+    reconnectDependency,
+    renameTag,
+    setTagColor,
+    deleteTag,
     doneTask,
+    doneTasks,
     undoneTask,
     setTaskToday,
+    setTasksToday,
     deleteTask,
+    deleteTasks,
     startTimer,
     stopTimer,
+    startGroupTimer,
     saveTimeEntryNote,
     deleteTimeEntry,
 } from "./composables/useApi";
@@ -66,6 +75,8 @@ const plannedProjectRoots = ref([]);
 const activeProjectRoots = ref([]);
 const archivedProjectRoots = ref([]);
 const trashProjectRoots = ref([]);
+const tags = ref({}); // 标签名 -> { name, color, task_count }
+const showTagManager = ref(false);
 
 // 应用设置（保存在独立的 settings.json 中，方便导出/同步）
 const settings = ref({
@@ -162,6 +173,7 @@ async function load() {
         activeProjectRoots.value = data.active_project_roots;
         archivedProjectRoots.value = data.archived_project_roots;
         trashProjectRoots.value = data.trash_project_roots;
+        tags.value = data.tags;
     } catch (e) {
         error.value = e.message;
     } finally {
@@ -191,6 +203,12 @@ function applyUpdate(data) {
     activeProjectRoots.value = data.active_project_roots;
     archivedProjectRoots.value = data.archived_project_roots;
     trashProjectRoots.value = data.trash_project_roots;
+    tags.value = data.tags;
+
+    // 筛选中的标签被删掉了（比如刚在标签管理面板里删除），清掉筛选
+    if (tagFilter.value && !data.tags[tagFilter.value]) {
+        tagFilter.value = null;
+    }
 
     if (
         selectedUUID.value &&
@@ -527,6 +545,186 @@ async function onStopTimer() {
     }
 }
 
+// ----------------------------------------
+// 任务看板多选：框选 / Ctrl+点击，批量操作
+// ----------------------------------------
+/**
+ * 单击任务节点（无 Ctrl），进入普通单选模式，退出多选
+ *
+ * @description 由 TaskGraph 的 @select 事件触发
+ * @param {string|null} uuid - 任务 UUID，再次点击同一节点时为 null
+ */
+function onGraphSelect(uuid) {
+    multiSelectedUUIDs.value = new Set();
+    selectedUUID.value = uuid;
+}
+
+/**
+ * Ctrl/Cmd + 点击任务节点，切换其多选状态
+ *
+ * @description 由 TaskGraph 的 @toggle-multi-select 事件触发
+ * @param {string} uuid - 任务 UUID
+ */
+function onToggleMultiSelect(uuid) {
+    selectedUUID.value = null; // 退出单选链路高亮，避免和多选的视觉提示混在一起
+
+    const next = new Set(multiSelectedUUIDs.value);
+    if (next.has(uuid)) next.delete(uuid);
+    else next.add(uuid);
+    multiSelectedUUIDs.value = next;
+}
+
+/**
+ * 右键长按拖拽框选结束，命中的任务替换当前多选集合
+ *
+ * @description 由 TaskGraph 的 @box-select 事件触发
+ * @param {string[]} uuids - 框选命中的任务 UUID 列表
+ */
+function onBoxSelect(uuids) {
+    selectedUUID.value = null;
+    multiSelectedUUIDs.value = new Set(uuids);
+}
+
+/** 清空多选（工具栏"取消选择"按钮 / 空框选） */
+function onClearMultiSelect() {
+    multiSelectedUUIDs.value = new Set();
+}
+
+/**
+ * 批量标记完成
+ *
+ * @description 由 TaskGraph 的 @bulk-done 事件触发
+ * @param {string[]} uuids - 选中的任务 UUID 列表
+ */
+async function onBulkDone(uuids) {
+    try {
+        applyUpdate(await doneTasks(uuids));
+        multiSelectedUUIDs.value = new Set();
+    } catch (e) {
+        error.value = e.message;
+    }
+}
+
+/**
+ * 批量删除，需用户二次确认
+ *
+ * @description 由 TaskGraph 的 @bulk-delete 事件触发
+ * @param {string[]} uuids - 选中的任务 UUID 列表
+ */
+async function onBulkDelete(uuids) {
+    if (!confirm(`确认删除选中的 ${uuids.length} 个任务？`)) return;
+
+    try {
+        applyUpdate(await deleteTasks(uuids));
+        multiSelectedUUIDs.value = new Set();
+    } catch (e) {
+        error.value = e.message;
+    }
+}
+
+/**
+ * 批量设为今日任务
+ *
+ * @description 由 TaskGraph 的 @bulk-today 事件触发
+ * @param {string[]} uuids - 选中的任务 UUID 列表
+ */
+async function onBulkToday(uuids) {
+    try {
+        applyUpdate(await setTasksToday(uuids, true));
+        multiSelectedUUIDs.value = new Set();
+    } catch (e) {
+        error.value = e.message;
+    }
+}
+
+/**
+ * 批量开始计时：选中的这批任务共享同一段开始时间，各自单独记一条计时记录，
+ * 停止时（标题栏悬浮秒表的停止按钮）只结束这段计时，不会连带标记任务完成
+ *
+ * @description 由 TaskGraph 的 @bulk-start-timer 事件触发
+ * @param {string[]} uuids - 选中的任务 UUID 列表
+ */
+async function onBulkStartTimer(uuids) {
+    try {
+        applyUpdate(await startGroupTimer(uuids));
+    } catch (e) {
+        error.value = e.message;
+    }
+}
+
+/**
+ * 拖拽节点边框的连接点建立依赖关系：右侧点拖出去，起点是终点的前置任务；
+ * 左侧点拖出去，起点是终点的后置任务。换算成 depends 就是"后置任务依赖前置任务"，
+ * 写到后置任务的 depends 字段里
+ *
+ * @description 由 TaskGraph 的 @connect-nodes 事件触发
+ * @param {{ fromUuid: string, fromSide: "left"|"right", toUuid: string }} payload
+ */
+async function onConnectNodes({ fromUuid, fromSide, toUuid }) {
+    const precursorUuid = fromSide === "right" ? fromUuid : toUuid;
+    const successorUuid = fromSide === "right" ? toUuid : fromUuid;
+
+    const successor = nodes.value.find((n) => n.uuid === successorUuid);
+    if (!successor) return;
+
+    if (successor.depends.includes(precursorUuid)) return; // 已经连过了
+
+    if (wouldCreateCycle(edges.value, precursorUuid, successorUuid)) {
+        error.value = "不能这样连：会在依赖关系里形成循环";
+        return;
+    }
+
+    try {
+        applyUpdate(
+            await modifyTask(successorUuid, {
+                depends: [...successor.depends, precursorUuid],
+            }),
+        );
+    } catch (e) {
+        error.value = e.message;
+    }
+}
+
+/**
+ * 拖拽已有依赖连线的终点：拖到空白处删除这条依赖，拖到另一个任务则改指向它
+ *
+ * @description 由 TaskGraph 的 @reconnect-edge 事件触发
+ * @param {{ sourceUuid: string, oldTargetUuid: string, newTargetUuid: string|null }} payload
+ */
+async function onReconnectEdge({ sourceUuid, oldTargetUuid, newTargetUuid }) {
+    if (newTargetUuid) {
+        if (newTargetUuid === sourceUuid) {
+            error.value = "不能把依赖指向自己";
+            return;
+        }
+
+        const newTarget = nodes.value.find((n) => n.uuid === newTargetUuid);
+        if (!newTarget) return;
+
+        if (newTarget.depends.includes(sourceUuid)) {
+            error.value = "这个任务已经依赖它了";
+            return;
+        }
+
+        // 用去掉这条旧边之后的边集合做环检测，避免把"即将被删除的旧边"也算进去误判
+        const edgesWithoutOld = edges.value.filter(
+            (e) => !(e.source === sourceUuid && e.target === oldTargetUuid),
+        );
+        if (wouldCreateCycle(edgesWithoutOld, sourceUuid, newTargetUuid)) {
+            error.value = "不能这样连：会在依赖关系里形成循环";
+            return;
+        }
+    }
+
+    try {
+        applyUpdate(
+            await reconnectDependency(sourceUuid, oldTargetUuid, newTargetUuid),
+        );
+    } catch (e) {
+        error.value = e.message;
+    }
+}
+
 /**
  * 点击"计时记录"里已有的总结标题，打开弹窗查看/修改
  *
@@ -711,6 +909,8 @@ onMounted(() => {
         <Dashboard
             v-show="currentPage === 'home'"
             :nodes="nodes"
+            :projects="projects"
+            :visible="currentPage === 'home'"
             @jump-to-task="onJumpToTask"
         />
 
@@ -718,6 +918,7 @@ onMounted(() => {
         <ChartsPage
             v-show="currentPage === 'charts'"
             :nodes="nodes"
+            :visible="currentPage === 'charts'"
             @jump-to-task="onJumpToTask"
         />
 
@@ -746,18 +947,28 @@ onMounted(() => {
                 :selected="selectedUUID"
                 :highlight-set="highlightSet"
                 :project-filter="selectedProject"
-                @select="
-                    (uuid) => {
-                        console.log('app received:', uuid);
-                        selectedUUID = uuid;
-                    }
-                "
+                :tag-filter="tagFilter"
+                :tags="tags"
+                :multi-selected="multiSelectedUUIDs"
+                :has-active-timer="activeTimingNodes.length > 0"
+                @select="onGraphSelect"
+                @toggle-multi-select="onToggleMultiSelect"
+                @box-select="onBoxSelect"
+                @clear-multi-select="onClearMultiSelect"
+                @bulk-done="onBulkDone"
+                @bulk-delete="onBulkDelete"
+                @bulk-today="onBulkToday"
+                @bulk-start-timer="onBulkStartTimer"
+                @clear-tag-filter="tagFilter = null"
+                @connect-nodes="onConnectNodes"
+                @reconnect-edge="onReconnectEdge"
             />
 
             <TaskDetail
                 ref="taskDetailRef"
                 :task="selectedTask"
                 :all-tasks="nodes"
+                :tags="tags"
                 @done="onDone"
                 @undone="onUndone"
                 @start-timer="onStartTimer"
@@ -779,8 +990,10 @@ onMounted(() => {
             :projects="projects"
             :default-project="selectedProject"
             :all-tasks="nodes"
+            :tag-colors="tags"
             @close="showModal = false"
             @submit="onModalSubmit"
+            @rename-tag="onRenameTag"
         />
 
         <!-- 设置弹出框 -->
@@ -829,6 +1042,7 @@ onMounted(() => {
 }
 
 .topbar {
+    position: relative;
     display: flex;
     align-items: center;
     gap: 12px;
@@ -872,8 +1086,12 @@ onMounted(() => {
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
 }
 
-/* 标题栏悬浮秒表：当前活跃计时任务 */
+/* 标题栏悬浮秒表：当前活跃计时任务，悬浮在标题栏正中间，不占据两侧按钮的排列空间 */
 .active-timer-pill {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
     display: flex;
     align-items: center;
     gap: 8px;
@@ -882,6 +1100,44 @@ onMounted(() => {
     background: rgba(158, 206, 106, 0.12);
     border: 1px solid rgba(158, 206, 106, 0.35);
     max-width: 280px;
+}
+
+/* 批量计时鼠标悬浮时展开的任务列表 */
+.active-timer-tasklist {
+    display: none;
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    min-width: 220px;
+    max-width: 320px;
+    max-height: 240px;
+    overflow-y: auto;
+    background: var(--bg-popup);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+    padding: 6px;
+    z-index: 20;
+}
+
+.active-timer-pill-group:hover .active-timer-tasklist {
+    display: block;
+}
+
+.active-timer-tasklist-item {
+    padding: 5px 8px;
+    font-size: 0.85rem;
+    color: var(--fg);
+    border-radius: 5px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: pointer;
+}
+
+.active-timer-tasklist-item:hover {
+    background: var(--bg-select);
+    color: var(--blue);
 }
 
 .active-timer-dot {
@@ -935,6 +1191,8 @@ onMounted(() => {
 }
 
 .btn-add-toggle {
+    /* 把自己和右边的刷新/设置按钮一起推到标题栏最右侧，紧挨窗口控制按钮左边 */
+    margin-left: auto;
     padding: 4px 14px;
     border-radius: 6px;
     background: var(--blue);
@@ -972,7 +1230,6 @@ onMounted(() => {
     display: flex;
     align-items: center;
     gap: 8px;
-    margin-left: auto;
     padding-right: 6px;
 }
 

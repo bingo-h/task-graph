@@ -8,13 +8,16 @@
 -->
 
 <script setup>
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, onUnmounted, watch } from "vue";
 import { listAllTimeEntries } from "../composables/useApi";
 import { formatDuration } from "../composables/useDuration";
 
 const props = defineProps({
     // 全部任务节点，用于取任务描述/项目、以及任务完成趋势统计
     nodes: { type: Array, default: () => [] },
+    // 当前是否是正在展示的页面（父组件用 v-show 切换，不会重新挂载组件），
+    // 只在挂载时拉取一次计时记录的话，长时间挂在后台会跨天而不自动刷新
+    visible: { type: Boolean, default: true },
 });
 
 const emit = defineEmits(["jump-to-task"]);

@@ -25,6 +25,8 @@ pub struct GraphResponse {
     pub active_project_roots: Vec<String>,
     pub archived_project_roots: Vec<String>,
     pub trash_project_roots: Vec<String>,
+    /// 标签名 -> 颜色/使用计数，任务节点里 tags 仍然只是名字数组
+    pub tags: HashMap<String, db::tag::TagInfo>,
 }
 
 /// 依赖关系边：source 是 target 的前置任务
@@ -167,6 +169,11 @@ fn build_graph() -> anyhow::Result<GraphResponse> {
         trash_project_roots,
     ) = db::project::build(&tasks, &project_records);
 
+    let tags = db::tag::list_all(&conn)?
+        .into_iter()
+        .map(|t| (t.name.clone(), t))
+        .collect();
+
     Ok(GraphResponse {
         nodes: tasks,
         edges,
@@ -175,12 +182,13 @@ fn build_graph() -> anyhow::Result<GraphResponse> {
         active_project_roots,
         archived_project_roots,
         trash_project_roots,
+        tags,
     })
 }
 
 /// 计算并填充派生字段：is_overdue / is_due_today / is_today / blocking / is_locked / total_seconds / is_timing / active_since
 fn apply_derived_fields(conn: &rusqlite::Connection, tasks: &mut Vec<Task>) -> anyhow::Result<()> {
-    let (totals, active_task, active_since) = db::time_entry::totals_by_task(conn)?;
+    let (totals, active) = db::time_entry::totals_by_task(conn)?;
     let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
 
     for task in tasks.iter_mut() {
@@ -188,12 +196,8 @@ fn apply_derived_fields(conn: &rusqlite::Connection, tasks: &mut Vec<Task>) -> a
         task.is_due_today = task.compute_due_today();
         task.is_today = task.today_marked_date.as_deref() == Some(today.as_str());
         task.total_seconds = totals.get(&task.uuid).copied().unwrap_or(0);
-        task.is_timing = active_task.as_deref() == Some(task.uuid.as_str());
-        task.active_since = if task.is_timing {
-            active_since.clone()
-        } else {
-            None
-        };
+        task.active_since = active.get(&task.uuid).cloned();
+        task.is_timing = task.active_since.is_some();
     }
 
     let uuid_to_idx: HashMap<String, usize> = tasks

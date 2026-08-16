@@ -214,11 +214,31 @@ input:focus {
         stroke 0.25s;
 }
 
-.edge.dimmed {
-    opacity: 0.1;
-}
 
 /* 箭头 */
 .arrow-head {
     fill: var(--fg-dark);
+}
+
+/* 已有连线终点的拖拽手柄：大的透明命中区域（好抓）+ 小的可见圆点（悬浮命中区域才显示）。
+   拖到空白处删除这条依赖，拖到另一个节点则改指向它，和 .connect-dot 是同一套交互语言 */
+.edge-handle-hit {
+    fill: transparent;
+    cursor: grab;
+}
+.edge-handle-dot {
+    fill: var(--bg-panel);
+    stroke: var(--fg-dark);
+    stroke-width: 1.5;
+    opacity: 0;
+    pointer-events: none;
+    transition:
+        opacity 0.15s,
+        stroke 0.15s,
+        fill 0.15s;
+}
+.edge-handle:hover .edge-handle-dot {
+    opacity: 1;
+    fill: var(--blue);
+    stroke: var(--blue);
 }

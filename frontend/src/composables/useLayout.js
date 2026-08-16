@@ -23,13 +23,16 @@ const NODE_SEP = 24;
  * @param {Array}  nodes          - 任务节点列表
  * @param {Array}  edges          - 依赖关系边列表 [{source, target}]
  * @param {string|null} projectFilter - 过滤项目路径，null 表示显示全部
+ * @param {string|null} tagFilter - 过滤标签名，null 表示不按标签过滤；和 projectFilter 同时生效（取交集）
  * @returns {{ nodes: Array, edges: Array }}
  *   nodes 每项附加 { x, y } 坐标（节点中心点）
  *   edges 每项附加 { points } 折线控制点数组
  */
-export function computeLayout(nodes, edges, projectFilter) {
-  // 按项目过滤
-  const visibleNodes = filterNodes(nodes, projectFilter);
+export function computeLayout(nodes, edges, projectFilter, tagFilter) {
+  // 按项目、标签过滤（两者同时指定时取交集）
+  const visibleNodes = filterNodes(nodes, projectFilter).filter(
+    (n) => !tagFilter || n.tags?.includes(tagFilter),
+  );
   const visibleUUIDs = new Set(visibleNodes.map((n) => n.uuid));
 
   // 只保留两端都可见的边
@@ -191,4 +194,21 @@ function walkGraph(start, adj) {
   }
 
   return visited;
+}
+
+/**
+ * 判断新增一条"successor 依赖 precursor"的边是否会在依赖图里形成环
+ * @description precursor 如果已经（直接或传递）依赖 successor，加上这条边就会闭环；
+ *  自己连自己也算一种环，一并挡掉
+ *
+ * @param {Array} edges - 当前所有依赖边 [{source, target}]，source 是 target 的前置任务
+ * @param {string} precursorUuid - 拟新增边的前置任务
+ * @param {string} successorUuid - 拟新增边的后置任务（依赖 precursorUuid 的那个）
+ * @returns {boolean}
+ */
+export function wouldCreateCycle(edges, precursorUuid, successorUuid) {
+  if (precursorUuid === successorUuid) return true;
+
+  const forward = buildAdjacency(edges, "forward");
+  return walkGraph(successorUuid, forward).has(precursorUuid);
 }

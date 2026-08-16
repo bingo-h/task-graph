@@ -24,15 +24,17 @@
     "nix-config": {
       "inputs": {
         "home-manager": "home-manager",
-        "nixpkgs": "nixpkgs",
+        "nixpkgs": [
+          "nixpkgs"
+        ],
         "noctalia": "noctalia"
       },
       "locked": {
-        "lastModified": 1786869200,
-        "narHash": "sha256-LCtgF4Ki6nUbt2Bl9PtyxYMEMr2N2W4jX3LpObjTOuA=",
+        "lastModified": 1786869647,
+        "narHash": "sha256-iZP91IYrypPPvcL01kbcwJ8VlR96twZKE3wWKH0xpJA=",
         "ref": "refs/heads/master",
-        "rev": "f5872c7b041fd65c10c0883ed671ef92a4349d9b",
-        "revCount": 52,
+        "rev": "ae71e0a3b471d9917f3a5596ef151b3ef0fbfa8d",
+        "revCount": 53,
         "type": "git",
         "url": "ssh://git@github.com/bingo-h/nixos-config"
       },
@@ -53,38 +55,6 @@
       "original": {
         "owner": "NixOS",
         "ref": "nixos-unstable",
-        "repo": "nixpkgs",
-        "type": "github"
-      }
-    },
-    "nixpkgs_2": {
-      "locked": {
-        "lastModified": 1786599213,
-        "narHash": "sha256-yNJd40f11EzXBjSByCB7IPpeFFAdeoSKKM67dGkfFoU=",
-        "owner": "NixOS",
-        "repo": "nixpkgs",
-        "rev": "0e251e24a4f24e036a084b6b4b2d2491af4167f4",
-        "type": "github"
-      },
-      "original": {
-        "owner": "NixOS",
-        "ref": "nixos-unstable",
-        "repo": "nixpkgs",
-        "type": "github"
-      }
-    },
-    "nixpkgs_3": {
-      "locked": {
-        "lastModified": 1744536153,
-        "narHash": "sha256-awS2zRgF4uTwrOKwwiJcByDzDOdo3Q1rPZbiHQg/N38=",
-        "owner": "NixOS",
-        "repo": "nixpkgs",
-        "rev": "18dd725c29603f582cf1900e0d25f9f1063dbf11",
-        "type": "github"
-      },
-      "original": {
-        "owner": "NixOS",
-        "ref": "nixpkgs-unstable",
         "repo": "nixpkgs",
         "type": "github"
       }
@@ -139,13 +109,15 @@
     "root": {
       "inputs": {
         "nix-config": "nix-config",
-        "nixpkgs": "nixpkgs_2",
+        "nixpkgs": "nixpkgs",
         "rust-overlay": "rust-overlay"
       }
     },
     "rust-overlay": {
       "inputs": {
-        "nixpkgs": "nixpkgs_3"
+        "nixpkgs": [
+          "nixpkgs"
+        ]
       },
       "locked": {
         "lastModified": 1786849542,

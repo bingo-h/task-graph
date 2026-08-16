@@ -1035,6 +1035,7 @@ onMounted(() => {
                 @delete-time-entry="onDeleteTimeEntry"
                 @set-today="onSetToday"
                 @update-annotation="onUpdateAnnotation"
+                @filter-by-tag="onFilterByTag"
             />
         </div>
 

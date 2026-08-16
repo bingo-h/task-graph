@@ -34,6 +34,7 @@ const emit = defineEmits([
     "delete-time-entry",
     "set-today",
     "update-annotation",
+    "filter-by-tag",
 ]);
 
 const modifyInput = ref("");

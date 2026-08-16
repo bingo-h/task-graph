@@ -50,6 +50,22 @@ async function loadEntries() {
 onMounted(loadEntries);
 defineExpose({ reload: loadEntries });
 
+// 切回这个页面时自动刷新一次；组件本身因为用 v-show 常驻不会重新挂载，
+// 如果一直不切走（比如正好停留在这一页跨过午夜），也用定时器兜底定期刷新
+watch(
+    () => props.visible,
+    (v) => {
+        if (v) loadEntries();
+    },
+);
+
+const AUTO_REFRESH_MS = 5 * 60 * 1000; // 5 分钟
+let autoRefreshTimer = null;
+onMounted(() => {
+    autoRefreshTimer = setInterval(loadEntries, AUTO_REFRESH_MS);
+});
+onUnmounted(() => clearInterval(autoRefreshTimer));
+
 const uuidMap = computed(() =>
     Object.fromEntries(props.nodes.map((t) => [t.uuid, t])),
 );

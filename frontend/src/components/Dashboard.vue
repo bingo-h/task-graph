@@ -7,14 +7,36 @@
 -->
 
 <script setup>
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, onUnmounted, watch } from "vue";
 import { listAllTimeEntries } from "../composables/useApi";
 import { formatDuration } from "../composables/useDuration";
 
 const props = defineProps({
     // 全部任务节点，用于统计完成任务数、到期任务、优先级分布
     nodes: { type: Array, default: () => [] },
+    // 项目树（path -> ProjectNode），用于排除已归档/废纸篓项目下的任务
+    projects: { type: Object, default: () => ({}) },
+    // 当前是否是正在展示的页面（父组件用 v-show 切换，不会重新挂载组件），
+    // 只在挂载时拉取一次计时记录的话，长时间挂在后台会跨天而不自动刷新
+    visible: { type: Boolean, default: true },
 });
+
+// ----------------------------------------
+// 排除已归档 / 废纸篓项目下的任务：这些不应该计入首页的汇总统计
+// ----------------------------------------
+/** 任务没有项目（收件箱）时始终计入；否则看所属项目当前是否归档/在废纸篓中（含级联自祖先项目） */
+function isInActiveProject(project) {
+    if (!project) return true;
+    const p = props.projects[project];
+    return !p || (!p.archived && !p.trashed);
+}
+
+const activeNodes = computed(() =>
+    props.nodes.filter((t) => isInActiveProject(t.project)),
+);
+const activeTaskUuids = computed(
+    () => new Set(activeNodes.value.map((t) => t.uuid)),
+);
 
 // 界面语言，决定图表里星期/小时标签的格式（Intl 会按 locale 自动换算）。
 // TODO: 后续加入语言设置后，改为从全局设置读取，而不是写死。
@@ -65,6 +87,22 @@ async function loadEntries() {
 onMounted(loadEntries);
 defineExpose({ reload: loadEntries });
 
+// 切回这个页面时自动刷新一次；组件本身因为用 v-show 常驻不会重新挂载，
+// 如果一直不切走（比如正好停留在这一页跨过午夜），也用定时器兜底定期刷新
+watch(
+    () => props.visible,
+    (v) => {
+        if (v) loadEntries();
+    },
+);
+
+const AUTO_REFRESH_MS = 5 * 60 * 1000; // 5 分钟
+let autoRefreshTimer = null;
+onMounted(() => {
+    autoRefreshTimer = setInterval(loadEntries, AUTO_REFRESH_MS);
+});
+onUnmounted(() => clearInterval(autoRefreshTimer));
+
 // ----------------------------------------
 // 分段聚合：默认按自然日分段；"今天"范围下按小时分段，
 // 这样切到"今天"才有意义——单独一天只有一根柱子没有信息量。
@@ -114,9 +152,14 @@ function bucketIndexFor(time, starts, ms) {
     return -1;
 }
 
+// 已归档/废纸篓项目产生的计时记录也一并排除，和任务侧的口径保持一致
+const activeEntries = computed(() =>
+    entries.value.filter((e) => activeTaskUuids.value.has(e.task_uuid)),
+);
+
 const focusTotals = computed(() => {
     const now = Date.now();
-    const intervals = entries.value.map((e) => [
+    const intervals = activeEntries.value.map((e) => [
         new Date(e.start).getTime(),
         e.end ? new Date(e.end).getTime() : now,
     ]);
@@ -125,7 +168,7 @@ const focusTotals = computed(() => {
 
 const completedTotals = computed(() => {
     const totals = new Array(bucketStarts.value.length).fill(0);
-    for (const t of props.nodes) {
+    for (const t of activeNodes.value) {
         if (t.status !== "completed" || !t.end) continue;
         const idx = bucketIndexFor(new Date(t.end).getTime(), bucketStarts.value, bucketMs.value);
         if (idx >= 0) totals[idx] += 1;
@@ -161,13 +204,21 @@ const DAY_SECONDS = 86400;
 const summary = computed(() => {
     const list = chartData.value;
     const totalFocus = list.reduce((s, d) => s + d.focusSeconds, 0);
-    const totalCompleted = list.reduce((s, d) => s + d.completedCount, 0);
     const n = RANGE_DAYS[rangeKey.value];
     return {
         totalFocus,
         avgFocus: totalFocus / n,
-        totalCompleted,
+        // 专注时间占比：随范围选择器变化，选定范围内专注时长占该范围总时长的比例
         occupancyPct: (totalFocus / (n * DAY_SECONDS)) * 100,
+    };
+});
+
+// 完成任务：总览口径，展示"已完成 / 全部任务"，不受范围选择器影响（不含已被删除的任务）
+const taskCompletionStats = computed(() => {
+    const relevant = activeNodes.value.filter((t) => t.status !== "deleted");
+    return {
+        completed: relevant.filter((t) => t.status === "completed").length,
+        total: relevant.length,
     };
 });
 
@@ -256,7 +307,7 @@ const areaPath = computed(() => {
 // 任务汇总：优先级分布 + 即将到期
 // ----------------------------------------
 const priorityStats = computed(() => {
-    const pending = props.nodes.filter((t) => t.status === "pending");
+    const pending = activeNodes.value.filter((t) => t.status === "pending");
     return {
         high: pending.filter((t) => t.priority === "H").length,
         medium: pending.filter((t) => t.priority === "M").length,
@@ -265,7 +316,7 @@ const priorityStats = computed(() => {
 });
 
 const dueSoonTasks = computed(() =>
-    props.nodes
+    activeNodes.value
         .filter((t) => t.status === "pending" && t.due)
         .sort((a, b) => new Date(a.due) - new Date(b.due))
         .slice(0, 6),
@@ -280,7 +331,7 @@ function formatDueLabel(due) {
 // ----------------------------------------
 const emit = defineEmits(["jump-to-task"]);
 
-const todayTasks = computed(() => props.nodes.filter((t) => t.is_today));
+const todayTasks = computed(() => activeNodes.value.filter((t) => t.is_today));
 </script>
 
 <template>
@@ -319,12 +370,13 @@ const todayTasks = computed(() => props.nodes.filter((t) => t.is_today));
             <div class="summary-card">
                 <span class="summary-label">完成任务</span>
                 <span class="summary-value"
-                    >{{ summary.totalCompleted }}
-                    <span class="summary-unit">个</span></span
+                    >{{ taskCompletionStats.completed }}/{{
+                        taskCompletionStats.total
+                    }}</span
                 >
             </div>
             <div class="summary-card">
-                <span class="summary-label">时间占比</span>
+                <span class="summary-label">专注时间占比</span>
                 <span class="summary-value"
                     >{{ summary.occupancyPct.toFixed(1) }}<span
                         class="summary-unit"
@@ -348,7 +400,7 @@ const todayTasks = computed(() => props.nodes.filter((t) => t.is_today));
             </div>
 
             <div v-if="todayTasks.length === 0" class="empty-hint">
-                还没有任务被标记为今日任务，去任务详情里点"设为今日任务"添加
+                还没有任务被标记为今日任务，去任务详情里点标题旁的 ☀ 图标添加
             </div>
             <div v-else class="today-tasks-list">
                 <button

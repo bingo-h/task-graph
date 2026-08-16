@@ -411,6 +411,26 @@ async function onSetToday(uuid, marked) {
 }
 
 /**
+ * 详情栏内联编辑备注，失焦后保存
+ *
+ * @description 由 TaskDetail 的 @update-annotation 事件触发
+ * @param {string} uuid - 任务 UUID
+ * @param {string} text - 备注全文，空字符串表示清空
+ */
+async function onUpdateAnnotation(uuid, text) {
+    try {
+        applyUpdate(
+            await modifyTask(uuid, {
+                annotation: text || null,
+                clear_annotation: !text,
+            }),
+        );
+    } catch (e) {
+        error.value = e.message;
+    }
+}
+
+/**
  * 开始为指定任务计时
  *
  * @description 由 TaskDetail 的 @start-timer 事件触发
@@ -665,6 +685,7 @@ onMounted(() => {
                 @edit-time-entry-note="onEditTimeEntryNote"
                 @delete-time-entry="onDeleteTimeEntry"
                 @set-today="onSetToday"
+                @update-annotation="onUpdateAnnotation"
             />
         </div>
 

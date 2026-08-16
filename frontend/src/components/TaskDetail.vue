@@ -31,6 +31,7 @@ const emit = defineEmits([
     "edit-time-entry-note",
     "delete-time-entry",
     "set-today",
+    "update-annotation",
 ]);
 
 const modifyInput = ref("");
@@ -44,6 +45,28 @@ watch(
         modifyError.value = "";
     },
 );
+
+// ----------------------------------------
+// 备注：直接在详情栏内联编辑，失焦时保存，不用打开修改弹窗
+// ----------------------------------------
+const annotationText = ref("");
+
+watch(
+    () => props.task?.uuid,
+    () => {
+        annotationText.value = props.task?.annotations?.[0]?.description || "";
+    },
+    { immediate: true },
+);
+
+/** 失焦时保存备注：内容和原来相比没变化就不发请求 */
+function saveAnnotation() {
+    const original = props.task?.annotations?.[0]?.description || "";
+    const text = annotationText.value.trim();
+    if (text === original) return;
+
+    emit("update-annotation", props.task.uuid, text);
+}
 
 // ----------------------------------------
 // 计时
@@ -389,53 +412,16 @@ function statusLabel(s) {
                 </div>
             </div>
 
-            <!-- 备注 -->
-            <div v-if="task.annotations.length > 0">
+            <!-- 备注：直接输入编辑，失焦自动保存，不用打开修改弹窗 -->
+            <div class="detail-section">
                 <div class="section-title">备注</div>
-                <div
-                    v-for="annotation in task.annotations"
-                    :key="annotation.created_at + annotation.description"
-                    class="annotation"
-                >
-                    <span class="annotation-date">
-                        {{ formatDate(annotation.created_at) }}
-                    </span>
-
-                    <span class="annotation-text">
-                        {{ annotation.description }}
-                    </span>
-                </div>
-            </div>
-
-            <!-- 操作按钮 -->
-            <div class="detail-actions">
-                <button
-                    v-if="task.status === 'pending'"
-                    class="btn-done"
-                    :class="{ 'btn-disabled': task.is_locked }"
-                    :disabled="task.is_locked"
-                    :title="task.is_locked ? '存在未完成的前置任务，无法完成' : ''"
-                    @click="emit('done', task.uuid)"
-                >
-                    ✔ 完成
-                </button>
-
-                <button
-                    v-if="task.status === 'completed'"
-                    class="btn-undone"
-                    @click="emit('undone', task.uuid)"
-                >
-                    ↺ 取消完成
-                </button>
-
-                <!-- 修改：emit 完整任务对象，由父组件（App.vue）打开 TaskFormModal -->
-                <button class="btn-modify" @click="emit('modify', task)">
-                    ✏ 修改
-                </button>
-
-                <button class="btn-delete" @click="emit('delete', task.uuid)">
-                    ✗ 删除
-                </button>
+                <textarea
+                    v-model="annotationText"
+                    class="annotation-input"
+                    rows="6"
+                    placeholder="记录一些补充说明…"
+                    @blur="saveAnnotation"
+                ></textarea>
             </div>
 
             <!-- 计时 -->
@@ -576,8 +562,36 @@ function statusLabel(s) {
                 </div>
             </div>
 
-            <!-- UUID 尾部显示（前 8 位） -->
-            <div class="detail-uuid">{{ task.uuid.slice(0, 8) }}…</div>
+            <!-- 操作按钮：固定在面板底部 -->
+            <div class="detail-actions">
+                <button
+                    v-if="task.status === 'pending'"
+                    class="btn-done"
+                    :class="{ 'btn-disabled': task.is_locked }"
+                    :disabled="task.is_locked"
+                    :title="task.is_locked ? '存在未完成的前置任务，无法完成' : ''"
+                    @click="emit('done', task.uuid)"
+                >
+                    ✔ 完成
+                </button>
+
+                <button
+                    v-if="task.status === 'completed'"
+                    class="btn-undone"
+                    @click="emit('undone', task.uuid)"
+                >
+                    ↺ 取消完成
+                </button>
+
+                <!-- 修改：emit 完整任务对象，由父组件（App.vue）打开 TaskFormModal -->
+                <button class="btn-modify" @click="emit('modify', task)">
+                    ✏ 修改
+                </button>
+
+                <button class="btn-delete" @click="emit('delete', task.uuid)">
+                    ✗ 删除
+                </button>
+            </div>
         </template>
     </aside>
 </template>
@@ -986,18 +1000,23 @@ function statusLabel(s) {
     font-size: 0.8462rem;
 }
 
-/* 备注 */
-.annotation {
-    display: flex;
-    gap: 8px;
+/* 备注：内联可编辑文本框 */
+.annotation-input {
+    width: 100%;
+    min-height: 120px;
+    resize: vertical;
+    font: inherit;
     font-size: 0.8462rem;
-}
-.annotation-date {
-    color: var(--fg-dim);
-    flex-shrink: 0;
-}
-.annotation-text {
     color: var(--fg);
+    background: var(--bg-dark);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 10px;
+    outline: none;
+    line-height: 1.5;
+}
+.annotation-input:focus {
+    border-color: var(--blue);
 }
 
 /* 操作按钮区 */
@@ -1007,6 +1026,8 @@ function statusLabel(s) {
     flex-wrap: wrap;
     border-top: 1px solid var(--border);
     padding-top: 10px;
+    margin-top: auto;
+    flex-shrink: 0;
 }
 
 .btn-done {
@@ -1076,10 +1097,4 @@ function statusLabel(s) {
 }
 
 /* UUID 尾部 */
-.detail-uuid {
-    font-size: 0.7692rem;
-    color: var(--fg-dark);
-    margin-top: auto;
-    padding-top: 8px;
-}
 </style>

@@ -14,10 +14,12 @@ import { ref, computed, watch, onUnmounted } from "vue";
 import constants from "../config/constants";
 import { listTimeEntries } from "../composables/useApi";
 import { formatDuration } from "../composables/useDuration";
+import { tagChipStyle as tagStyle } from "../composables/useTagColor";
 
 const props = defineProps({
     task: { type: Object, default: null }, // 选中的任务对象，null表示未选中
     allTasks: { type: Array, required: true }, // 所有任务列表，用于查找依赖任务描述
+    tags: { type: Object, default: () => ({}) }, // 标签名 -> { name, color, task_count }
 });
 
 const emit = defineEmits([
@@ -248,6 +250,11 @@ function priorityClass(p) {
     return { H: "priority-h", M: "priority-m", L: "priority-l" }[p] || "";
 }
 
+/** 某个标签的徽章样式：浅色背景 + 标签自己的颜色 */
+function tagChipStyle(tagName) {
+    return tagStyle(props.tags[tagName]?.color);
+}
+
 /** 状态显示文字 */
 function statusLabel(s) {
     return (
@@ -357,13 +364,16 @@ function statusLabel(s) {
                 <div v-if="task.tags?.length" class="detail-row">
                     <span class="detail-key">标签</span>
                     <span class="detail-val tags-val">
-                        <span
+                        <button
                             v-for="tag in task.tags"
                             :key="tag"
-                            class="tag-chip"
+                            class="tag-chip tag-chip-clickable"
+                            :style="tagChipStyle(tag)"
+                            title="点击按这个标签筛选任务看板"
+                            @click="emit('filter-by-tag', tag)"
                         >
                             {{ tag }}
-                        </span>
+                        </button>
                     </span>
                 </div>
             </div>
@@ -807,9 +817,18 @@ function statusLabel(s) {
 .tag-chip {
     font-size: 0.8462rem;
     padding: 1px 6px;
+    border: none;
     border-radius: 3px;
     background: rgba(187, 154, 247, 0.15);
     color: var(--magenta);
+}
+
+.tag-chip-clickable {
+    cursor: pointer;
+    transition: filter 0.12s;
+}
+.tag-chip-clickable:hover {
+    filter: brightness(0.92);
 }
 
 /* 计时 */

@@ -193,16 +193,16 @@ jobs:
 
             const manifest = {
               version,
-              notes: 'task-web v' + version,
+              notes: 'task-graph v' + version,
               pub_date: new Date().toISOString(),
               platforms: {
                 'windows-x86_64': {
-                  signature: readSig('dist/windows', \`task-web_\${version}_x64-setup.exe.sig\`),
-                  url: \`\${base}/task-web_\${version}_x64-setup.exe\`,
+                  signature: readSig('dist/windows', \`task-graph_\${version}_x64-setup.exe.sig\`),
+                  url: \`\${base}/task-graph_\${version}_x64-setup.exe\`,
                 },
                 'linux-x86_64': {
-                  signature: readSig('dist/linux', \`task-web_\${version}_amd64.AppImage.sig\`),
-                  url: \`\${base}/task-web_\${version}_amd64.AppImage\`,
+                  signature: readSig('dist/linux', \`task-graph_\${version}_amd64.AppImage.sig\`),
+                  url: \`\${base}/task-graph_\${version}_amd64.AppImage\`,
                 },
               },
             };
@@ -212,21 +212,21 @@ jobs:
       - name: 创建 GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          name: "task-web v${{ steps.version.outputs.VERSION }}"
+          name: "task-graph v${{ steps.version.outputs.VERSION }}"
           body: |
             ## 安装
 
             ### Windows
-            - 便携版（推荐）：下载 `x64-portable.zip`，解压后双击 `task-web.exe` 直接运行，无需安装，数据库文件保存在解压出的文件夹里，删文件夹即卸载
+            - 便携版（推荐）：下载 `x64-portable.zip`，解压后双击 `task-graph.exe` 直接运行，无需安装，数据库文件保存在解压出的文件夹里，删文件夹即卸载
             - 安装版：下载并运行 `.exe`（NSIS 安装程序）或 `.msi`，按提示安装
 
             ### Linux
             - `.AppImage`：赋予可执行权限后直接运行，无需安装
               ```bash
-              chmod +x task-web_*.AppImage
-              ./task-web_*.AppImage
+              chmod +x task-graph_*.AppImage
+              ./task-graph_*.AppImage
               ```
-            - `.deb`：`sudo dpkg -i task-web_*.deb`
+            - `.deb`：`sudo dpkg -i task-graph_*.deb`
 
             ## 说明
             数据库文件保存在程序自身所在目录，卸载/迁移只需删除对应文件夹即可（不写系统标准数据目录）。

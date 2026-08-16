@@ -479,12 +479,109 @@ pub fn modify_task(args: ModifyTaskArgs) -> Result<GraphResponse, String> {
     build_graph().map_err(|e| e.to_string())
 }
 
+/// 改变依赖关系终点的参数
+#[derive(Deserialize)]
+pub struct ReconnectDependencyArgs {
+    pub source_uuid: String,
+    pub old_target_uuid: String,
+    /// None 表示拖到空白处：只删除旧的依赖关系，不建立新的
+    pub new_target_uuid: Option<String>,
+}
+
+/// 把"source_uuid 是 old_target_uuid 的前置任务"这条依赖关系，改成指向 new_target_uuid
+/// （new_target_uuid 为空表示直接删除这条依赖），对应拖拽图谱里已有连线终点的交互
+#[tauri::command]
+pub fn reconnect_dependency(args: ReconnectDependencyArgs) -> Result<GraphResponse, String> {
+    let conn = db::open().map_err(|e| e.to_string())?;
+
+    let old_target = db::task::get_by_uuid(&conn, &args.old_target_uuid)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "旧的依赖任务不存在".to_string())?;
+
+    let new_depends: Vec<String> =
+        old_target.depends.into_iter().filter(|d| d != &args.source_uuid).collect();
+    db::task::set_depends(&conn, &args.old_target_uuid, new_depends).map_err(|e| e.to_string())?;
+
+    if let Some(new_target_uuid) = &args.new_target_uuid {
+        let new_target = db::task::get_by_uuid(&conn, new_target_uuid)
+            .map_err(|e| e.to_string())?
+            .ok_or_else(|| "新的目标任务不存在".to_string())?;
+
+        if !new_target.depends.contains(&args.source_uuid) {
+            let mut depends = new_target.depends;
+            depends.push(args.source_uuid.clone());
+            db::task::set_depends(&conn, new_target_uuid, depends).map_err(|e| e.to_string())?;
+        }
+    }
+
+    build_graph().map_err(|e| e.to_string())
+}
+
+/// 重命名标签（用到旧名字的任务一起改名）；若新名字已存在则合并为同一个标签
+#[tauri::command]
+pub fn rename_tag(old_tag: String, new_tag: String) -> Result<GraphResponse, String> {
+    let old_tag = old_tag.trim();
+    let new_tag = new_tag.trim();
+
+    if old_tag.is_empty() || new_tag.is_empty() {
+        return Err("标签不能为空".to_string());
+    }
+
+    if old_tag != new_tag {
+        let conn = db::open().map_err(|e| e.to_string())?;
+        db::tag::rename(&conn, old_tag, new_tag).map_err(|e| e.to_string())?;
+    }
+
+    build_graph().map_err(|e| e.to_string())
+}
+
+/// 设置标签颜色的参数
+#[derive(Deserialize)]
+pub struct SetTagColorArgs {
+    pub name: String,
+    /// 传 None / 空字符串表示清空颜色，前端会回退到默认颜色
+    pub color: Option<String>,
+}
+
+/// 设置标签颜色
+#[tauri::command]
+pub fn set_tag_color(args: SetTagColorArgs) -> Result<GraphResponse, String> {
+    let conn = db::open().map_err(|e| e.to_string())?;
+
+    let color = args.color.as_deref().map(str::trim).filter(|c| !c.is_empty());
+    db::tag::set_color(&conn, args.name.trim(), color).map_err(|e| e.to_string())?;
+
+    build_graph().map_err(|e| e.to_string())
+}
+
+/// 彻底删除一个标签，解除它和所有任务的关联
+#[tauri::command]
+pub fn delete_tag(name: String) -> Result<GraphResponse, String> {
+    let conn = db::open().map_err(|e| e.to_string())?;
+
+    db::tag::delete(&conn, name.trim()).map_err(|e| e.to_string())?;
+
+    build_graph().map_err(|e| e.to_string())
+}
+
 /// 标记任务完成
 #[tauri::command]
 pub fn done_task(uuid: String) -> Result<GraphResponse, String> {
     let conn = db::open().map_err(|e| e.to_string())?;
 
     db::task::mark_done(&conn, &uuid).map_err(|e| e.to_string())?;
+
+    build_graph().map_err(|e| e.to_string())
+}
+
+/// 批量标记多个任务完成（框选/Ctrl 多选后的批量操作）
+#[tauri::command]
+pub fn done_tasks(uuids: Vec<String>) -> Result<GraphResponse, String> {
+    let conn = db::open().map_err(|e| e.to_string())?;
+
+    for uuid in &uuids {
+        db::task::mark_done(&conn, uuid).map_err(|e| e.to_string())?;
+    }
 
     build_graph().map_err(|e| e.to_string())
 }
@@ -505,6 +602,25 @@ pub fn set_task_today(uuid: String, marked: bool) -> Result<GraphResponse, Strin
     let conn = db::open().map_err(|e| e.to_string())?;
 
     db::task::set_today(&conn, &uuid, marked).map_err(|e| e.to_string())?;
+
+    build_graph().map_err(|e| e.to_string())
+}
+
+/// 批量设置多个任务的"今日任务"参数
+#[derive(Deserialize)]
+pub struct SetTasksTodayArgs {
+    pub uuids: Vec<String>,
+    pub marked: bool,
+}
+
+/// 批量设置/取消多个任务的"今日任务"标记（框选/Ctrl 多选后的批量操作）
+#[tauri::command]
+pub fn set_tasks_today(args: SetTasksTodayArgs) -> Result<GraphResponse, String> {
+    let conn = db::open().map_err(|e| e.to_string())?;
+
+    for uuid in &args.uuids {
+        db::task::set_today(&conn, uuid, args.marked).map_err(|e| e.to_string())?;
+    }
 
     build_graph().map_err(|e| e.to_string())
 }
@@ -606,6 +722,18 @@ pub fn delete_task(uuid: String) -> Result<GraphResponse, String> {
     let conn = db::open().map_err(|e| e.to_string())?;
 
     db::task::mark_deleted(&conn, &uuid).map_err(|e| e.to_string())?;
+
+    build_graph().map_err(|e| e.to_string())
+}
+
+/// 批量删除多个任务（框选/Ctrl 多选后的批量操作）
+#[tauri::command]
+pub fn delete_tasks(uuids: Vec<String>) -> Result<GraphResponse, String> {
+    let conn = db::open().map_err(|e| e.to_string())?;
+
+    for uuid in &uuids {
+        db::task::mark_deleted(&conn, uuid).map_err(|e| e.to_string())?;
+    }
 
     build_graph().map_err(|e| e.to_string())
 }

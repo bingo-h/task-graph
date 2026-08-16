@@ -66,7 +66,7 @@ const groups = computed(() => [
 // ----------------------------------------
 // 面板宽度：可拖拽调整
 // ----------------------------------------
-const WIDTH_STORAGE_KEY = "task-web:project-tree-width";
+const WIDTH_STORAGE_KEY = "task-graph:project-tree-width";
 const MIN_WIDTH = 160;
 const MAX_WIDTH = 480;
 

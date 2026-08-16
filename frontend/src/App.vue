@@ -819,7 +819,7 @@ onMounted(() => {
     <div class="app">
         <!-- 顶部导航栏（兼具自定义标题栏，可拖拽） -->
         <header class="topbar" data-tauri-drag-region>
-            <span class="app-title" data-tauri-drag-region>task-web</span>
+            <span class="app-title" data-tauri-drag-region>task-graph</span>
 
             <!-- 页面切换：首页仪表盘 / 任务看板 -->
             <div class="page-nav">

@@ -519,6 +519,18 @@ pub fn start_timer(uuid: String) -> Result<GraphResponse, String> {
     build_graph().map_err(|e| e.to_string())
 }
 
+/// 同时为多个任务开始计时（框选/Ctrl 多选后批量计时，共享同一段开始时间，
+/// 各自单独记一条计时记录），若有其他任务正在计时则自动先结束。
+/// 停止时直接复用单任务的 `stop_timer`：结束这段计时即可，不会连带标记任务完成。
+#[tauri::command]
+pub fn start_group_timer(uuids: Vec<String>) -> Result<GraphResponse, String> {
+    let conn = db::open().map_err(|e| e.to_string())?;
+
+    db::time_entry::start_many(&conn, &uuids).map_err(|e| e.to_string())?;
+
+    build_graph().map_err(|e| e.to_string())
+}
+
 /// 停止计时后的响应：附带被结束的那条计时记录 id，
 /// 供前端弹窗询问这段专注的回忆总结（没有正在计时的段时为 None）
 #[derive(Serialize)]

@@ -31,13 +31,21 @@ pub fn stop_active(conn: &Connection) -> Result<Option<i64>> {
 
 /// 为指定任务开始计时，先结束其他正在进行的计时段
 pub fn start(conn: &Connection, task_uuid: &str) -> Result<()> {
+    start_many(conn, std::slice::from_ref(&task_uuid.to_string()))
+}
+
+/// 同时为多个任务开始计时（同一段专注时间内一起处理的一批任务），
+/// 先结束其他正在进行的计时段，再为每个任务各插入一条共享同一开始时间的记录
+pub fn start_many(conn: &Connection, task_uuids: &[String]) -> Result<()> {
     stop_active(conn)?;
 
     let start = chrono::Utc::now().to_rfc3339();
-    conn.execute(
-        "INSERT INTO time_entries (task_uuid, start, end) VALUES (?1, ?2, NULL)",
-        params![task_uuid, start],
-    )?;
+    for task_uuid in task_uuids {
+        conn.execute(
+            "INSERT INTO time_entries (task_uuid, start, end) VALUES (?1, ?2, NULL)",
+            params![task_uuid, start],
+        )?;
+    }
 
     Ok(())
 }
@@ -86,22 +94,21 @@ pub fn delete(conn: &Connection, id: i64) -> Result<()> {
 }
 
 /// 查询所有任务的累计计时秒数（含正在进行中的计时段），
-/// 顺带取出当前正在计时的 task_uuid 及这一段的开始时间（用于悬浮状态栏显示本次专注时长），
+/// 顺带取出当前正在计时的所有 task_uuid 及各自这一段的开始时间（用于悬浮状态栏显示本次专注时长）。
+/// 允许同一时刻有多条 end 为空的记录：多个任务被一起框选后共享同一段计时时会各插入一条。
 /// 复用同一次对 time_entries 的扫描，不再额外查询
-/// 返回 (task_uuid -> total_seconds, 当前计时中的 task_uuid, 当前这一段的开始时间)
+/// 返回 (task_uuid -> total_seconds, task_uuid -> 当前这一段的开始时间（仅计时中的任务))
 pub fn totals_by_task(
     conn: &Connection,
 ) -> Result<(
     std::collections::HashMap<String, i64>,
-    Option<String>,
-    Option<String>,
+    std::collections::HashMap<String, String>,
 )> {
     let mut stmt = conn.prepare("SELECT task_uuid, start, end FROM time_entries")?;
     let now = chrono::Utc::now();
 
     let mut totals = std::collections::HashMap::new();
-    let mut active_task: Option<String> = None;
-    let mut active_since: Option<String> = None;
+    let mut active: std::collections::HashMap<String, String> = std::collections::HashMap::new();
 
     let rows = stmt.query_map([], |row| {
         let task_uuid: String = row.get(0)?;
@@ -122,8 +129,7 @@ pub fn totals_by_task(
                 .map(|d| d.with_timezone(&chrono::Utc))
                 .unwrap_or(now),
             None => {
-                active_task = Some(task_uuid.clone());
-                active_since = Some(start.clone());
+                active.insert(task_uuid.clone(), start.clone());
                 now
             }
         };
@@ -132,7 +138,7 @@ pub fn totals_by_task(
         *totals.entry(task_uuid).or_insert(0) += seconds;
     }
 
-    Ok((totals, active_task, active_since))
+    Ok((totals, active))
 }
 
 fn row_to_entry(row: &rusqlite::Row) -> rusqlite::Result<TimeEntry> {

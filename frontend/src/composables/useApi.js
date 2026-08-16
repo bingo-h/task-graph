@@ -117,6 +117,15 @@ export async function stopTimer() {
   return call("stop_timer");
 }
 
+/**
+ * 同时为多个任务开始计时（框选/Ctrl 多选后批量计时），
+ * 这些任务共享同一段计时，各自单独记一条计时记录；若有其他任务正在计时会自动先结束。
+ * 停止时直接调用 stopTimer 即可，不会连带标记任务完成。
+ */
+export async function startGroupTimer(uuids) {
+  return call("start_group_timer", { uuids });
+}
+
 /** 获取某任务的全部计时记录，按开始时间倒序。 */
 export async function listTimeEntries(uuid) {
   return call("list_time_entries", { uuid });

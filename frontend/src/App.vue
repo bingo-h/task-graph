@@ -128,9 +128,12 @@ const highlightSet = computed(() =>
 // ----------------------------------------
 // 全局计时状态（标题栏悬浮秒表）
 // ----------------------------------------
-/** 当前正在计时的任务（全局至多一个） */
-const activeTimingTask = computed(
-    () => nodes.value.find((n) => n.is_timing) || null,
+/** 当前正在计时的所有任务：单个任务计时时只有一个；框选多个任务批量计时时是共享同一段时间的一批 */
+const activeTimingNodes = computed(() => nodes.value.filter((n) => n.is_timing));
+
+/** 单任务计时模式下的那一个任务，供保持原有悬浮秒表 UI 不变 */
+const activeTimingTask = computed(() =>
+    activeTimingNodes.value.length === 1 ? activeTimingNodes.value[0] : null,
 );
 
 const nowTick = ref(Date.now()); // 每秒刷新，驱动秒表实时跳动
@@ -139,9 +142,10 @@ const tickTimer = setInterval(() => {
 }, 1000);
 onUnmounted(() => clearInterval(tickTimer));
 
-/** 本次专注时长（秒）：从这一段计时开始到现在，不含之前的历史累计 */
+/** 本次专注时长（秒）：从这一段计时开始到现在，不含之前的历史累计
+ *  批量计时的多个任务共享同一个开始时间，取第一个即可 */
 const activeSessionSeconds = computed(() => {
-    const since = activeTimingTask.value?.active_since;
+    const since = activeTimingNodes.value[0]?.active_since;
     if (!since) return 0;
     return Math.max(0, Math.floor((nowTick.value - new Date(since).getTime()) / 1000));
 });
@@ -546,6 +550,7 @@ async function onStopTimer() {
     try {
         const data = await stopTimer();
         applyUpdate(data);
+        multiSelectedUUIDs.value = new Set(); // 若是批量计时被停止，顺带收起工具栏
 
         if (data.stopped_entry_id) {
             noteModal.value = {
@@ -862,6 +867,40 @@ onMounted(() => {
                 >
                     ■
                 </button>
+            </div>
+
+            <!-- 批量计时（框选/Ctrl 多选后一起开始的计时）：只是给这几个任务同时记一段时长，
+                 不会连带标记完成；鼠标悬浮可看到具体是哪些任务 -->
+            <div
+                v-else-if="activeTimingNodes.length > 1"
+                class="active-timer-pill active-timer-pill-group"
+            >
+                <span class="active-timer-dot"></span>
+                <span class="active-timer-desc">
+                    正在为 {{ activeTimingNodes.length }} 个任务计时
+                </span>
+                <span class="active-timer-clock">
+                    {{ formatDuration(activeSessionSeconds) }}
+                </span>
+                <button
+                    class="active-timer-stop"
+                    title="停止计时"
+                    @click="onStopTimer"
+                >
+                    ■
+                </button>
+
+                <!-- 鼠标悬浮展开：这一段时间里同时在计时的任务列表 -->
+                <div class="active-timer-tasklist">
+                    <div
+                        v-for="n in activeTimingNodes"
+                        :key="n.uuid"
+                        class="active-timer-tasklist-item"
+                        @click="selectedUUID = n.uuid"
+                    >
+                        {{ n.description }}
+                    </div>
+                </div>
             </div>
 
             <!-- 添加任务按钮 -->

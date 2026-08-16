@@ -99,18 +99,6 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: cargo tauri build
 
-      # 便携版：不走安装程序，直接把裸 exe 打 zip，解压即用、删文件夹即卸载，
-      # 数据库文件按 db/mod.rs 的逻辑保存在 exe 同目录，天然满足便携语义
-      - name: 打包 Windows 便携版
-        if: matrix.platform == 'windows-latest'
-        shell: bash
-        run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          mkdir -p portable
-          cp src-tauri/target/release/task-graph.exe "portable/task-graph.exe"
-          cd portable
-          7z a "../src-tauri/target/release/bundle/task-graph_${VERSION}_x64-portable.zip" task-graph.exe
-
       - name: 上传 Windows 安装包
         if: matrix.platform == 'windows-latest'
         uses: actions/upload-artifact@v4
@@ -120,7 +108,6 @@ jobs:
             src-tauri/target/release/bundle/nsis/*.exe
             src-tauri/target/release/bundle/nsis/*.exe.sig
             src-tauri/target/release/bundle/msi/*.msi
-            src-tauri/target/release/bundle/*.zip
           retention-days: 1
 
       - name: 上传 Linux 安装包
@@ -217,8 +204,7 @@ jobs:
             ## 安装
 
             ### Windows
-            - 便携版（推荐）：下载 `x64-portable.zip`，解压后双击 `task-graph.exe` 直接运行，无需安装，数据库文件保存在解压出的文件夹里，删文件夹即卸载
-            - 安装版：下载并运行 `.exe`（NSIS 安装程序）或 `.msi`，按提示安装
+            下载并运行 `.exe`（NSIS 安装程序）或 `.msi`，按提示安装即可。
 
             ### Linux
             - `.AppImage`：赋予可执行权限后直接运行，无需安装

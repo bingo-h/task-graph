@@ -1,8 +1,17 @@
 {
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    rust-overlay.url = "github:oxalica/rust-overlay";
-    nix-config.url = "git+ssh://git@github.com/bingo-h/nixos-config";
+    nixpkgs = {
+      url = "github:NixOS/nixpkgs/nixos-unstable";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+    rust-overlay = {
+      url = "github:oxalica/rust-overlay";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+    nix-config = {
+      url = "git+ssh://git@github.com/bingo-h/nixos-config";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =

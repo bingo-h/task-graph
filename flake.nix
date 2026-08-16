@@ -42,24 +42,29 @@
         #   ];
       };
 
-      packages.${system}.default = nix-config.lib.mkTauriPackage {
-        inherit pkgs;
-        pname = "task-web"; # 修改为项目包名称
-        version = "1.2.1";
-        src = pkgs.fetchFromGitHub {
-          owner = "bingo-h";
-          repo = "task-web";
-          rev = "v1.2.1";
-          hash = "sha256-k40Qx+brC3HINGDu3ez8EwC/qxePGDE7uA7d+KDjLbo=";
+      packages.${system}.default =
+        let
+          src = pkgs.lib.cleanSource self;
+          # src = pkgs.fetchFromGitHub {
+          #   owner = "bingo-h";
+          #   repo = "task-web";
+          #   rev = "v1.2.1";
+          #   hash = "sha256-k40Qx+brC3HINGDu3ez8EwC/qxePGDE7uA7d+KDjLbo=";
+          # };
+
+          cargoToml = fromTOML (builtins.readFile "${src}/src-tauri/Cargo.toml");
+        in
+        nix-config.lib.mkTauriPackage {
+          inherit pkgs src;
+          pname = cargoToml.package.name; # 修改为项目包名称
+          version = cargoToml.package.version;
+
+          srcTauriDir = "src-tauri";
+          frontendDir = "frontend";
+
+          # 第一次先用 fakeHash 跑,拿到真实哈希后替换
+          npmDepsHash = "sha256-VFkKfM0s50kjgkjCXtCuUEtQiAz8/tDpiTPSm0uNbIY=";
+          # npmDepsHash = "sha256-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx=";
         };
-
-        srcTauriDir = "src-tauri";
-        frontendDir = "frontend";
-
-        # 第一次先用 fakeHash 跑,拿到真实哈希后替换
-        npmDepsHash = "sha256-VFkKfM0s50kjgkjCXtCuUEtQiAz8/tDpiTPSm0uNbIY=";
-        # npmDepsHash = "sha256-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx=";
-      };
-
     };
 }

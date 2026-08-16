@@ -58,9 +58,11 @@ jobs:
             ~/.cargo/git
             ~/.cargo/bin
             src-tauri/target
-          key: ${{ matrix.platform }}-cargo-${{ hashFiles('src-tauri/Cargo.lock') }}
+          # key 里带上仓库名：编译产物内嵌了 checkout 路径（含仓库名）的绝对路径，
+          # 仓库改名后旧缓存里这些路径会失效，加这一项让改名自动触发缓存重建
+          key: ${{ matrix.platform }}-${{ github.repository }}-cargo-${{ hashFiles('src-tauri/Cargo.lock') }}
           restore-keys: |
-            ${{ matrix.platform }}-cargo-
+            ${{ matrix.platform }}-${{ github.repository }}-cargo-
 
       # ~/.cargo/bin 被缓存了，命中缓存时 tauri-cli 已存在，需跳过避免 cargo install 报错
       - name: 安装 tauri-cli

@@ -365,6 +365,63 @@ async function onModalSubmit({ mode, uuid, fields }) {
     }
 }
 
+/**
+ * 批量重命名标签：所有用到旧标签的任务一起改成新标签
+ *
+ * @description 由 TaskFormModal 的 @rename-tag 事件触发
+ * @param {string} oldTag
+ * @param {string} newTag
+ */
+async function onRenameTag(oldTag, newTag) {
+    try {
+        applyUpdate(await renameTag(oldTag, newTag));
+    } catch (e) {
+        error.value = e.message;
+    }
+}
+
+/**
+ * 设置标签颜色
+ *
+ * @description 由 TagManagerModal 的 @set-color 事件触发
+ * @param {string} name
+ * @param {string|null} color
+ */
+async function onSetTagColor(name, color) {
+    try {
+        applyUpdate(await setTagColor(name, color));
+    } catch (e) {
+        error.value = e.message;
+    }
+}
+
+/**
+ * 彻底删除一个标签，需用户二次确认
+ *
+ * @description 由 TagManagerModal 的 @delete-tag 事件触发
+ * @param {string} name
+ */
+async function onDeleteTag(name) {
+    if (!confirm(`确认删除标签"${name}"？将从所有任务上移除，此操作不可恢复。`)) return;
+
+    try {
+        applyUpdate(await deleteTag(name));
+    } catch (e) {
+        error.value = e.message;
+    }
+}
+
+/**
+ * 点击某个标签：跳转到任务看板，并按这个标签筛选图谱
+ *
+ * @description 由 TaskDetail / TagManagerModal 的 @filter-by-tag 事件触发
+ * @param {string} name
+ */
+function onFilterByTag(name) {
+    currentPage.value = "board";
+    tagFilter.value = name;
+}
+
 // ----------------------------------------
 // 任务操作
 // ----------------------------------------
@@ -601,6 +658,15 @@ onMounted(() => {
                 {{ loading ? "加载中…" : "↺ 刷新" }}
             </button>
 
+            <!-- 标签管理按钮 -->
+            <button
+                class="btn-refresh"
+                title="标签管理"
+                @click="showTagManager = true"
+            >
+                🏷 标签
+            </button>
+
             <!-- 设置按钮 -->
             <button
                 class="btn-refresh"
@@ -725,6 +791,22 @@ onMounted(() => {
             @close="showSettings = false"
             @save="onSaveSettings"
             @update:highlight-mode="hlMode = $event"
+        />
+
+        <!-- 标签管理弹出框 -->
+        <TagManagerModal
+            :visible="showTagManager"
+            :tags="tags"
+            @close="showTagManager = false"
+            @rename="onRenameTag"
+            @set-color="onSetTagColor"
+            @delete-tag="onDeleteTag"
+            @filter-by-tag="
+                (name) => {
+                    onFilterByTag(name);
+                    showTagManager = false;
+                }
+            "
         />
 
         <!-- 计时记录回忆总结弹窗 -->

@@ -2,7 +2,11 @@
 //!
 //! 所有函数接受 &Connection ，由调用方管理连接生命周期
 //! urgency 在每次写操作后自动重新计算
+//!
+//! 标签不再存在 tasks 表里，而是拆到独立的 tags / task_tags 表（见 db::tag），
+//! 这里的 Task.tags 是每次查询时现拼出来的标签名列表。
 
+use crate::db::tag;
 use crate::models::task::{Annotation, Priority, Task, TaskStatus};
 use crate::models::urgency::compute_urgency;
 use anyhow::Result;
@@ -45,14 +49,21 @@ pub struct UpdateTaskRequest {
 pub fn list_all(conn: &Connection) -> Result<Vec<Task>> {
     let mut stmt = conn.prepare(
         "SELECT uuid, description, status, project, priority, urgency,
-             due, scheduled, created_at, end, tags, depends, annotations,
+             due, scheduled, created_at, end, depends, annotations,
              today_marked_date
         FROM tasks WHERE status != 'deleted' ORDER BY urgency DESC",
     )?;
 
-    let tasks = stmt
+    let mut tasks = stmt
         .query_map([], row_to_task)?
         .collect::<Result<Vec<_>, _>>()?;
+
+    // 标签存在独立的 task_tags 表里，一次性查出来再按 uuid 分发，
+    // 避免每个任务都单独查一次
+    let mut tags_by_task = tag::tags_by_task(conn)?;
+    for task in tasks.iter_mut() {
+        task.tags = tags_by_task.remove(&task.uuid).unwrap_or_default();
+    }
 
     Ok(tasks)
 }
@@ -61,14 +72,20 @@ pub fn list_all(conn: &Connection) -> Result<Vec<Task>> {
 pub fn get_by_uuid(conn: &Connection, uuid: &str) -> Result<Option<Task>> {
     let mut stmt = conn.prepare(
         "SELECT uuid, description, status, project, priority, urgency,
-                    due, scheduled, created_at, end, tags, depends, annotations,
+                    due, scheduled, created_at, end, depends, annotations,
                     today_marked_date
               FROM tasks WHERE uuid = ?1",
     )?;
 
     let mut rows = stmt.query_map([uuid], row_to_task)?;
+    let mut task = match rows.next().transpose()? {
+        Some(t) => t,
+        None => return Ok(None),
+    };
 
-    Ok(rows.next().transpose()?)
+    task.tags = tag::tags_for_task(conn, uuid)?;
+
+    Ok(Some(task))
 }
 
 /// 设置/取消"今日任务"标记，标记时记录当前 UTC 日期
@@ -104,7 +121,6 @@ pub fn reset_stale_today_marks(conn: &Connection) -> Result<()> {
 pub fn create(conn: &Connection, req: &CreateTaskRequest) -> Result<Task> {
     let uuid = Uuid::new_v4().to_string();
     let created_at = chrono::Utc::now().to_rfc3339();
-    let tags_json = serde_json::to_string(&req.tags)?;
     let depends_json = serde_json::to_string(&req.depends)?;
     let urgency = compute_urgency(
         req.priority.as_deref(),
@@ -127,8 +143,8 @@ pub fn create(conn: &Connection, req: &CreateTaskRequest) -> Result<Task> {
         "
             INSERT INTO tasks
                 (uuid, description, status, project, priority, urgency,
-                 due, scheduled, created_at, tags, depends, annotations)
-            VALUES (?1, ?2, 'pending', ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
+                 due, scheduled, created_at, depends, annotations)
+            VALUES (?1, ?2, 'pending', ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
         ",
         params![
             uuid,
@@ -139,11 +155,12 @@ pub fn create(conn: &Connection, req: &CreateTaskRequest) -> Result<Task> {
             req.due,
             req.scheduled,
             created_at,
-            tags_json,
             depends_json,
             annotations_json
         ],
     )?;
+
+    tag::set_tags_for_task(conn, &uuid, &req.tags)?;
 
     Ok(get_by_uuid(conn, &uuid)?.unwrap())
 }
@@ -184,7 +201,6 @@ pub fn update(conn: &Connection, uuid: &str, req: &UpdateTaskRequest) -> Result<
     let tags = req.tags.as_ref().unwrap_or(&current.tags);
     let depends = req.depends.as_ref().unwrap_or(&current.depends);
 
-    let tags_json = serde_json::to_string(tags)?;
     let depends_json = serde_json::to_string(depends)?;
     let urgency = compute_urgency(priority, due, &current.created_at, tags, depends);
 
@@ -206,7 +222,7 @@ pub fn update(conn: &Connection, uuid: &str, req: &UpdateTaskRequest) -> Result<
     conn.execute(
         "UPDATE tasks SET
                 description=?2, project=?3, priority=?4, urgency=?5,
-                due=?6, scheduled=?7, tags=?8, depends=?9, annotations=?10
+                due=?6, scheduled=?7, depends=?8, annotations=?9
              WHERE uuid=?1
         ",
         params![
@@ -217,13 +233,42 @@ pub fn update(conn: &Connection, uuid: &str, req: &UpdateTaskRequest) -> Result<
             urgency,
             due,
             scheduled,
-            tags_json,
             depends_json,
             annotations_json
         ],
     )?;
 
+    // 只有明确传了 tags 才改动标签关联，没传就保持原样
+    if let Some(new_tags) = &req.tags {
+        tag::set_tags_for_task(conn, uuid, new_tags)?;
+    }
+
     Ok(get_by_uuid(conn, uuid)?.unwrap())
+}
+
+/// 只替换某个任务的 depends 字段，其余字段不变
+/// （拖拽图谱里已有连线的终点、改指向/删除依赖关系时用）
+pub fn set_depends(conn: &Connection, uuid: &str, depends: Vec<String>) -> Result<()> {
+    update(
+        conn,
+        uuid,
+        &UpdateTaskRequest {
+            description: None,
+            project: None,
+            priority: None,
+            due: None,
+            scheduled: None,
+            tags: None,
+            depends: Some(depends),
+            clear_project: false,
+            clear_priority: false,
+            clear_due: false,
+            clear_scheduled: false,
+            annotation: None,
+            clear_annotation: false,
+        },
+    )?;
+    Ok(())
 }
 
 /// 将任务标记为完成
@@ -272,12 +317,11 @@ pub fn mark_deleted(conn: &Connection, uuid: &str) -> Result<()> {
 }
 
 /// 将数据库行转换为 Task 结构体
+/// 注意：不包含 tags —— 标签存在独立的 task_tags 表里，调用方查完之后自行填充
 fn row_to_task(row: &rusqlite::Row) -> rusqlite::Result<Task> {
-    let tags_json: String = row.get(10)?;
-    let depends_json: String = row.get(11)?;
-    let annotations_json: String = row.get(12)?;
+    let depends_json: String = row.get(10)?;
+    let annotations_json: String = row.get(11)?;
 
-    let tags: Vec<String> = serde_json::from_str(&tags_json).unwrap_or_default();
     let depends: Vec<String> = serde_json::from_str(&depends_json).unwrap_or_default();
     let annotations: Vec<Annotation> = serde_json::from_str(&annotations_json).unwrap_or_default();
 
@@ -308,10 +352,10 @@ fn row_to_task(row: &rusqlite::Row) -> rusqlite::Result<Task> {
         scheduled: row.get(7)?,
         created_at: row.get(8)?,
         end: row.get(9)?,
-        tags,
+        tags: Vec::new(),
         depends,
         annotations,
-        today_marked_date: row.get(13)?,
+        today_marked_date: row.get(12)?,
         blocking: Vec::new(),
         is_overdue: false,
         is_due_today: false,

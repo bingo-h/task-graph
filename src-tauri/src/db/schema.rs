@@ -73,6 +73,29 @@ const MIGRATIONS: &[&str] = &[
     r#"
     ALTER TABLE tasks ADD COLUMN today_marked_date TEXT;
     "#,
+    // 版本 9: 标签改为独立的 tags 表（名字 + 颜色）+ task_tags 多对多关联表，
+    // 取代原来存在 tasks.tags 里的 JSON 数组，这样改名/合并标签只需改一行，
+    // 也能给标签加颜色、按标签索引任务。
+    // 旧数据从 tasks.tags 搬过来的那一步在 init() 里紧跟着这条迁移执行
+    // （必须赶在版本 10 把 tasks.tags 列删掉之前完成）。
+    r#"
+    CREATE TABLE IF NOT EXISTS tags (
+        name  TEXT PRIMARY KEY,
+        color TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS task_tags (
+        task_uuid TEXT NOT NULL,
+        tag_name  TEXT NOT NULL,
+        PRIMARY KEY (task_uuid, tag_name)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_task_tags_tag_name ON task_tags (tag_name);
+    "#,
+    // 版本 10: 标签数据已经搬到 tags/task_tags 表，删掉 tasks 表里废弃的旧 JSON 列
+    r#"
+    ALTER TABLE tasks DROP COLUMN tags;
+    "#,
 ];
 
 /// 初始化数据库 schema ，自动执行尚未应用的迁移
@@ -90,6 +113,12 @@ pub fn init(conn: &Connection) -> Result<()> {
         if version > current_version {
             conn.execute_batch(sql)?;
 
+            // 版本 9 刚创建 tags/task_tags 表：趁 tasks.tags 列还没被
+            // 版本 10 的 DROP COLUMN 删掉，立刻把旧数据搬过去
+            if version == 9 {
+                crate::db::tag::backfill_from_json(conn)?;
+            }
+
             // 更新版本号
             conn.execute("DELETE FROM schema_version", [])?;
             conn.execute(
@@ -100,4 +129,129 @@ pub fn init(conn: &Connection) -> Result<()> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rusqlite::params;
+
+    /// 模拟一个还停在版本 8（标签仍是 tasks.tags 里的 JSON 数组）的旧数据库，
+    /// 验证升级到最新版本后：标签正确搬进 tags/task_tags 表、
+    /// 有重复标签的任务不会产生重复关联、tasks.tags 列被删除、
+    /// 且这个过程是幂等的（多跑几次 init 不会报错或产生副作用）。
+    #[test]
+    fn migrates_legacy_json_tags_into_relational_tables() {
+        let conn = Connection::open_in_memory().unwrap();
+
+        // 手搭一个版本 8 的旧 schema：tasks.tags 是 JSON 数组
+        conn.execute_batch(
+            r#"
+            CREATE TABLE tasks (
+                uuid        TEXT PRIMARY KEY,
+                description TEXT NOT NULL,
+                status      TEXT NOT NULL DEFAULT 'pending',
+                project     TEXT,
+                priority    TEXT,
+                urgency     REAL NOT NULL DEFAULT 0,
+                due         TEXT,
+                scheduled   TEXT,
+                created_at  TEXT NOT NULL,
+                end         TEXT,
+                tags        TEXT NOT NULL DEFAULT '[]',
+                depends     TEXT NOT NULL DEFAULT '[]',
+                annotations TEXT NOT NULL DEFAULT '[]',
+                today_marked_date TEXT
+            );
+            CREATE TABLE schema_version (version INTEGER NOT NULL);
+            INSERT INTO schema_version (version) VALUES (8);
+            "#,
+        )
+        .unwrap();
+
+        conn.execute(
+            "INSERT INTO tasks (uuid, description, created_at, tags) VALUES (?1, ?2, ?3, ?4)",
+            params!["t1", "买菜", "2026-01-01T00:00:00Z", r#"["life","urgent"]"#],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO tasks (uuid, description, created_at, tags) VALUES (?1, ?2, ?3, ?4)",
+            params!["t2", "写周报", "2026-01-02T00:00:00Z", r#"["work","urgent"]"#],
+        )
+        .unwrap();
+        // 没有标签的任务：不应该在 tags 表里留下任何痕迹
+        conn.execute(
+            "INSERT INTO tasks (uuid, description, created_at, tags) VALUES (?1, ?2, ?3, ?4)",
+            params!["t3", "没有标签", "2026-01-03T00:00:00Z", "[]"],
+        )
+        .unwrap();
+
+        init(&conn).unwrap();
+
+        // schema_version 升到了最新
+        let version: i64 =
+            conn.query_row("SELECT version FROM schema_version", [], |r| r.get(0)).unwrap();
+        assert_eq!(version, MIGRATIONS.len() as i64);
+
+        // tasks.tags 列已经被删除
+        let has_tags_column: bool = conn
+            .prepare("SELECT * FROM tasks LIMIT 0")
+            .unwrap()
+            .column_names()
+            .iter()
+            .any(|c| *c == "tags");
+        assert!(!has_tags_column, "tasks.tags 列应该已经被 DROP COLUMN 删除");
+
+        // tags 表：三个不重复的标签名，颜色初始为空
+        let mut stmt = conn.prepare("SELECT name, color FROM tags ORDER BY name").unwrap();
+        let tags: Vec<(String, Option<String>)> = stmt
+            .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
+            .unwrap()
+            .collect::<rusqlite::Result<_>>()
+            .unwrap();
+        assert_eq!(
+            tags,
+            vec![
+                ("life".to_string(), None),
+                ("urgent".to_string(), None),
+                ("work".to_string(), None),
+            ]
+        );
+
+        // task_tags：每个任务对应正确的标签集合
+        let mut stmt = conn
+            .prepare("SELECT tag_name FROM task_tags WHERE task_uuid = ?1 ORDER BY tag_name")
+            .unwrap();
+        let t1_tags: Vec<String> =
+            stmt.query_map(["t1"], |r| r.get(0)).unwrap().collect::<rusqlite::Result<_>>().unwrap();
+        assert_eq!(t1_tags, vec!["life", "urgent"]);
+
+        let t3_tags: Vec<String> =
+            stmt.query_map(["t3"], |r| r.get(0)).unwrap().collect::<rusqlite::Result<_>>().unwrap();
+        assert!(t3_tags.is_empty());
+
+        let total_task_tags: i64 =
+            conn.query_row("SELECT COUNT(*) FROM task_tags", [], |r| r.get(0)).unwrap();
+        assert_eq!(total_task_tags, 4); // t1: 2 + t2: 2
+
+        // 再跑一次 init 应该是纯粹的空操作，不报错、不产生重复数据
+        init(&conn).unwrap();
+        let total_task_tags_again: i64 =
+            conn.query_row("SELECT COUNT(*) FROM task_tags", [], |r| r.get(0)).unwrap();
+        assert_eq!(total_task_tags_again, 4);
+    }
+
+    /// 全新数据库（从版本 0 直接建到最新）不应该报错，且不会触发标签回填
+    #[test]
+    fn fresh_database_migrates_cleanly() {
+        let conn = Connection::open_in_memory().unwrap();
+        init(&conn).unwrap();
+
+        let version: i64 =
+            conn.query_row("SELECT version FROM schema_version", [], |r| r.get(0)).unwrap();
+        assert_eq!(version, MIGRATIONS.len() as i64);
+
+        let tag_count: i64 = conn.query_row("SELECT COUNT(*) FROM tags", [], |r| r.get(0)).unwrap();
+        assert_eq!(tag_count, 0);
+    }
 }

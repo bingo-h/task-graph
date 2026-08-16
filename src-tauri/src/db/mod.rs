@@ -17,6 +17,7 @@ use std::sync::OnceLock;
 
 pub mod project;
 pub mod schema;
+pub mod tag;
 pub mod task;
 pub mod time_entry;
 

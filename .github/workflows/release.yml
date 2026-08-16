@@ -1,4 +1,4 @@
-# task-web 发布工作流
+# task-graph 发布工作流
 #
 # 触发条件：推送形如 v1.0.0 的 tag
 #   git tag v1.0.0

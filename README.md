@@ -1,4 +1,4 @@
-# task-web
+# task-graph
 
 本地优先的桌面任务管理工具，以 DAG（有向无环图）可视化任务依赖关系。
 
@@ -77,14 +77,14 @@ cargo tauri build
 
 > 注意：macOS `.app` 包和 Linux `.deb` 安装后，可执行文件路径在包内部较深层级，此时"程序自身目录"不完全等同于用户直觉认知的安装目录。若后续需要在这些打包形态下也保持严格便携语义，需改用 Tauri 的 `path().app_data_dir()` API，详见 `src-tauri/src/db/mod.rs` 顶部注释。
 
-可通过 `TASK_WEB_DATA` 环境变量覆盖默认路径（主要用于开发调试）。
+可通过 `TASK_GRAPH_DATA` 环境变量覆盖默认路径（主要用于开发调试）。
 
 ## 项目结构
 
 按 Tauri 2 官方推荐的标准布局：
 
 ```text
-task-web/
+task-graph/
 ├── src-tauri/                 # Tauri 后端（Rust）
 │   ├── Cargo.toml
 │   ├── tauri.conf.json        # 窗口、打包、构建命令配置

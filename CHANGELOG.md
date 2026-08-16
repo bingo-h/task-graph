@@ -1,6 +1,6 @@
 # 更新日志
 
-本文件记录 task-web 各版本的主要变更。格式参考 [Keep a Changelog](https://keepachangelog.com/)，但用中文撰写。
+本文件记录 task-graph 各版本的主要变更。格式参考 [Keep a Changelog](https://keepachangelog.com/)，但用中文撰写。
 
 ## [未发布]
 

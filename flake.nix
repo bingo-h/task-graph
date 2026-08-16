@@ -47,7 +47,7 @@
           src = pkgs.lib.cleanSource self;
           # src = pkgs.fetchFromGitHub {
           #   owner = "bingo-h";
-          #   repo = "task-web";
+          #   repo = "task-graph";
           #   rev = "v1.2.1";
           #   hash = "sha256-k40Qx+brC3HINGDu3ez8EwC/qxePGDE7uA7d+KDjLbo=";
           # };

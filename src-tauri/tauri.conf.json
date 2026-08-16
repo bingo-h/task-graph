@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "task-web",
-  "version": "1.2.1",
-  "identifier": "dev.bin.taskweb",
+  "productName": "task-graph",
+  "version": "1.2.2",
+  "identifier": "dev.bin.taskgraph",
   "build": {
     "frontendDist": "../frontend/dist",
     "devUrl": "http://localhost:9999",

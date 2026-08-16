@@ -15,6 +15,7 @@ import TaskGraph from "./components/TaskGraph.vue";
 import TaskDetail from "./components/TaskDetail.vue";
 import SettingsModal from "./components/SettingsModal.vue";
 import Dashboard from "./components/Dashboard.vue";
+import ChartsPage from "./components/ChartsPage.vue";
 import TimeEntryNoteModal from "./components/TimeEntryNoteModal.vue";
 import { computeHighlight } from "./composables/useLayout";
 import {
@@ -79,13 +80,13 @@ function applyFontSize(size) {
     document.documentElement.style.setProperty("--app-font-size", `${size}px`);
 }
 
-// 当前页面："home" 首页仪表盘 / "board" 任务看板（原有的三栏视图）
+// 当前页面："home" 首页仪表盘 / "board" 任务看板（原有的三栏视图）/ "charts" 图表页
 const currentPage = ref("home");
 
 /**
- * 首页"今日任务"里点击某个任务，跳转到任务看板并选中它
+ * 首页"今日任务"或图表页里点击某个任务，跳转到任务看板并选中它
  *
- * @description 由 Dashboard 的 @jump-to-task 事件触发
+ * @description 由 Dashboard / ChartsPage 的 @jump-to-task 事件触发
  * @param {string} uuid - 任务 UUID
  */
 function onJumpToTask(uuid) {
@@ -553,6 +554,15 @@ onMounted(() => {
                 >
                     首页
                 </button>
+                    
+                <button
+                    class="page-nav-btn"
+                    :class="{ active: currentPage === 'charts' }"
+                    @click="currentPage = 'charts'"
+                >
+                    图表
+                </button>
+                
                 <button
                     class="page-nav-btn"
                     :class="{ active: currentPage === 'board' }"
@@ -634,6 +644,13 @@ onMounted(() => {
         <!-- 首页仪表盘 -->
         <Dashboard
             v-show="currentPage === 'home'"
+            :nodes="nodes"
+            @jump-to-task="onJumpToTask"
+        />
+
+        <!-- 图表页 -->
+        <ChartsPage
+            v-show="currentPage === 'charts'"
             :nodes="nodes"
             @jump-to-task="onJumpToTask"
         />

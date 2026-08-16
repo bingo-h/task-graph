@@ -118,23 +118,43 @@ function isValidMoveTarget(dragging, target) {
     return true;
 }
 
-/** 由 ProjectTreeNode 在 mousedown 时调用，发起一次拖拽 */
+// 鼠标按下后需移动超过这个距离（像素）才算真正开始拖拽，
+// 否则单纯点击也会因 mousedown 立即触发拖拽提示牌，体验很突兀
+const DRAG_START_THRESHOLD = 6;
+
+/** 由 ProjectTreeNode 在 mousedown 时调用，记录起点，移动超过阈值后才真正发起拖拽 */
 function beginProjectDrag(path, e) {
     if (dragState.path) return;
-    dragState.path = path;
-    dragState.overPath = null;
-    dragState.overRoot = false;
 
-    dragGhost.visible = true;
-    dragGhost.x = e.clientX;
-    dragGhost.y = e.clientY;
-    dragGhost.label = props.projects[path]?.name || path.split(".").pop();
+    const startX = e.clientX;
+    const startY = e.clientY;
+    let dragStarted = false;
+    let prevUserSelect = null;
 
-    // 拖拽期间禁止全局文字被意外框选（原生 mousedown+移动默认会触发文本选区）
-    const prevUserSelect = document.body.style.userSelect;
-    document.body.style.userSelect = "none";
+    function activateDrag(e) {
+        dragStarted = true;
+        dragState.path = path;
+        dragState.overPath = null;
+        dragState.overRoot = false;
+
+        dragGhost.visible = true;
+        dragGhost.x = e.clientX;
+        dragGhost.y = e.clientY;
+        dragGhost.label = props.projects[path]?.name || path.split(".").pop();
+
+        // 拖拽期间禁止全局文字被意外框选（原生 mousedown+移动默认会触发文本选区）
+        prevUserSelect = document.body.style.userSelect;
+        document.body.style.userSelect = "none";
+    }
 
     function onMove(e) {
+        if (!dragStarted) {
+            const dx = e.clientX - startX;
+            const dy = e.clientY - startY;
+            if (Math.hypot(dx, dy) < DRAG_START_THRESHOLD) return;
+            activateDrag(e);
+        }
+
         dragGhost.x = e.clientX;
         dragGhost.y = e.clientY;
 
@@ -147,6 +167,10 @@ function beginProjectDrag(path, e) {
     function onUp() {
         window.removeEventListener("mousemove", onMove);
         window.removeEventListener("mouseup", onUp);
+
+        // 移动距离没超过阈值，说明只是点击，不当作拖拽处理
+        if (!dragStarted) return;
+
         document.body.style.userSelect = prevUserSelect;
 
         if (dragState.overRoot) {

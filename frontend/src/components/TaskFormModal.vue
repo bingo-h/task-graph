@@ -7,8 +7,9 @@
 
 <script setup>
 import constants from "../config/constants";
-import { computed, ref, watch } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
 import DatePicker from "./DatePicker.vue";
+import { tagChipStyle } from "../composables/useTagColor";
 
 const props = defineProps({
     // 是否显示弹窗
@@ -25,11 +26,16 @@ const props = defineProps({
 
     // 所有任务列表，用于前置任务选择
     allTasks: { type: Array, required: true },
+
+    // 标签名 -> { name, color, task_count }，用于给标签块上色
+    // （命名成 tagColors 而不是 tags，避免和下面本地的"当前任务已选标签"数组撞名）
+    tagColors: { type: Object, default: () => ({}) },
 });
 
 const emit = defineEmits([
     "close", // 关闭弹窗
     "submit", // 提交: { mode: 'add'|'modify', uuid?, fields }
+    "rename-tag", // 重命名标签：(oldTag, newTag)，用了旧标签的任务全部一起改名
 ]);
 
 // 表单字段
@@ -40,6 +46,7 @@ const priority = ref(""); // H | M | L
 const tags = ref([]);
 const tagInput = ref(""); // 标签输入框临时值
 const showTagDropdown = ref(false); // 是否显示标签下拉建议框
+const showProjectDropdown = ref(false); // 是否显示项目下拉建议框
 const depends = ref([]); // 任务的uuid
 const annotationInput = ref(""); // 备注输入框：只保留一条，修改时会整体替换原有内容
 
@@ -54,10 +61,29 @@ const projectOptions = computed(() =>
         .sort(),
 );
 
-// 所有已存在的标签（从全部任务中去重收集）
+// 下拉框中显示的候选项目：随输入过滤（子串匹配），不区分大小写
+const filteredProjectOptions = computed(() => {
+    const keyword = project.value.trim().toLowerCase();
+    if (!keyword) return projectOptions.value;
+    return projectOptions.value.filter((p) =>
+        p.toLowerCase().includes(keyword),
+    );
+});
+
+// 项目下拉框当前键盘高亮的候选项下标，-1 表示未高亮任何项
+const highlightedProjectIndex = ref(-1);
+
+watch(filteredProjectOptions, () => {
+    highlightedProjectIndex.value = -1;
+});
+
+// 所有已存在的标签：限定在当前选择的项目内去重收集；未选择项目时显示全部任务的标签
 const allTagOptions = computed(() => {
     const set = new Set();
-    for (const t of props.allTasks) {
+    const scoped = project.value
+        ? props.allTasks.filter((t) => t.project === project.value)
+        : props.allTasks;
+    for (const t of scoped) {
         for (const tag of t.tags || []) set.add(tag);
     }
     return [...set].sort();
@@ -72,10 +98,21 @@ const filteredTagOptions = computed(() => {
     });
 });
 
-// 所有已存在的任务列表
+// 标签下拉框当前键盘高亮的候选项下标，-1 表示未高亮任何项
+const highlightedTagIndex = ref(-1);
+
+// 候选列表变化后（输入过滤/下拉开关）之前高亮的下标可能已经对不上，统一重置
+watch(filteredTagOptions, () => {
+    highlightedTagIndex.value = -1;
+});
+
+// 前置任务候选：限定在当前选择的项目内的待办任务；未选择项目时显示全部待办任务
 const dependsOptions = computed(() =>
     props.allTasks.filter(
-        (t) => t.status === "pending" && t.uuid != props.prefill?.uuid,
+        (t) =>
+            t.status === "pending" &&
+            t.uuid != props.prefill?.uuid &&
+            (!project.value || t.project === project.value),
     ),
 );
 
@@ -119,7 +156,7 @@ watch(
 // ----------------------------------------
 // 标签操作
 // ----------------------------------------
-/** 回车、逗号确认添加标签，或从下拉框点击选择已有标签 */
+/** 回车、逗号确认添加标签，或从下拉框点击/键盘选择已有标签 */
 function addTag(tag) {
     const t = (tag ?? tagInput.value).trim().replace(/^[+]/, "");
     if (t && !tags.value.includes(t)) {
@@ -127,6 +164,7 @@ function addTag(tag) {
     }
     tagInput.value = "";
     showTagDropdown.value = false;
+    highlightedTagIndex.value = -1;
 }
 
 function removeTag(tag) {
@@ -144,6 +182,115 @@ function hideTagDropdownDelayed() {
     setTimeout(() => {
         showTagDropdown.value = false;
     }, 150);
+}
+
+/** ↓ 键：打开下拉框，并把键盘高亮移到下一项（到底后回到第一项） */
+function moveTagHighlightDown() {
+    showTagDropdown.value = true;
+    const count = filteredTagOptions.value.length;
+    if (count === 0) return;
+    highlightedTagIndex.value = (highlightedTagIndex.value + 1) % count;
+}
+
+/** ↑ 键：把键盘高亮移到上一项（到顶后回到最后一项） */
+function moveTagHighlightUp() {
+    const count = filteredTagOptions.value.length;
+    if (!showTagDropdown.value || count === 0) return;
+    highlightedTagIndex.value = (highlightedTagIndex.value - 1 + count) % count;
+}
+
+/** 回车：如果下拉框当前有键盘高亮的候选项，选中它；否则按原逻辑把输入框内容确认为新标签 */
+function confirmTagOnEnter() {
+    const opt = filteredTagOptions.value[highlightedTagIndex.value];
+    if (showTagDropdown.value && opt) {
+        addTag(opt);
+    } else {
+        addTag();
+    }
+}
+
+// ----------------------------------------
+// 标签重命名：下拉框每一项悬浮时可点铅笔图标改名，
+// 用了这个标签的所有任务会一起改成新名字（由父组件调用后端批量重命名）
+// ----------------------------------------
+const renamingTag = ref(null); // 当前正在改名的标签，null 表示没有
+const renameTagInput = ref("");
+const renameTagInputRef = ref(null);
+
+watch(renamingTag, async (tag) => {
+    if (!tag) return;
+    await nextTick();
+    renameTagInputRef.value?.focus();
+    renameTagInputRef.value?.select();
+});
+
+function startRenameTag(tag) {
+    renamingTag.value = tag;
+    renameTagInput.value = tag;
+}
+
+function cancelRenameTag() {
+    renamingTag.value = null;
+    renameTagInput.value = "";
+}
+
+/** 回车确认改名：通知父组件批量重命名，并同步当前表单里已选的这个标签 */
+function confirmRenameTag() {
+    const oldTag = renamingTag.value;
+    const newTag = renameTagInput.value.trim();
+    cancelRenameTag();
+
+    if (!oldTag || !newTag || newTag === oldTag) return;
+
+    emit("rename-tag", oldTag, newTag);
+
+    // 去重，避免这个任务本来就同时有新旧两个标签名，改名后出现重复
+    tags.value = [
+        ...new Set(tags.value.map((t) => (t === oldTag ? newTag : t))),
+    ];
+}
+
+// ----------------------------------------
+// 项目选择：自定义下拉框（用输入过滤 + 键盘/鼠标选择），
+// 不用原生 <input list>+<datalist>，因为浏览器原生的候选框样式无法自定义
+// ----------------------------------------
+function selectProject(p) {
+    project.value = p;
+    showProjectDropdown.value = false;
+    highlightedProjectIndex.value = -1;
+}
+
+/** 输入框失焦时延迟隐藏下拉框，使下拉项的点击事件能先触发 */
+function hideProjectDropdownDelayed() {
+    setTimeout(() => {
+        showProjectDropdown.value = false;
+    }, 150);
+}
+
+/** ↓ 键：打开下拉框，并把键盘高亮移到下一项（到底后回到第一项） */
+function moveProjectHighlightDown() {
+    showProjectDropdown.value = true;
+    const count = filteredProjectOptions.value.length;
+    if (count === 0) return;
+    highlightedProjectIndex.value = (highlightedProjectIndex.value + 1) % count;
+}
+
+/** ↑ 键：把键盘高亮移到上一项（到顶后回到最后一项） */
+function moveProjectHighlightUp() {
+    const count = filteredProjectOptions.value.length;
+    if (!showProjectDropdown.value || count === 0) return;
+    highlightedProjectIndex.value =
+        (highlightedProjectIndex.value - 1 + count) % count;
+}
+
+/** 回车：如果下拉框当前有键盘高亮的候选项，选中它并收起下拉框；否则直接保留手动输入的路径 */
+function confirmProjectOnEnter() {
+    const opt = filteredProjectOptions.value[highlightedProjectIndex.value];
+    if (showProjectDropdown.value && opt) {
+        selectProject(opt);
+    } else {
+        showProjectDropdown.value = false;
+    }
 }
 
 // ----------------------------------------
@@ -251,22 +398,42 @@ function submit() {
                     </div>
 
                     <!-- 所属项目 (下拉框选择 + 可手动输入) -->
-                    <div class="form-row">
+                    <div class="form-row project-field-row">
                         <label class="form-label">项目</label>
                         <input
                             v-model="project"
                             class="form-input"
-                            list="project-list"
                             placeholder="选择或输入项目路径，如 personal.reading"
+                            @focus="
+                                showProjectDropdown = true;
+                                highlightedProjectIndex = -1;
+                            "
+                            @blur="hideProjectDropdownDelayed"
+                            @keydown.enter.prevent="confirmProjectOnEnter"
+                            @keydown.down.prevent="moveProjectHighlightDown"
+                            @keydown.up.prevent="moveProjectHighlightUp"
                         />
 
-                        <datalist id="project-list">
-                            <option
-                                v-for="p in projectOptions"
+                        <!-- 已有项目下拉建议框 -->
+                        <div
+                            v-if="
+                                showProjectDropdown &&
+                                filteredProjectOptions.length > 0
+                            "
+                            class="suggest-dropdown"
+                        >
+                            <button
+                                v-for="(p, i) in filteredProjectOptions"
                                 :key="p"
-                                :value="p"
-                            />
-                        </datalist>
+                                type="button"
+                                class="suggest-dropdown-item"
+                                :class="{ active: i === highlightedProjectIndex }"
+                                @mousedown.prevent="selectProject(p)"
+                                @mouseenter="highlightedProjectIndex = i"
+                            >
+                                {{ p }}
+                            </button>
+                        </div>
                     </div>
 
                     <!-- 截止日期 -->
@@ -305,6 +472,7 @@ function submit() {
                                 v-for="tag in tags"
                                 :key="tag"
                                 class="tag-chip"
+                                :style="tagChipStyle(tagColors[tag]?.color)"
                             >
                                 {{ tag }}
                                 <button
@@ -319,35 +487,65 @@ function submit() {
                             <input
                                 class="tag-input"
                                 v-model="tagInput"
-                                @focus="showTagDropdown = true"
-                                @blur="hideTagDropdownDelayed"
-                                @keydown.enter.prevent="addTag()"
-                                @keydown.comma.prevent="addTag()"
-                                @keydown.down.prevent="
-                                    showTagDropdown = true
+                                @focus="
+                                    showTagDropdown = true;
+                                    highlightedTagIndex = -1;
                                 "
+                                @blur="hideTagDropdownDelayed"
+                                @keydown.enter.prevent="confirmTagOnEnter"
+                                @keydown.comma.prevent="addTag()"
+                                @keydown.down.prevent="moveTagHighlightDown"
+                                @keydown.up.prevent="moveTagHighlightUp"
                                 @keydown.delete="removeLastTagOnBackspace"
-                                placeholder="输入标签，回车确认或从下拉选择"
+                                placeholder="输入标签，↑↓ 选择、回车确认，或从下拉选择"
                             />
                         </div>
 
-                        <!-- 已有标签下拉建议框 -->
+                        <!-- 已有标签下拉建议框：悬浮某一项可点铅笔图标重命名，
+                             改名期间即使标签输入框失焦也要保持下拉框展开（见 v-if 的 renamingTag 分支） -->
                         <div
                             v-if="
-                                showTagDropdown &&
+                                (showTagDropdown || renamingTag) &&
                                 filteredTagOptions.length > 0
                             "
-                            class="tag-dropdown"
+                            class="suggest-dropdown"
                         >
-                            <button
-                                v-for="opt in filteredTagOptions"
+                            <div
+                                v-for="(opt, i) in filteredTagOptions"
                                 :key="opt"
-                                type="button"
-                                class="tag-dropdown-item"
-                                @mousedown.prevent="addTag(opt)"
+                                class="suggest-dropdown-row"
+                                @mouseenter="highlightedTagIndex = i"
                             >
-                                {{ opt }}
-                            </button>
+                                <input
+                                    v-if="renamingTag === opt"
+                                    :ref="(el) => (renameTagInputRef = el)"
+                                    v-model="renameTagInput"
+                                    class="tag-rename-input"
+                                    @keydown.enter.prevent="confirmRenameTag"
+                                    @keydown.esc.prevent="cancelRenameTag"
+                                    @blur="cancelRenameTag"
+                                />
+                                <template v-else>
+                                    <button
+                                        type="button"
+                                        class="suggest-dropdown-item"
+                                        :class="{
+                                            active: i === highlightedTagIndex,
+                                        }"
+                                        @mousedown.prevent="addTag(opt)"
+                                    >
+                                        {{ opt }}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="tag-rename-btn"
+                                        title="重命名标签（用了这个标签的所有任务会一起改名）"
+                                        @mousedown.prevent="startRenameTag(opt)"
+                                    >
+                                        ✎
+                                    </button>
+                                </template>
+                            </div>
                         </div>
                     </div>
 
@@ -570,6 +768,11 @@ function submit() {
     border-color: var(--fg-dark);
 }
 
+/* 项目选择：自定义下拉框需要一个定位锚点 */
+.project-field-row {
+    position: relative;
+}
+
 /* 标签编辑器 */
 .tags-row {
     position: relative;
@@ -621,34 +824,114 @@ function submit() {
 }
 
 /* 标签下拉建议框 */
-.tag-dropdown {
+.suggest-dropdown {
     position: absolute;
-    top: calc(100% + 4px);
+    top: calc(100% + 6px);
     left: 0;
     right: 0;
     z-index: 10;
-    max-height: 160px;
+    max-height: 180px;
     overflow-y: auto;
     background: var(--bg-popup);
     border: 1px solid var(--border);
-    border-radius: 6px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
-    padding: 4px;
+    border-radius: 8px;
+    box-shadow:
+        0 10px 28px rgba(0, 0, 0, 0.22),
+        0 2px 6px rgba(0, 0, 0, 0.12);
+    padding: 5px;
     display: flex;
     flex-direction: column;
     gap: 2px;
+    animation: suggest-dropdown-in 0.12s ease-out;
 }
-.tag-dropdown-item {
+
+@keyframes suggest-dropdown-in {
+    from {
+        opacity: 0;
+        transform: translateY(-4px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.suggest-dropdown::-webkit-scrollbar {
+    width: 4px;
+}
+.suggest-dropdown::-webkit-scrollbar-thumb {
+    background: var(--fg-dark);
+    border-radius: 2px;
+}
+
+.suggest-dropdown-item {
     text-align: left;
-    padding: 6px 8px;
-    border-radius: 4px;
+    padding: 6px 10px;
+    border-radius: 5px;
     font-size: 0.9231rem;
     color: var(--fg);
-    transition: background 0.12s;
+    transition:
+        background 0.12s,
+        color 0.12s;
 }
-.tag-dropdown-item:hover {
+.suggest-dropdown-item:hover {
     background: var(--bg-select);
     color: var(--magenta);
+}
+
+/* 键盘 ↑↓ 移动到的候选项：比鼠标悬浮更醒目，回车即会选中它 */
+.suggest-dropdown-item.active {
+    background: rgba(187, 154, 247, 0.18);
+    color: var(--magenta);
+    box-shadow: inset 0 0 0 1px rgba(187, 154, 247, 0.4);
+}
+
+/* 标签候选项一行：候选按钮 + 悬浮才出现的重命名图标 */
+.suggest-dropdown-row {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+.suggest-dropdown-row .suggest-dropdown-item {
+    flex: 1;
+    min-width: 0;
+}
+
+.tag-rename-btn {
+    flex-shrink: 0;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 5px;
+    font-size: 0.8rem;
+    color: var(--fg-dim);
+    opacity: 0;
+    transition:
+        opacity 0.12s,
+        background 0.12s,
+        color 0.12s;
+}
+.suggest-dropdown-row:hover .tag-rename-btn {
+    opacity: 1;
+}
+.tag-rename-btn:hover {
+    background: var(--bg-select);
+    color: var(--magenta);
+}
+
+/* 标签重命名输入框：替换掉当前这一行 */
+.tag-rename-input {
+    flex: 1;
+    min-width: 0;
+    border: 1px solid var(--magenta);
+    border-radius: 5px;
+    padding: 5px 9px;
+    font-size: 0.9231rem;
+    background: var(--bg-dark);
+    color: var(--fg);
+    outline: none;
 }
 
 /* 前置任务多选 */

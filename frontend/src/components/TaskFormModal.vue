@@ -41,7 +41,7 @@ const tags = ref([]);
 const tagInput = ref(""); // 标签输入框临时值
 const showTagDropdown = ref(false); // 是否显示标签下拉建议框
 const depends = ref([]); // 任务的uuid
-const annotationInput = ref(""); // 备注输入框：提交时追加为一条新备注，不预填已有备注
+const annotationInput = ref(""); // 备注输入框：只保留一条，修改时会整体替换原有内容
 
 // 根据模式设置表单标题
 const isModify = computed(() => !!props.prefill);
@@ -92,6 +92,8 @@ watch(
             priority.value = props.prefill.priority || "";
             tags.value = [...(props.prefill.tags || [])]; // ...操作符代表把(数组内)的元素放入外部[新数组]内
             depends.value = [...(props.prefill.depends || [])];
+            // 备注只保留一条，预填现有内容，修改后整体替换
+            annotationInput.value = props.prefill.annotations?.[0]?.description || "";
         } else {
             // 新建模式，清空
             description.value = "";
@@ -107,11 +109,10 @@ watch(
             priority.value = "";
             tags.value = [];
             depends.value = [];
+            annotationInput.value = "";
         }
 
         tagInput.value = "";
-        // 备注是"新增一条"的语义，不管新建还是修改都从空白开始
-        annotationInput.value = "";
     },
 );
 
@@ -173,6 +174,7 @@ function submit() {
             tags: tags.value,
             depends: depends.value,
             annotation: annotationInput.value.trim() || null,
+            clear_annotation: !annotationInput.value.trim(),
         };
 
         if (description.value !== props.prefill.description) {
@@ -238,7 +240,7 @@ function submit() {
                     <!-- 任务描述 -->
                     <div class="form-row">
                         <label class="form-label">
-                            任务描述 <span class="required">*</span>
+                            <span>任务描述 <span class="required">*</span></span>
                         </label>
                         <input
                             ref="inputRef"
@@ -386,17 +388,10 @@ function submit() {
                         </div>
                     </div>
 
-                    <!-- 备注：追加语义，不会覆盖已有的历史备注 -->
+                    <!-- 备注：只保留一条，每次修改都是整体替换 -->
                     <div class="form-row">
                         <label class="form-label">
-                            备注
-                            <span
-                                v-if="prefill?.annotations?.length"
-                                class="form-hint"
-                            >
-                                已有 {{ prefill.annotations.length }}
-                                条备注，这里填写的内容会作为新的一条追加，不会覆盖
-                            </span>
+                            <span>备注</span>
                         </label>
                         <textarea
                             v-model="annotationInput"

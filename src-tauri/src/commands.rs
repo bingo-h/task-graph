@@ -49,21 +49,37 @@ pub struct AddTaskArgs {
     #[serde(default)]
     pub depends: Vec<String>,
 
-    /// 备注：非空时作为第一条 annotation 附加到新任务上
+    /// 备注：非空时作为任务唯一的一条 annotation
     #[serde(default)]
     pub annotation: Option<String>,
 }
 
 /// 修改任务参数
+/// 所有字段都标了 default，未提供的键一律视为“不修改这个字段”，
+/// 因此调用方可以只传想改的那一两个字段（比如只改备注），不用每次带上完整表单
 #[derive(Serialize, Deserialize)]
 pub struct ModifyTaskArgs {
     pub uuid: String,
+
+    #[serde(default)]
     pub description: Option<String>,
+
+    #[serde(default)]
     pub project: Option<String>,
+
+    #[serde(default)]
     pub priority: Option<String>,
+
+    #[serde(default)]
     pub due: Option<String>,
+
+    #[serde(default)]
     pub scheduled: Option<String>,
+
+    #[serde(default)]
     pub tags: Option<Vec<String>>,
+
+    #[serde(default)]
     pub depends: Option<Vec<String>>,
 
     #[serde(default)]
@@ -78,9 +94,13 @@ pub struct ModifyTaskArgs {
     #[serde(default)]
     pub clear_scheduled: bool,
 
-    /// 非空时追加为一条新的 annotation（保留原有的历史备注，不会覆盖）
+    /// 备注：非空时整体替换原有的那一条 annotation；不提供则不改动
     #[serde(default)]
     pub annotation: Option<String>,
+
+    /// 显式清空备注（annotation 为空时才有意义）
+    #[serde(default)]
+    pub clear_annotation: bool,
 }
 
 /// 无项目归属任务的虚拟项目路径标识符，与 `db::project` 内的常量保持一致
@@ -447,6 +467,7 @@ pub fn modify_task(args: ModifyTaskArgs) -> Result<GraphResponse, String> {
             clear_due: args.clear_due,
             clear_scheduled: args.clear_scheduled,
             annotation: args.annotation,
+            clear_annotation: args.clear_annotation,
         },
     )
     .map_err(|e| e.to_string())?;

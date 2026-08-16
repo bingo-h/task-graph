@@ -18,7 +18,7 @@ pub struct CreateTaskRequest {
     pub scheduled: Option<String>,
     pub tags: Vec<String>,
     pub depends: Vec<String>,
-    /// 非空时作为第一条 annotation 附加到新任务上
+    /// 备注：非空时作为任务唯一的一条 annotation
     pub annotation: Option<String>,
 }
 
@@ -36,8 +36,9 @@ pub struct UpdateTaskRequest {
     pub clear_priority: bool,
     pub clear_due: bool,
     pub clear_scheduled: bool,
-    /// 非空时追加为一条新的 annotation，不影响已有的历史备注
+    /// 备注：非空时整体替换原有的那一条 annotation；为空且 clear_annotation 为 false 时不改动
     pub annotation: Option<String>,
+    pub clear_annotation: bool,
 }
 
 /// 查询所有非删除状态的任务
@@ -187,16 +188,19 @@ pub fn update(conn: &Connection, uuid: &str, req: &UpdateTaskRequest) -> Result<
     let depends_json = serde_json::to_string(depends)?;
     let urgency = compute_urgency(priority, due, &current.created_at, tags, depends);
 
-    // 备注是追加语义：不会覆盖或编辑已有的历史条目，只在非空时新增一条
-    let mut annotations = current.annotations.clone();
-    if let Some(text) = req.annotation.as_deref().map(str::trim) {
-        if !text.is_empty() {
-            annotations.push(Annotation {
-                created_at: Some(chrono::Utc::now().to_rfc3339()),
-                description: text.to_string(),
-            });
-        }
-    }
+    // 备注只保留一条，每次都是整体替换（而不是追加）；
+    // 没提供 annotation 时不改动，只有显式 clear_annotation 才会清空
+    let trimmed_annotation = req.annotation.as_deref().map(str::trim).filter(|t| !t.is_empty());
+    let annotations = if let Some(text) = trimmed_annotation {
+        vec![Annotation {
+            created_at: Some(chrono::Utc::now().to_rfc3339()),
+            description: text.to_string(),
+        }]
+    } else if req.clear_annotation {
+        Vec::new()
+    } else {
+        current.annotations.clone()
+    };
     let annotations_json = serde_json::to_string(&annotations)?;
 
     conn.execute(

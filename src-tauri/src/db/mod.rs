@@ -4,7 +4,7 @@
 //! 将 SQLite 编译进二进制，用户无需安装任何依赖。
 //!
 //! 数据库文件位置（按优先级）：
-//!   1. `TASK_WEB_DATA` 环境变量指定的路径
+//!   1. `TASK_GRAPH_DATA` 环境变量指定的路径
 //!   2. 可执行文件所在目录（便携模式）
 //!   3. 若目录 2 不可写（例如 NixOS 下二进制位于只读的 `/nix/store`），
 //!      回退到用户数据目录：Linux 遵循 XDG Base Directory 规范
@@ -28,7 +28,7 @@ pub fn db_path() -> PathBuf {
     static PATH: OnceLock<PathBuf> = OnceLock::new();
 
     PATH.get_or_init(|| {
-        if let Ok(path) = std::env::var("TASK_WEB_DATA") {
+        if let Ok(path) = std::env::var("TASK_GRAPH_DATA") {
             return PathBuf::from(path);
         }
 
@@ -48,7 +48,7 @@ pub fn db_path() -> PathBuf {
 
 /// 探测目录是否可写：尝试创建一个临时文件，成功后立即删除
 fn is_writable(dir: &Path) -> bool {
-    let probe = dir.join(".task-web-write-test");
+    let probe = dir.join(".task-graph-write-test");
     match std::fs::File::create(&probe) {
         Ok(_) => {
             let _ = std::fs::remove_file(&probe);
@@ -62,7 +62,7 @@ fn is_writable(dir: &Path) -> bool {
 fn fallback_data_dir() -> PathBuf {
     dirs::data_dir()
         .unwrap_or_else(|| PathBuf::from("."))
-        .join("task-web")
+        .join("task-graph")
 }
 
 /// 打开数据库连接并确保表结构已经初始化

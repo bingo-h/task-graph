@@ -78,11 +78,11 @@
         "task-graph": "task-graph"
       },
       "locked": {
-        "lastModified": 1786894106,
-        "narHash": "sha256-HepCLm0sNylDgbbkjTEMQFw0qZhS7ZC4UJrpSCssP3Q=",
+        "lastModified": 1786896989,
+        "narHash": "sha256-S9k3jfwakjeC3gE3SI3J6CAaChN2cdNXIiSRgSOOuno=",
         "ref": "refs/heads/master",
-        "rev": "12f9e9173ea2e22bf0ee0bdcb7ce648f7d109a25",
-        "revCount": 60,
+        "rev": "c64aed1ef7b7ee3dc11c04caddfdc3b39e91e50f",
+        "revCount": 61,
         "type": "git",
         "url": "ssh://git@github.com/bingo-h/nixos-config"
       },
@@ -377,11 +377,11 @@
         "rust-overlay": "rust-overlay_2"
       },
       "locked": {
-        "lastModified": 1786892430,
-        "narHash": "sha256-NV0vo6RDCKeCXuTPSfYkJr3ZTkpRrn5AK7uwRpksHTo=",
+        "lastModified": 1786894568,
+        "narHash": "sha256-kTIja0DgzMbmrnhqeF9AtOXzDX2J4cPxgHmQlfMgQR8=",
         "owner": "bingo-h",
         "repo": "task-graph",
-        "rev": "234642d7f3bbdfd0301bc8e11376be9837d6bc06",
+        "rev": "98012302b856c1517ae18a12d572ed128ab37e55",
         "type": "github"
       },
       "original": {

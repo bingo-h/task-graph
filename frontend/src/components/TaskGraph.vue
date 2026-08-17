@@ -19,20 +19,47 @@ import { ref, computed, onMounted, watch, nextTick } from "vue";
 import * as d3 from "d3";
 import {
     computeLayout,
+    computeHighlight,
     NODE_WIDTH,
-    NODE_HEIGHT,
+    NODE_DETAIL_START_Y,
+    NODE_DETAIL_LINE_HEIGHT,
+    nodeHeightFor,
 } from "../composables/useLayout";
+import { formatRecurSummary } from "../composables/useRecur";
+import { formatDuration } from "../composables/useDuration";
+import { tagChipStyle } from "../composables/useTagColor";
+import constants from "../config/constants";
 
 const props = defineProps({
     nodes: { type: Array, required: true },
     edges: { type: Array, required: true },
+    // "depends"（默认）：显示真实依赖关系；"today-order"："今日任务"分类下显示用户
+    // 手动排的今日工作顺序（此时 edges 传入的已经是 today_order_edges，不是真实依赖）
+    mode: { type: String, default: "depends" },
+    // 真实的依赖关系边，today-order 模式下用来算悬浮/选中节点的原始依赖链路虚线预览
+    dependsEdges: { type: Array, default: () => [] },
     selected: { type: String, default: null }, // 选中任务的路径
     highlightSet: { type: Object, default: () => new Set() }, // Set(uuid)
     projectFilter: { type: String, default: null },
     tagFilter: { type: String, default: null }, // 按标签名过滤，和 projectFilter 同时生效取交集
+    projects: { type: Object, default: () => ({}) }, // 项目路径 -> ProjectNode，按分类哨兵值筛选时用
     tags: { type: Object, default: () => ({}) }, // 标签名 -> { name, color, task_count }
     multiSelected: { type: Object, default: () => new Set() }, // Set(uuid)，框选/Ctrl 多选的任务
     hasActiveTimer: { type: Boolean, default: false }, // 是否已有任务（单个或一批）正在计时
+    // 任务卡片上默认显示哪些信息、以及每项的标签文字（悬浮详情窗不受影响，总是显示全部信息、用固定标签）
+    nodeDisplay: {
+        type: Object,
+        default: () => ({
+            node_show_project: true,
+            node_show_due: true,
+            node_show_priority: true,
+            node_show_recur: true,
+            node_label_project: constants.DEFAULT_NODE_LABELS.project,
+            node_label_due: constants.DEFAULT_NODE_LABELS.due,
+            node_label_priority: constants.DEFAULT_NODE_LABELS.priority,
+            node_label_recur: constants.DEFAULT_NODE_LABELS.recur,
+        }),
+    },
 });
 
 const emit = defineEmits([
@@ -54,6 +81,87 @@ let zoomBehavior = null;
 let layoutNodes = []; // 最近一次布局计算出的节点（含 x/y），供框选命中检测使用
 
 // ----------------------------------------
+// 节点高度自适应：详情行显示几项（项目/截止日期/优先级/重复）由设置决定，
+// 行数越多节点越高。currentNodeHeight 是给 render() 之外那些非响应式的辅助函数
+// （edgePath/hitTestBox/拖拽相关函数等）读的模块级变量，每次 render() 开头都会同步更新
+// ----------------------------------------
+const detailLineCount = computed(() => {
+    const d = props.nodeDisplay;
+    return [
+        d.node_show_project,
+        d.node_show_due,
+        d.node_show_priority,
+        d.node_show_recur,
+    ].filter(Boolean).length;
+});
+let currentNodeHeight = nodeHeightFor(4);
+
+// ----------------------------------------
+// 悬浮任务详情窗：卡片上受设置隐藏的信息，悬浮时仍能在这里看到完整详情
+// ----------------------------------------
+const tooltipUuid = ref(null);
+const tooltipPos = ref({ x: 0, y: 0 }); // 相对 .graph-container 左上角的坐标
+
+const tooltipTask = computed(
+    () => props.nodes.find((n) => n.uuid === tooltipUuid.value) || null,
+);
+
+/** 把鼠标位置换算成相对 .graph-container 左上角的坐标，用于定位悬浮详情窗 */
+function updateTooltipPos(event) {
+    if (!svgRef.value) return;
+    const bounds = svgRef.value.getBoundingClientRect();
+    tooltipPos.value = {
+        x: event.clientX - bounds.left,
+        y: event.clientY - bounds.top,
+    };
+}
+
+/** 悬浮详情窗里的状态显示文字 */
+function statusLabel(status) {
+    return (
+        {
+            pending: constants.PENDING,
+            completed: constants.COMPLETED,
+            waiting: constants.WAITING,
+            deleted: constants.DELETED,
+        }[status] || status
+    );
+}
+
+// ----------------------------------------
+// today-order 模式：悬浮/选中某个任务时，虚线预览它在真实依赖图里的完整链路
+// ----------------------------------------
+const hoveredUuid = ref(null); // 当前鼠标悬浮的任务，只在 today-order 模式下跟踪
+
+/** 当前用于计算链路预览的任务：悬浮优先，其次是选中的任务 */
+const chainActiveUuid = computed(() => hoveredUuid.value ?? props.selected);
+
+/** 该任务在真实依赖图里的完整链路（祖先+后代+自身），非 today-order 模式下为空集 */
+const chainNodeSet = computed(() => {
+    if (props.mode !== "today-order" || !chainActiveUuid.value) return new Set();
+    return computeHighlight(chainActiveUuid.value, props.dependsEdges, "full");
+});
+
+/** 链路里两端都在这个集合中的边，才画得出虚线（另一端不在"今日任务"过滤后的当前视图里就没有坐标） */
+const chainEdges = computed(() => {
+    if (chainNodeSet.value.size === 0) return [];
+    return props.dependsEdges.filter(
+        (e) => chainNodeSet.value.has(e.source) && chainNodeSet.value.has(e.target),
+    );
+});
+
+/** 链路里有多少成员不在当前"今日任务"视图内（只能用徽标提示数量，画不出虚线） */
+const chainOffScreenCount = computed(() => {
+    if (chainNodeSet.value.size === 0) return 0;
+    const visibleUuids = new Set(layoutNodes.map((n) => n.uuid));
+    let count = 0;
+    for (const uuid of chainNodeSet.value) {
+        if (uuid !== chainActiveUuid.value && !visibleUuids.has(uuid)) count++;
+    }
+    return count;
+});
+
+// ----------------------------------------
 // 渲染函数
 // ----------------------------------------
 /**
@@ -63,11 +171,15 @@ function render() {
     const svg = d3.select(svgRef.value);
     if (!svg.node()) return;
 
+    currentNodeHeight = nodeHeightFor(detailLineCount.value);
+
     const { nodes, edges } = computeLayout(
         props.nodes,
         props.edges,
         props.projectFilter,
         props.tagFilter,
+        props.projects,
+        currentNodeHeight,
     );
 
     if (nodes.length === 0) {
@@ -81,7 +193,7 @@ function render() {
 
     // 计算画布尺寸
     const maxX = d3.max(nodes, (n) => n.x + NODE_WIDTH) + 80;
-    const maxY = d3.max(nodes, (n) => n.y + NODE_HEIGHT) + 80;
+    const maxY = d3.max(nodes, (n) => n.y + currentNodeHeight) + 80;
 
     const canvas = svg.select("g.canvas");
 
@@ -100,8 +212,8 @@ function render() {
 
     edgeEnter
         .append("path")
-        .attr("class", "edge")
-        .attr("marker-end", "url(#arrow)")
+        .attr("class", edgeClass())
+        .attr("marker-end", edgeMarker())
         .attr("fill", "none")
         .attr("d", (e) => edgePath(e, uuidToPos));
 
@@ -122,7 +234,8 @@ function render() {
         .transition()
         .duration(300)
         .attr("d", (e) => edgePath(e, uuidToPos))
-        .attr("class", "edge");
+        .attr("class", edgeClass())
+        .attr("marker-end", edgeMarker());
 
     edgeUpdate.select(".edge-handle").attr("transform", (e) => {
         const p = edgeEndpoint(e, uuidToPos);
@@ -148,12 +261,26 @@ function render() {
             } else {
                 emit("select", n.uuid === props.selected ? null : n.uuid);
             }
+        })
+        .on("mouseenter", (event, n) => {
+            if (props.mode === "today-order") hoveredUuid.value = n.uuid;
+            tooltipUuid.value = n.uuid;
+            updateTooltipPos(event);
+        })
+        .on("mousemove", (event) => {
+            updateTooltipPos(event);
+        })
+        .on("mouseleave", (event, n) => {
+            if (props.mode === "today-order" && hoveredUuid.value === n.uuid) {
+                hoveredUuid.value = null;
+            }
+            if (tooltipUuid.value === n.uuid) tooltipUuid.value = null;
         });
 
     nodeEnter
         .append("rect")
         .attr("width", NODE_WIDTH)
-        .attr("height", NODE_HEIGHT)
+        .attr("height", currentNodeHeight)
         .attr("rx", 8)
         .attr("ry", 8);
 
@@ -164,12 +291,15 @@ function render() {
         .attr("x", 12)
         .attr("y", 22);
 
-    // 状态/项目副标题
-    nodeEnter
-        .append("text")
-        .attr("class", "node-sub")
-        .attr("x", 12)
-        .attr("y", 40);
+    // 详情行：项目/截止日期/优先级/重复标记，各占一行，具体显示哪几项、按什么顺序排
+    // 由 nodeDetailLines() 根据设置和这个任务实际有哪些字段动态决定，行位置固定、内容紧凑排列
+    for (let i = 0; i < NODE_DETAIL_LINES; i++) {
+        nodeEnter
+            .append("text")
+            .attr("class", "node-detail")
+            .attr("x", 12)
+            .attr("y", NODE_DETAIL_START_Y + i * NODE_DETAIL_LINE_HEIGHT);
+    }
 
     // 锁定图标
     nodeEnter
@@ -192,7 +322,7 @@ function render() {
         .append("circle")
         .attr("class", "connect-dot connect-dot-left")
         .attr("cx", 0)
-        .attr("cy", NODE_HEIGHT / 2)
+        .attr("cy", currentNodeHeight / 2)
         .attr("r", 6)
         .on("mousedown", (event, n) => startConnectDrag(event, n, "left"))
         .on("click", (event) => event.stopPropagation());
@@ -201,7 +331,7 @@ function render() {
         .append("circle")
         .attr("class", "connect-dot connect-dot-right")
         .attr("cx", NODE_WIDTH)
-        .attr("cy", NODE_HEIGHT / 2)
+        .attr("cy", currentNodeHeight / 2)
         .attr("r", 6)
         .on("mousedown", (event, n) => startConnectDrag(event, n, "right"))
         .on("click", (event) => event.stopPropagation());
@@ -226,13 +356,32 @@ function render() {
         .duration(300)
         .attr("class", (n) => rectClass(n));
 
+    // 节点高度自适应：显示的详情行数变了（比如刚在设置里勾掉一项），
+    // 已经存在的节点也要跟着调整矩形高度和连接点的垂直位置，不等下次重新创建才生效
+    nodeUpdate.select("rect").attr("height", currentNodeHeight);
+    nodeUpdate.selectAll(".connect-dot").attr("cy", currentNodeHeight / 2);
+
     // 更新：按实际渲染宽度截断，避免中文等宽字体下按字符数截断仍超出节点边框
     nodeUpdate.select(".node-desc").each(function (n) {
         truncateToWidth(d3.select(this), n.description, NODE_WIDTH - 40);
     });
 
-    // 更新副标题
-    nodeUpdate.select(".node-sub").text((n) => subText(n));
+    // 更新详情行：每个节点各自算出要显示哪几行文字（受设置里的显示开关影响），
+    // 紧凑地绑到固定的 4 个 <text> 位置上，缺的项直接留空，不会串位
+    nodeUpdate.each(function (n) {
+        const lines = nodeDetailLines(n, props.nodeDisplay);
+        const padded = Array.from(
+            { length: NODE_DETAIL_LINES },
+            (_, i) => lines[i] || "",
+        );
+
+        d3.select(this)
+            .selectAll(".node-detail")
+            .data(padded)
+            .each(function (text) {
+                truncateToWidth(d3.select(this), text, NODE_WIDTH - 24);
+            });
+    });
 
     // 更新锁状态
     nodeUpdate
@@ -247,11 +396,54 @@ function render() {
     });
 
     nodeSel.exit().transition().duration(200).style("opacity", 0).remove();
+
+    renderChainOverlay();
+}
+
+/**
+ * 画出 today-order 模式下悬浮/选中节点的原始依赖链路虚线预览。
+ * 独立于主 render()：悬浮切换时只重画这一层，不用跑一遍完整的节点/边数据绑定，
+ * 避免鼠标在节点间移动时反复触发全量过渡动画。
+ */
+function renderChainOverlay() {
+    const svg = d3.select(svgRef.value);
+    const canvas = svg.select("g.canvas");
+    if (canvas.empty()) return;
+
+    let overlay = canvas.select("g.chain-overlay");
+    if (overlay.empty()) {
+        // 插到最前面（第一个子节点），这样边/节点始终画在虚线预览的上层
+        overlay = canvas.insert("g", ":first-child").attr("class", "chain-overlay");
+    }
+
+    const uuidToPos = Object.fromEntries(layoutNodes.map((n) => [n.uuid, n]));
+    const visibleChainEdges = chainEdges.value.filter(
+        (e) => uuidToPos[e.source] && uuidToPos[e.target],
+    );
+
+    const sel = overlay
+        .selectAll("path.chain-edge")
+        .data(visibleChainEdges, (e) => `${e.source}-${e.target}`);
+
+    sel.exit().remove();
+
+    sel.enter()
+        .append("path")
+        .attr("class", "chain-edge")
+        .attr("marker-end", "url(#arrow-magenta)")
+        .attr("fill", "none")
+        .merge(sel)
+        .attr("d", (e) => edgePath(e, uuidToPos));
 }
 
 // ----------------------------------------
 // 辅助函数
 // ----------------------------------------
+/** 边的 CSS 类名：today-order 模式下用不同颜色区分"手动排序边"和真实依赖边 */
+function edgeClass() {
+    return props.mode === "today-order" ? "edge edge-today-order" : "edge";
+}
+
 /**
  * 生成边的 SVG path 路径（折线通过 dagre 给出的控制点）。
  * @param {Object} edge - 连线数据源对象
@@ -273,7 +465,7 @@ function edgePath(edge, uuidToPos) {
     const s = uuidToPos[edge.source];
     const t = uuidToPos[edge.target];
     if (!s || !t) return "";
-    return `M${s.x + NODE_WIDTH},${s.y + NODE_HEIGHT / 2}L${t.x},${t.y + NODE_HEIGHT / 2}`;
+    return `M${s.x + NODE_WIDTH},${s.y + currentNodeHeight / 2}L${t.x},${t.y + currentNodeHeight / 2}`;
 }
 
 /**
@@ -293,7 +485,7 @@ function edgeEndpoint(edge, uuidToPos) {
     }
 
     const t = uuidToPos[edge.target];
-    return t ? { x: t.x, y: t.y + NODE_HEIGHT / 2 } : null;
+    return t ? { x: t.x, y: t.y + currentNodeHeight / 2 } : null;
 }
 
 /**
@@ -329,24 +521,48 @@ function rectClass(n) {
     if (n.status === "completed") return "rect-done";
     if (n.is_overdue) return "rect-overdue";
     if (n.is_due_today) return "rect-today";
-    if (n.is_lock) return "rect-locked";
+    if (n.is_locked) return "rect-locked";
     if (n.status === "waiting") return "rect-waiting";
 
     return "rect-pending";
 }
 
+// 最多同时显示这么多行（项目/截止日期/优先级/重复），节点高度由 detailLineCount 决定
+const NODE_DETAIL_LINES = 4;
+
 /**
- * 节点副标题文字
+ * 节点卡片上的详情行文字，每一项各占一行。设置里开启的项始终显示（这个任务没有对应
+ * 字段值时显示"无"），关闭的项不显示——所以每个节点显示的行数、顺序都完全一致，
+ * 只取决于设置，和具体某个任务有没有值无关，这样节点高度才能统一自适应。
  * @param {Object} n - 一个任务节点数据
+ * @param {Object} display - 显示开关 + 标签文字
+ * @returns {string[]}
  */
-function subText(n) {
-    const parts = [];
+function nodeDetailLines(n, display) {
+    const lines = [];
+    const labels = constants.DEFAULT_NODE_LABELS;
 
-    if (n.project) parts.push(n.project.split(".").pop());
-    if (n.due) parts.push(n.due.slice(0, 10));
-    if (n.priority) parts.push(`[${n.priority}]`);
+    if (display.node_show_project) {
+        const label = display.node_label_project || labels.project;
+        const value = n.project ? n.project.split(".").pop() : "无";
+        lines.push(`${label}：${value}`);
+    }
+    if (display.node_show_due) {
+        const label = display.node_label_due || labels.due;
+        const value = n.due ? n.due.slice(0, 10) : "无";
+        lines.push(`${label}：${value}`);
+    }
+    if (display.node_show_priority) {
+        const label = display.node_label_priority || labels.priority;
+        lines.push(`${label}：${n.priority || "无"}`);
+    }
+    if (display.node_show_recur) {
+        const label = display.node_label_recur || labels.recur;
+        const value = n.is_recurring ? `🔁 ${formatRecurSummary(n.recur_rule)}` : "无";
+        lines.push(`${label}：${value}`);
+    }
 
-    return parts.join("  ");
+    return lines;
 }
 
 /**
@@ -387,7 +603,7 @@ function hitTestBox(x, y, w, h) {
             const sx1 = transform.applyX(n.x);
             const sy1 = transform.applyY(n.y);
             const sx2 = transform.applyX(n.x + NODE_WIDTH);
-            const sy2 = transform.applyY(n.y + NODE_HEIGHT);
+            const sy2 = transform.applyY(n.y + currentNodeHeight);
             return sx1 < x2 && sx2 > x && sy1 < y2 && sy2 > y;
         })
         .map((n) => n.uuid);
@@ -544,7 +760,7 @@ function dragConnectionLine(event, origin, lineClass, excludeUuid, onDrop) {
 function startConnectDrag(event, node, side) {
     const origin = {
         x: side === "right" ? node.x + NODE_WIDTH : node.x,
-        y: node.y + NODE_HEIGHT / 2,
+        y: node.y + currentNodeHeight / 2,
     };
 
     dragConnectionLine(
@@ -576,7 +792,7 @@ function startEdgeEndDrag(event, edge) {
 
     const origin = {
         x: sourceNode.x + NODE_WIDTH,
-        y: sourceNode.y + NODE_HEIGHT / 2,
+        y: sourceNode.y + currentNodeHeight / 2,
     };
 
     dragConnectionLine(
@@ -655,14 +871,18 @@ function resetZoom() {
 // ----------------------------------------
 // 生命周期
 // ----------------------------------------
-onMounted(() => {
-    const svg = d3.select(svgRef.value);
-
-    // 定义箭头 marker
-    // Debug: svg.select('defs').selectAll('marker').remove()
-    svg.select("defs")
+/**
+ * 定义一个箭头 marker，颜色由 markerClass 对应的 CSS 决定。
+ * 不同类型的边（真实依赖/今日排序/链路预览虚线）线条颜色不同，箭头必须跟着换一个
+ * 对应颜色的 marker，不能全部共用一个固定颜色的箭头，否则线和箭头对不上。
+ * @param {import("d3").Selection} defs
+ * @param {string} id
+ * @param {string} markerClass
+ */
+function defineArrowMarker(defs, id, markerClass) {
+    defs
         .append("marker")
-        .attr("id", "arrow")
+        .attr("id", id)
         .attr("viewBox", "0 -5 10 10")
         .attr("refX", 10)
         .attr("refY", 0)
@@ -671,7 +891,23 @@ onMounted(() => {
         .attr("orient", "auto")
         .append("path")
         .attr("d", "M0,-5L10,0L0,5")
-        .attr("class", "arrow-head");
+        .attr("class", markerClass);
+}
+
+/** 边当前应该用哪个箭头 marker，和 edgeClass() 的配色规则保持一致 */
+function edgeMarker() {
+    return props.mode === "today-order" ? "url(#arrow-green)" : "url(#arrow)";
+}
+
+onMounted(() => {
+    const svg = d3.select(svgRef.value);
+
+    // 定义箭头 marker
+    // Debug: svg.select('defs').selectAll('marker').remove()
+    const defs = svg.select("defs");
+    defineArrowMarker(defs, "arrow", "arrow-head");
+    defineArrowMarker(defs, "arrow-green", "arrow-head-green");
+    defineArrowMarker(defs, "arrow-magenta", "arrow-head-magenta");
 
     initZoom();
     initBoxSelect();
@@ -683,11 +919,14 @@ watch(
     [
         () => props.nodes,
         () => props.edges,
+        () => props.mode,
+        () => props.dependsEdges,
         () => props.projectFilter,
         () => props.tagFilter,
         () => props.selected,
         () => props.highlightSet,
         () => props.multiSelected,
+        () => props.nodeDisplay,
     ],
     async () => {
         await nextTick();
@@ -695,6 +934,12 @@ watch(
     },
     { deep: true },
 );
+
+// 悬浮任务变化时（today-order 模式下的链路预览）只重画虚线预览这一层，
+// 不用跑完整的 render()，避免鼠标划过节点时反复触发全量过渡动画
+watch(hoveredUuid, () => {
+    renderChainOverlay();
+});
 
 // 切换项目/标签过滤后自动重置视图
 watch(
@@ -743,6 +988,72 @@ defineExpose({ resetZoom });
             >
                 ✕
             </button>
+        </div>
+
+        <!-- today-order 模式下悬浮/选中节点时，提示原依赖链路里还有多少成员不在"今日任务"视图里
+             （这些成员画不出虚线，因为它们在当前过滤后的布局里没有坐标） -->
+        <div v-if="chainOffScreenCount > 0" class="chain-offscreen-badge">
+            🔗 原依赖链路中还有 {{ chainOffScreenCount }} 个任务不在今日任务里
+        </div>
+
+        <!-- 悬浮任务详情窗：卡片本身可能因为显示设置隐藏了一些信息，这里始终展示全部 -->
+        <div
+            v-if="tooltipTask"
+            class="node-tooltip"
+            :style="{
+                left: tooltipPos.x + 18 + 'px',
+                top: tooltipPos.y + 18 + 'px',
+            }"
+        >
+            <div class="node-tooltip-desc">{{ tooltipTask.description }}</div>
+
+            <div class="node-tooltip-row">
+                <span class="node-tooltip-label">状态</span>
+                {{ statusLabel(tooltipTask.status) }}
+            </div>
+            <div v-if="tooltipTask.project" class="node-tooltip-row">
+                <span class="node-tooltip-label">项目</span>
+                {{ tooltipTask.project }}
+            </div>
+            <div v-if="tooltipTask.priority" class="node-tooltip-row">
+                <span class="node-tooltip-label">优先级</span>
+                {{ tooltipTask.priority }}
+            </div>
+            <div v-if="tooltipTask.due" class="node-tooltip-row">
+                <span class="node-tooltip-label">截止</span>
+                {{ tooltipTask.due.slice(0, 10) }} {{ tooltipTask.due.slice(11, 16) }}
+            </div>
+            <div v-if="tooltipTask.scheduled" class="node-tooltip-row">
+                <span class="node-tooltip-label">计划开始</span>
+                {{ tooltipTask.scheduled.slice(0, 10) }}
+            </div>
+            <div v-if="tooltipTask.is_recurring" class="node-tooltip-row">
+                <span class="node-tooltip-label">重复</span>
+                🔁 {{ formatRecurSummary(tooltipTask.recur_rule) }}
+            </div>
+            <div v-if="tooltipTask.depends.length" class="node-tooltip-row">
+                <span class="node-tooltip-label">前置任务</span>
+                {{ tooltipTask.depends.length }} 个
+            </div>
+            <div v-if="tooltipTask.total_seconds > 0" class="node-tooltip-row">
+                <span class="node-tooltip-label">累计耗时</span>
+                {{ formatDuration(tooltipTask.total_seconds) }}
+            </div>
+            <div class="node-tooltip-row">
+                <span class="node-tooltip-label">紧迫度</span>
+                {{ tooltipTask.urgency.toFixed(2) }}
+            </div>
+
+            <div v-if="tooltipTask.tags?.length" class="node-tooltip-tags">
+                <span
+                    v-for="tag in tooltipTask.tags"
+                    :key="tag"
+                    class="node-tooltip-tag"
+                    :style="tagChipStyle(tags[tag]?.color)"
+                >
+                    {{ tag }}
+                </span>
+            </div>
         </div>
 
         <!-- 批量操作工具栏：框选 / Ctrl+点击多选后出现 -->
@@ -852,6 +1163,71 @@ defineExpose({ resetZoom });
 .tag-filter-clear:hover {
     opacity: 1;
     background: var(--bg-select);
+}
+
+/* today-order 模式下的"链路里还有任务不在视图内"提示（放右上角，避免和左上角的标签筛选提示条重叠） */
+.chain-offscreen-badge {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: var(--bg-panel);
+    border: 1px solid var(--magenta);
+    color: var(--magenta);
+    font-size: 0.8462rem;
+    font-weight: 600;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    pointer-events: none;
+}
+
+/* 悬浮任务详情窗：跟着鼠标出现在任务卡片右下方，展示不受卡片显示设置影响的完整信息 */
+.node-tooltip {
+    position: absolute;
+    z-index: 30;
+    min-width: 200px;
+    max-width: 280px;
+    padding: 10px 12px;
+    background: var(--bg-popup);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.25);
+    pointer-events: none;
+}
+
+.node-tooltip-desc {
+    font-size: 0.9231rem;
+    font-weight: 700;
+    color: var(--fg);
+    margin-bottom: 6px;
+    word-break: break-word;
+}
+
+.node-tooltip-row {
+    display: flex;
+    gap: 8px;
+    font-size: 0.8rem;
+    color: var(--fg);
+    line-height: 1.6;
+}
+
+.node-tooltip-label {
+    flex-shrink: 0;
+    width: 56px;
+    color: var(--fg-dim);
+}
+
+.node-tooltip-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 6px;
+}
+
+.node-tooltip-tag {
+    padding: 1px 7px;
+    border-radius: 3px;
+    font-size: 0.75rem;
 }
 
 /* 批量操作工具栏：框选 / Ctrl+点击多选后，悬浮在画布顶部中间 */

@@ -148,14 +148,20 @@ watch(filteredTagOptions, () => {
     highlightedTagIndex.value = -1;
 });
 
-// 前置任务候选：限定在当前选择的项目内的待办任务；未选择项目时显示全部待办任务
+// 前置任务候选：待办任务限定在当前选择的项目内，未选择项目时显示全部待办任务；
+// 已完成的任务默认不显示（不太可能拿来当前置任务），但同一项目下的已完成任务也算进去，
+// 方便给"实际上已经做过"的前置任务补一条依赖记录
 const dependsOptions = computed(() =>
-    props.allTasks.filter(
-        (t) =>
-            t.status === "pending" &&
-            t.uuid != props.prefill?.uuid &&
-            (!project.value || t.project === project.value),
-    ),
+    props.allTasks.filter((t) => {
+        if (t.uuid === props.prefill?.uuid) return false;
+        if (t.status === "pending") {
+            return !project.value || t.project === project.value;
+        }
+        if (t.status === "completed") {
+            return !!project.value && t.project === project.value;
+        }
+        return false;
+    }),
 );
 
 // 预填写 (如果是修改任务的话)

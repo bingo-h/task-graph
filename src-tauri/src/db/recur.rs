@@ -68,7 +68,8 @@ pub fn set_recur_rule(conn: &Connection, uuid: &str, rule: Option<RecurRule>) ->
             let now = chrono::Utc::now();
             let due = recur::first_cycle_due(r, now).to_rfc3339();
             let rule_json = serde_json::to_string(r)?;
-            let today = now.format("%Y-%m-%d").to_string();
+            // "今日任务"标记要跟本地日历天走，不能用 now 的 UTC 日期
+            let today = chrono::Local::now().format("%Y-%m-%d").to_string();
 
             conn.execute(
                 "UPDATE tasks SET recur_rule=?2, status='pending', end=NULL,
@@ -129,7 +130,8 @@ pub fn process_rollovers(conn: &Connection) -> Result<()> {
         .collect();
 
     let now = chrono::Utc::now();
-    let today = now.format("%Y-%m-%d").to_string();
+    // "今日任务"标记要跟本地日历天走，不能用 now 的 UTC 日期
+    let today = chrono::Local::now().format("%Y-%m-%d").to_string();
 
     for row in rows {
         let Some(due_str) = row.due.as_deref() else {

@@ -386,6 +386,16 @@ function statusLabel(s) {
                     </span>
                 </div>
 
+                <div
+                    v-if="task.status === 'completed' && task.end"
+                    class="detail-row"
+                >
+                    <span class="detail-key">完成于</span>
+                    <span class="detail-val">
+                        {{ formatDateTime(task.end) }}
+                    </span>
+                </div>
+
                 <div class="detail-row">
                     <span class="detail-key">紧迫度</span>
                     <span class="detail-val">

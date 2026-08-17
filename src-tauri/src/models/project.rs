@@ -22,6 +22,11 @@ pub struct ProjectNode {
     /// 项目所属阶段："planned"（计划中）或 "active"（进行中），不级联，默认 "active"
     pub stage: String,
 
+    /// 该节点实际展示所属的分组："trash" / "archived" / "planned" / "active"
+    /// （废纸篓优先于归档，归档优先于阶段，均为级联结果），供前端按分类筛选任务用，
+    /// 避免前端重复实现一遍这套优先级判断逻辑
+    pub group: String,
+
     /// 自身或祖先在废纸篓中时为 true（级联，优先级高于归档/阶段分组）
     pub trashed: bool,
     /// 该路径自身是否被显式移入废纸篓（用于判断能否在此节点直接恢复）
@@ -46,6 +51,7 @@ impl ProjectNode {
             archived: false,
             self_archived: false,
             stage: STAGE_ACTIVE.to_string(),
+            group: STAGE_ACTIVE.to_string(),
             trashed: false,
             self_trashed: false,
             trashed_at: None,

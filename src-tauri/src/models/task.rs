@@ -51,6 +51,18 @@ pub struct Annotation {
     pub description: String,
 }
 
+/// 周期性任务的重复规则，存成 JSON 落进 tasks.recur_rule
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "lowercase")]
+pub enum RecurRule {
+    /// 每 interval 天重复一次
+    Daily { interval: u32 },
+    /// 每周固定星期几重复，weekdays: 0=周一..6=周日
+    Weekly { weekdays: Vec<u8> },
+    /// 每月固定第几天重复，超出当月天数时按月末截断（如 31 号在二月按 28/29 号算）
+    Monthly { day: u8 },
+}
+
 /// 任务数据结构
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Task {
@@ -104,6 +116,17 @@ pub struct Task {
     /// 派生字段：若正在计时，这一段计时的开始时间
     #[serde(default)]
     pub active_since: Option<String>,
+
+    /// 单个 emoji，用于日历页打卡展示；未设置为 None
+    pub icon: Option<String>,
+    /// 十六进制颜色（如 #8250df），用于日历页打卡点/图标着色；未设置为 None
+    pub color: Option<String>,
+    /// 周期性规则；None 表示不是周期性任务
+    pub recur_rule: Option<RecurRule>,
+
+    /// 派生字段：recur_rule.is_some() 的语法糖，方便前端判断
+    #[serde(default)]
+    pub is_recurring: bool,
 }
 
 impl Task {

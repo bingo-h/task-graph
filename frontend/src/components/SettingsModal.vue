@@ -11,6 +11,7 @@
 import { ref, computed, watch } from "vue";
 import { formatDuration, DEFAULT_DURATION_FORMAT } from "../composables/useDuration";
 import { getVersion } from "@tauri-apps/api/app";
+import constants from "../config/constants";
 import {
     updateStatus,
     updateError,
@@ -35,6 +36,7 @@ const emit = defineEmits(["close", "save", "update:highlight-mode"]);
 const SECTIONS = [
     { key: "general", label: "通用" },
     { key: "duration", label: "时长格式" },
+    { key: "graph", label: "图谱显示" },
     { key: "about", label: "关于" },
 ];
 const activeSection = ref("general");
@@ -51,6 +53,22 @@ const highlightModeOptions = [
 const trashRetentionDays = ref(30);
 const fontSize = ref(14);
 const durationFormat = ref(DEFAULT_DURATION_FORMAT);
+const defaultDueTime = ref("23:59");
+
+// 图谱任务节点卡片上默认显示哪些信息（悬浮详情窗不受影响，总是显示全部）
+const nodeShowProject = ref(true);
+const nodeShowDue = ref(true);
+const nodeShowPriority = ref(true);
+const nodeShowRecur = ref(true);
+
+// 对应信息在卡片上显示的标签文字，可自定义；DEFAULT_NODE_LABELS 是"重置"按钮恢复的目标值
+const NODE_LABELS = constants.DEFAULT_NODE_LABELS;
+// 卡片本身很窄，标签文字太长会被截断得很难看，限制一下输入长度
+const NODE_LABEL_MAX_LENGTH = 8;
+const nodeLabelProject = ref(NODE_LABELS.project);
+const nodeLabelDue = ref(NODE_LABELS.due);
+const nodeLabelPriority = ref(NODE_LABELS.priority);
+const nodeLabelRecur = ref(NODE_LABELS.recur);
 
 watch(
     () => props.visible,
@@ -61,6 +79,15 @@ watch(
         fontSize.value = props.settings.font_size ?? 14;
         durationFormat.value =
             props.settings.duration_format || DEFAULT_DURATION_FORMAT;
+        defaultDueTime.value = props.settings.default_due_time || "23:59";
+        nodeShowProject.value = props.settings.node_show_project ?? true;
+        nodeShowDue.value = props.settings.node_show_due ?? true;
+        nodeShowPriority.value = props.settings.node_show_priority ?? true;
+        nodeShowRecur.value = props.settings.node_show_recur ?? true;
+        nodeLabelProject.value = props.settings.node_label_project || NODE_LABELS.project;
+        nodeLabelDue.value = props.settings.node_label_due || NODE_LABELS.due;
+        nodeLabelPriority.value = props.settings.node_label_priority || NODE_LABELS.priority;
+        nodeLabelRecur.value = props.settings.node_label_recur || NODE_LABELS.recur;
     },
 );
 
@@ -101,6 +128,15 @@ function submit() {
             Math.max(8, Math.round(Number(fontSize.value) || 14)),
         ),
         duration_format: durationFormat.value.trim() || DEFAULT_DURATION_FORMAT,
+        default_due_time: defaultDueTime.value || "23:59",
+        node_show_project: nodeShowProject.value,
+        node_show_due: nodeShowDue.value,
+        node_show_priority: nodeShowPriority.value,
+        node_show_recur: nodeShowRecur.value,
+        node_label_project: nodeLabelProject.value.trim() || NODE_LABELS.project,
+        node_label_due: nodeLabelDue.value.trim() || NODE_LABELS.due,
+        node_label_priority: nodeLabelPriority.value.trim() || NODE_LABELS.priority,
+        node_label_recur: nodeLabelRecur.value.trim() || NODE_LABELS.recur,
     });
 }
 </script>
@@ -190,6 +226,20 @@ function submit() {
                                     class="form-input"
                                 />
                             </div>
+
+                            <div class="form-row">
+                                <label class="form-label">
+                                    任务默认到期时间
+                                    <span class="form-hint">
+                                        新建/修改任务只选日期、不选具体时间时，自动补上的到期时刻
+                                    </span>
+                                </label>
+                                <input
+                                    v-model="defaultDueTime"
+                                    type="time"
+                                    class="form-input"
+                                />
+                            </div>
                         </template>
 
                         <!-- 时长格式 -->
@@ -244,6 +294,117 @@ function submit() {
                                         </tr>
                                     </tbody>
                                 </table>
+                            </div>
+                        </template>
+
+                        <!-- 图谱显示 -->
+                        <template v-else-if="activeSection === 'graph'">
+                            <div class="form-row">
+                                <label class="form-label">
+                                    任务卡片显示信息
+                                    <span class="form-hint">
+                                        控制任务看板图谱里，任务卡片上显示哪些信息、以及每项的标签文字；
+                                        开启的项即使任务没有对应的值也会显示（标为"无"），关闭的项鼠标悬浮在卡片上时仍会在详情窗里显示。
+                                        节点大小会跟着开启的项数自动调整。
+                                    </span>
+                                </label>
+
+                                <div class="node-display-row">
+                                    <label class="checkbox-row">
+                                        <input
+                                            v-model="nodeShowProject"
+                                            type="checkbox"
+                                        />
+                                        所属项目
+                                    </label>
+                                    <input
+                                        v-model="nodeLabelProject"
+                                        class="form-input node-label-input"
+                                        placeholder="标签文字"
+                                        :maxlength="NODE_LABEL_MAX_LENGTH"
+                                    />
+                                    <button
+                                        type="button"
+                                        class="label-reset-btn"
+                                        title="恢复默认标签"
+                                        :disabled="nodeLabelProject === NODE_LABELS.project"
+                                        @click="nodeLabelProject = NODE_LABELS.project"
+                                    >
+                                        ↺
+                                    </button>
+                                </div>
+
+                                <div class="node-display-row">
+                                    <label class="checkbox-row">
+                                        <input v-model="nodeShowDue" type="checkbox" />
+                                        截止日期
+                                    </label>
+                                    <input
+                                        v-model="nodeLabelDue"
+                                        class="form-input node-label-input"
+                                        placeholder="标签文字"
+                                        :maxlength="NODE_LABEL_MAX_LENGTH"
+                                    />
+                                    <button
+                                        type="button"
+                                        class="label-reset-btn"
+                                        title="恢复默认标签"
+                                        :disabled="nodeLabelDue === NODE_LABELS.due"
+                                        @click="nodeLabelDue = NODE_LABELS.due"
+                                    >
+                                        ↺
+                                    </button>
+                                </div>
+
+                                <div class="node-display-row">
+                                    <label class="checkbox-row">
+                                        <input
+                                            v-model="nodeShowPriority"
+                                            type="checkbox"
+                                        />
+                                        优先级
+                                    </label>
+                                    <input
+                                        v-model="nodeLabelPriority"
+                                        class="form-input node-label-input"
+                                        placeholder="标签文字"
+                                        :maxlength="NODE_LABEL_MAX_LENGTH"
+                                    />
+                                    <button
+                                        type="button"
+                                        class="label-reset-btn"
+                                        title="恢复默认标签"
+                                        :disabled="nodeLabelPriority === NODE_LABELS.priority"
+                                        @click="nodeLabelPriority = NODE_LABELS.priority"
+                                    >
+                                        ↺
+                                    </button>
+                                </div>
+
+                                <div class="node-display-row">
+                                    <label class="checkbox-row">
+                                        <input
+                                            v-model="nodeShowRecur"
+                                            type="checkbox"
+                                        />
+                                        重复任务标记
+                                    </label>
+                                    <input
+                                        v-model="nodeLabelRecur"
+                                        class="form-input node-label-input"
+                                        placeholder="标签文字"
+                                        :maxlength="NODE_LABEL_MAX_LENGTH"
+                                    />
+                                    <button
+                                        type="button"
+                                        class="label-reset-btn"
+                                        title="恢复默认标签"
+                                        :disabled="nodeLabelRecur === NODE_LABELS.recur"
+                                        @click="nodeLabelRecur = NODE_LABELS.recur"
+                                    >
+                                        ↺
+                                    </button>
+                                </div>
                             </div>
                         </template>
 
@@ -449,6 +610,57 @@ function submit() {
 }
 .form-input {
     width: 100%;
+}
+
+.checkbox-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.9231rem;
+    font-weight: 400;
+    color: var(--fg);
+    cursor: pointer;
+}
+.checkbox-row input[type="checkbox"] {
+    width: 15px;
+    height: 15px;
+    cursor: pointer;
+}
+
+.node-display-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.node-display-row .checkbox-row {
+    flex: 0 0 130px;
+    flex-shrink: 0;
+}
+.node-label-input {
+    flex: 1;
+    min-width: 0;
+}
+/* 固定宽高的图标按钮：一直占着这块地方，不会因为出现/消失导致左边输入框跟着变宽变窄 */
+.label-reset-btn {
+    flex-shrink: 0;
+    width: 26px;
+    height: 26px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 5px;
+    border: 1px solid var(--border);
+    font-size: 0.9231rem;
+    color: var(--fg-dim);
+    transition: all 0.15s;
+}
+.label-reset-btn:hover:not(:disabled) {
+    color: var(--blue);
+    border-color: var(--blue);
+}
+.label-reset-btn:disabled {
+    opacity: 0.3;
+    cursor: default;
 }
 
 .duration-preview {

@@ -91,6 +91,8 @@ const showTagManager = ref(false);
 const settings = ref({
     trash_retention_days: 30,
     font_size: 14,
+    font_family: "sans-serif",
+    node_font_family: "",
     duration_format: DEFAULT_DURATION_FORMAT,
     default_due_time: "23:59",
     node_show_project: true,
@@ -109,11 +111,55 @@ function applyFontSize(size) {
     document.documentElement.style.setProperty("--app-font-size", `${size}px`);
 }
 
+// CSS 通用字体族关键字：这几个是浏览器保留字，写进 font-family 时不能加引号，
+// 否则会被当成一个叫 "serif" / "sans-serif" 的具体字体名去找，肯定找不到
+const CSS_GENERIC_FONT_FAMILIES = new Set([
+    "serif",
+    "sans-serif",
+    "monospace",
+    "cursive",
+    "fantasy",
+    "system-ui",
+]);
+
+/** 把字体名转成能直接拼进 font-family 的写法：CSS 通用族关键字不加引号，具体字体名加引号；空值返回 null */
+function cssFontFamilyValue(family) {
+    const trimmed = (family || "").trim();
+    if (!trimmed) return null;
+    return CSS_GENERIC_FONT_FAMILIES.has(trimmed) ? trimmed : `"${trimmed}"`;
+}
+
+/** 把全局字体家族应用到 CSS 变量；sans-serif 兜底防止选中的字体加载失败时排版跑掉 */
+function applyFontFamily(family) {
+    const primary = cssFontFamilyValue(family) || "sans-serif";
+    document.documentElement.style.setProperty(
+        "--app-font-family",
+        `${primary}, sans-serif`,
+    );
+}
+
+/**
+ * 把图谱任务节点卡片单独的字体应用到 CSS 变量；节点字体留空表示跟随全局字体——
+ * 这里直接在 JS 里解析好最终值写进变量，而不是靠 CSS var() 对"自定义属性被显式设为空值"
+ * 时是否触发 fallback 兜底（不同 WebView 引擎对这个边界情况的实现不完全一致，
+ * 在 JS 里解析好更可靠，行为不用依赖具体渲染引擎）。
+ */
+function applyNodeFontFamily(nodeFamily, appFamily) {
+    const nodePrimary = cssFontFamilyValue(nodeFamily);
+    const appPrimary = cssFontFamilyValue(appFamily) || "sans-serif";
+    const value = nodePrimary
+        ? `${nodePrimary}, ${appPrimary}, sans-serif`
+        : `${appPrimary}, sans-serif`;
+    document.documentElement.style.setProperty("--app-node-font-family", value);
+}
+
 // 当前页面："home" 首页仪表盘 / "board" 任务看板（原有的三栏视图）/ "charts" 分析页 / "calendar" 日历页
 const currentPage = ref("home");
 
 /**
- * 首页"今日任务"或分析页里点击某个任务，跳转到任务看板并选中它
+ * 首页"今日任务"或分析页里点击某个任务，跳转到任务看板、选中它，
+ * 并把项目筛选切到它所属的项目（没有项目则切到"无项目"分类），这样看板直接显示这个任务所在的流程图，
+ * 不用手动去项目树里再点一次
  *
  * @description 由 Dashboard / ChartsPage 的 @jump-to-task 事件触发
  * @param {string} uuid - 任务 UUID
@@ -233,11 +279,13 @@ async function load() {
     }
 }
 
-/** 加载应用设置并应用字体大小、计时时长显示格式 */
+/** 加载应用设置并应用字体大小、字体、计时时长显示格式 */
 async function loadSettings() {
     try {
         settings.value = await getSettings();
         applyFontSize(settings.value.font_size);
+        applyFontFamily(settings.value.font_family);
+        applyNodeFontFamily(settings.value.node_font_family, settings.value.font_family);
         setDurationFormat(settings.value.duration_format);
     } catch (e) {
         error.value = e.message;
@@ -395,12 +443,14 @@ async function onMoveProject(path, newParent) {
  * 保存应用设置
  *
  * @description 由 SettingsModal 的 @save 事件触发
- * @param {object} newSettings - { trash_retention_days, font_size }
+ * @param {object} newSettings - { trash_retention_days, font_size, font_family, node_font_family }
  */
 async function onSaveSettings(newSettings) {
     try {
         settings.value = await saveSettings(newSettings);
         applyFontSize(settings.value.font_size);
+        applyFontFamily(settings.value.font_family);
+        applyNodeFontFamily(settings.value.node_font_family, settings.value.font_family);
         setDurationFormat(settings.value.duration_format);
         showSettings.value = false;
     } catch (e) {

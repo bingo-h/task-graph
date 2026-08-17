@@ -11,6 +11,7 @@
 import { ref, computed, watch } from "vue";
 import { formatDuration, DEFAULT_DURATION_FORMAT } from "../composables/useDuration";
 import { getVersion } from "@tauri-apps/api/app";
+import { listSystemFonts } from "../composables/useApi";
 import constants from "../config/constants";
 import {
     updateStatus,
@@ -55,6 +56,73 @@ const fontSize = ref(14);
 const durationFormat = ref(DEFAULT_DURATION_FORMAT);
 const defaultDueTime = ref("23:59");
 
+// ----------------------------------------
+// 字体：从系统已安装字体里选，边输入边模糊搜索筛选（子串匹配，不区分大小写）
+// ----------------------------------------
+const fontFamily = ref("sans-serif");
+const systemFonts = ref([]);
+const systemFontsLoaded = ref(false); // 加载过一次就不用重复扫描，扫描系统字体这一下不算便宜
+const showFontDropdown = ref(false);
+// 候选字体可能有几百上千个，全部渲染进下拉框会很卡，只取前面这些，够用来定位到想要的字体了
+const FONT_OPTIONS_LIMIT = 100;
+
+async function loadSystemFontsOnce() {
+    if (systemFontsLoaded.value) return;
+    try {
+        systemFonts.value = await listSystemFonts();
+    } catch {
+        systemFonts.value = [];
+    } finally {
+        systemFontsLoaded.value = true;
+    }
+}
+
+const filteredFontOptions = computed(() => {
+    const keyword = fontFamily.value.trim().toLowerCase();
+    const list = keyword
+        ? systemFonts.value.filter((f) => f.toLowerCase().includes(keyword))
+        : systemFonts.value;
+    return list.slice(0, FONT_OPTIONS_LIMIT);
+});
+
+function selectFont(name) {
+    fontFamily.value = name;
+    showFontDropdown.value = false;
+}
+
+/** 输入框失焦时延迟隐藏下拉框，使下拉项的点击事件能先触发 */
+function hideFontDropdownDelayed() {
+    setTimeout(() => {
+        showFontDropdown.value = false;
+    }, 150);
+}
+
+// ----------------------------------------
+// 节点字体：图谱任务节点卡片单独的字体，留空表示跟随上面的全局字体；
+// 候选列表复用同一份 systemFonts，交互跟全局字体输入框是同一套逻辑，只是各自独立的状态
+// ----------------------------------------
+const nodeFontFamily = ref("");
+const showNodeFontDropdown = ref(false);
+
+const filteredNodeFontOptions = computed(() => {
+    const keyword = nodeFontFamily.value.trim().toLowerCase();
+    const list = keyword
+        ? systemFonts.value.filter((f) => f.toLowerCase().includes(keyword))
+        : systemFonts.value;
+    return list.slice(0, FONT_OPTIONS_LIMIT);
+});
+
+function selectNodeFont(name) {
+    nodeFontFamily.value = name;
+    showNodeFontDropdown.value = false;
+}
+
+function hideNodeFontDropdownDelayed() {
+    setTimeout(() => {
+        showNodeFontDropdown.value = false;
+    }, 150);
+}
+
 // 图谱任务节点卡片上默认显示哪些信息（悬浮详情窗不受影响，总是显示全部）
 const nodeShowProject = ref(true);
 const nodeShowDue = ref(true);
@@ -77,6 +145,9 @@ watch(
         activeSection.value = "general";
         trashRetentionDays.value = props.settings.trash_retention_days ?? 30;
         fontSize.value = props.settings.font_size ?? 14;
+        fontFamily.value = props.settings.font_family || "sans-serif";
+        nodeFontFamily.value = props.settings.node_font_family || "";
+        loadSystemFontsOnce();
         durationFormat.value =
             props.settings.duration_format || DEFAULT_DURATION_FORMAT;
         defaultDueTime.value = props.settings.default_due_time || "23:59";
@@ -127,6 +198,9 @@ function submit() {
             32,
             Math.max(8, Math.round(Number(fontSize.value) || 14)),
         ),
+        font_family: fontFamily.value.trim() || "sans-serif",
+        // 节点字体允许留空（表示跟随全局字体），不像上面的全局字体那样兜底成 sans-serif
+        node_font_family: nodeFontFamily.value.trim(),
         duration_format: durationFormat.value.trim() || DEFAULT_DURATION_FORMAT,
         default_due_time: defaultDueTime.value || "23:59",
         node_show_project: nodeShowProject.value,
@@ -227,6 +301,57 @@ function submit() {
                                 />
                             </div>
 
+                            <div class="form-row font-field-row">
+                                <label class="form-label">
+                                    字体
+                                    <span class="form-hint">
+                                        从系统已安装字体中选择，输入关键字即可模糊搜索
+                                    </span>
+                                </label>
+                                <input
+                                    v-model="fontFamily"
+                                    class="form-input"
+                                    placeholder="输入字体名称关键字…"
+                                    @focus="showFontDropdown = true"
+                                    @blur="hideFontDropdownDelayed"
+                                />
+
+                                <div
+                                    class="font-preview"
+                                    :style="{ fontFamily: fontFamily || undefined }"
+                                >
+                                    预览 Preview 任务管理 0123
+                                </div>
+
+                                <div
+                                    v-if="showFontDropdown && filteredFontOptions.length > 0"
+                                    class="suggest-dropdown"
+                                >
+                                    <button
+                                        v-for="f in filteredFontOptions"
+                                        :key="f"
+                                        type="button"
+                                        class="suggest-dropdown-item"
+                                        :style="{ fontFamily: f }"
+                                        @mousedown.prevent="selectFont(f)"
+                                    >
+                                        {{ f }}
+                                    </button>
+                                </div>
+                                <div
+                                    v-else-if="
+                                        showFontDropdown &&
+                                        systemFontsLoaded &&
+                                        systemFonts.length === 0
+                                    "
+                                    class="suggest-dropdown"
+                                >
+                                    <span class="empty-hint">
+                                        未检测到系统字体列表，可以直接手动输入字体名称
+                                    </span>
+                                </div>
+                            </div>
+
                             <div class="form-row">
                                 <label class="form-label">
                                     任务默认到期时间
@@ -299,6 +424,45 @@ function submit() {
 
                         <!-- 图谱显示 -->
                         <template v-else-if="activeSection === 'graph'">
+                            <div class="form-row font-field-row">
+                                <label class="form-label">
+                                    节点字体
+                                    <span class="form-hint">
+                                        任务看板图谱里任务卡片文字单独使用的字体；留空则跟随"通用"里的全局字体
+                                    </span>
+                                </label>
+                                <input
+                                    v-model="nodeFontFamily"
+                                    class="form-input"
+                                    placeholder="留空跟随全局字体…"
+                                    @focus="showNodeFontDropdown = true"
+                                    @blur="hideNodeFontDropdownDelayed"
+                                />
+
+                                <div
+                                    class="font-preview"
+                                    :style="{ fontFamily: nodeFontFamily || fontFamily || undefined }"
+                                >
+                                    预览 Preview 任务管理 0123
+                                </div>
+
+                                <div
+                                    v-if="showNodeFontDropdown && filteredNodeFontOptions.length > 0"
+                                    class="suggest-dropdown"
+                                >
+                                    <button
+                                        v-for="f in filteredNodeFontOptions"
+                                        :key="f"
+                                        type="button"
+                                        class="suggest-dropdown-item"
+                                        :style="{ fontFamily: f }"
+                                        @mousedown.prevent="selectNodeFont(f)"
+                                    >
+                                        {{ f }}
+                                    </button>
+                                </div>
+                            </div>
+
                             <div class="form-row">
                                 <label class="form-label">
                                     任务卡片显示信息
@@ -610,6 +774,67 @@ function submit() {
 }
 .form-input {
     width: 100%;
+}
+
+/* 字体选择：自定义下拉框需要一个定位锚点 */
+.font-field-row {
+    position: relative;
+}
+.font-preview {
+    padding: 10px 12px;
+    border-radius: 6px;
+    background: var(--bg-dark);
+    border: 1px solid var(--border);
+    color: var(--fg);
+    font-size: 1rem;
+}
+
+/* 字体候选下拉框，样式对齐任务表单里的项目/标签下拉框 */
+.suggest-dropdown {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    right: 0;
+    z-index: 10;
+    max-height: 220px;
+    overflow-y: auto;
+    background: var(--bg-popup);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow:
+        0 10px 28px rgba(0, 0, 0, 0.22),
+        0 2px 6px rgba(0, 0, 0, 0.12);
+    padding: 5px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.suggest-dropdown::-webkit-scrollbar {
+    width: 4px;
+}
+.suggest-dropdown::-webkit-scrollbar-thumb {
+    background: var(--fg-dark);
+    border-radius: 2px;
+}
+.suggest-dropdown-item {
+    text-align: left;
+    padding: 6px 10px;
+    border-radius: 5px;
+    font-size: 0.9231rem;
+    color: var(--fg);
+    transition:
+        background 0.12s,
+        color 0.12s;
+}
+.suggest-dropdown-item:hover {
+    background: var(--bg-select);
+    color: var(--magenta);
+}
+.empty-hint {
+    display: block;
+    padding: 8px;
+    color: var(--fg-dim);
+    font-size: 0.8462rem;
 }
 
 .checkbox-row {

@@ -67,14 +67,19 @@ export async function moveProject(path, newParent) {
   return call("move_project", { args: { path, new_parent: newParent || null } });
 }
 
-/** 获取应用设置：{ trash_retention_days, font_size }。 */
+/** 获取应用设置：{ trash_retention_days, font_size, font_family, ... }。 */
 export async function getSettings() {
   return call("get_settings");
 }
 
-/** 保存应用设置：{ trash_retention_days, font_size }。 */
+/** 保存应用设置：{ trash_retention_days, font_size, font_family, ... }。 */
 export async function saveSettings(settings) {
   return call("save_settings", { settings });
+}
+
+/** 枚举系统已安装字体的家族名，供设置里"字体"下拉框做模糊搜索候选。 */
+export async function listSystemFonts() {
+  return call("list_system_fonts");
 }
 
 /** 新建任务，传结构化字段：{description, project, priority, due, scheduled, tags, depends} */

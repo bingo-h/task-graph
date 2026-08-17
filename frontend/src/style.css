@@ -35,7 +35,7 @@ html {
 body {
     background: var(--bg);
     color: var(--fg);
-    font-family: "Maple Mono NF", monospace;
+    font-family: var(--app-font-family, sans-serif);
     font-size: 1rem;
     height: 100vh;
     overflow: hidden;
@@ -200,19 +200,21 @@ rect.rect-overdue {
     fill: #e9edf5;
 }
 
-/* 节点文字 */
+/* 节点文字：加粗、字号比下面的详情行明显更大，一眼能分清标题和详情。
+   字体走 --app-node-font-family，这个变量由 App.vue 的 applyNodeFontFamily() 维护——
+   设置里"节点字体"留空时它就是全局字体，不用在这里另外处理"留空跟随全局"的逻辑 */
 .node-desc {
     fill: var(--fg);
-    font-size: 0.9231rem;
-    font-family: "JetBrains Mono", monospace;
-    font-weight: 500;
+    font-size: 1rem;
+    font-family: var(--app-node-font-family, sans-serif);
+    font-weight: 700;
 }
 
 /* 详情行：项目/截止日期/优先级/重复标记，每项各占一行，避免挤在一起互相重叠 */
 .node-detail {
     fill: var(--fg-dim);
     font-size: 0.7692rem;
-    font-family: monospace;
+    font-family: var(--app-node-font-family, sans-serif);
 }
 
 .node-lock,

@@ -7,7 +7,6 @@
 ## TODO
 
 - [ ] 月度记录 Monthly Log
-- [ ] 日历视图
 - [ ] 单个任务类 git 分支记录
 
 ## 界面结构
@@ -28,6 +27,11 @@
 - **图形化表单**：新建/修改任务用表单操作，无需记忆任何命令语法
 - **平移缩放**：鼠标拖拽平移，滚轮缩放，⊙ 按钮重置视图
 - **便携式数据存储**：数据库文件保存在程序自身所在目录，不写系统任何位置
+- **重复任务（习惯打卡）**：任务可设置每 N 天 / 每周选星期几 / 每月选日期的重复规则；到期自动重置为待办并加入"今日任务"，逾期未完成会在图中标红，直到下一个周期到来才重置；每个周期的完成结果（按时/逾期补做/错过）都会记录，用于计算连续完成天数
+- **今日任务分类**：项目导航里独立一个"今日任务"入口，汇总所有标记为今日的任务，不受实际项目归属限制；这个视图下依赖图边替换成用户手动拖连的"今日工作顺序"，与真实依赖关系解耦但不能违反其先后约束；悬浮/选中任务可虚线预览它在真实依赖图里的完整链路
+- **项目分类导航**：计划中 / 进行中 / 已归档 / 回收站四个分组标题本身可点击，直接筛选该分类下所有任务
+- **日历页**：月视图展示每个重复任务的打卡记录（图标/圆点）与连续天数；点击某一天进入日视图，按时间轴展示当天各时段花在哪些任务上
+- **分析页**：今日任务耗时（横向柱状图，可按任务/项目汇总）、任务完成趋势（柱状图/折线图可切换）
 
 ## 技术栈
 
@@ -94,16 +98,21 @@ task-graph/
 │       ├── main.rs            # 薄入口，仅调用 lib.rs 的 run()
 │       ├── lib.rs             # 应用逻辑入口，注册所有 Tauri command
 │       ├── commands.rs        # Tauri 命令层（前端 invoke() 的对应实现）
+│       ├── graph_utils.rs     # 纯图算法（可达性判断），供"今日任务"手动排序校验用
+│       ├── settings.rs        # 应用设置读写（独立 settings.json，不放进 SQLite）
 │       ├── db/                # SQLite 数据层
 │       │   ├── mod.rs             # 连接管理，数据库路径解析
 │       │   ├── schema.rs          # 建表与迁移
 │       │   ├── task.rs            # 任务 CRUD
 │       │   ├── project.rs         # 项目树构建
-│       │   └── time_entry.rs      # 任务计时记录 CRUD
+│       │   ├── time_entry.rs      # 任务计时记录 CRUD
+│       │   ├── recur.rs           # 周期性任务回滚算法 + 完成记录读写
+│       │   └── today_order.rs     # "今日任务"手动排序边 CRUD
 │       └── models/            # 数据结构
-│           ├── task.rs            # Task 结构体
+│           ├── task.rs            # Task 结构体 / RecurRule 枚举
 │           ├── project.rs         # ProjectNode 结构体
 │           ├── urgency.rs         # 紧迫度计算公式
+│           ├── recur.rs           # 周期性任务的日期计算（纯函数）
 │           └── time_entry.rs      # TimeEntry 结构体
 └── frontend/                  # 前端（Vue，作为 Tauri 的 WebView 内容）
     ├── package.json
@@ -111,14 +120,20 @@ task-graph/
     └── src/
         ├── App.vue                    # 根组件
         ├── style.css                  # 全局样式
-        ├── constants.js               # 全局常量
+        ├── config/constants.js        # 全局常量
         ├── components/
+        │   ├── Dashboard.vue          # 首页仪表盘
+        │   ├── ChartsPage.vue         # 分析页
+        │   ├── CalendarPage.vue       # 日历页（月视图打卡 + 日视图时段回顾）
         │   ├── ProjectTree.vue        # 项目树容器
         │   ├── ProjectTreeNode.vue    # 项目树递归节点
         │   ├── TaskGraph.vue          # D3 DAG 图
         │   ├── TaskDetail.vue         # 任务详情面板
-        │   └── TaskFormModal.vue      # 新建/修改任务表单
+        │   ├── TaskFormModal.vue      # 新建/修改任务表单
+        │   └── SettingsModal.vue      # 设置弹窗
         └── composables/
             ├── useApi.js              # 数据请求封装（Tauri invoke）
-            └── useLayout.js           # dagre 布局与高亮计算
+            ├── useLayout.js           # dagre 布局、链路高亮、依赖环检测
+            ├── useDuration.js         # 时长格式化
+            └── useTagColor.js         # 标签/任务颜色小工具
 ```

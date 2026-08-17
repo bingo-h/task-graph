@@ -13,24 +13,51 @@ import config from "../config/constants";
 
 // 节点尺寸常量
 export const NODE_WIDTH = 200;
-export const NODE_HEIGHT = 56;
 const RANK_SEP = 80;
 const NODE_SEP = 24;
+
+// 节点高度是"自适应"的：只有描述这一行是固定的，详情行（项目/截止日期/优先级/重复）
+// 显示几行由图谱显示设置决定，行数越多节点越高，见 nodeHeightFor()
+const NODE_HEADER_HEIGHT = 34; // 描述行占用的高度
+export const NODE_DETAIL_LINE_HEIGHT = 16; // 每条详情行的高度
+export const NODE_DETAIL_START_Y = NODE_HEADER_HEIGHT + 6; // 第一条详情行的基线 y 坐标
+const NODE_PADDING_BOTTOM = 14;
+
+/**
+ * 根据要显示的详情行数算出节点应有的高度
+ * @param {number} detailLineCount - 0-4，项目/截止日期/优先级/重复里有几项被设置为显示
+ */
+export function nodeHeightFor(detailLineCount) {
+  return (
+    NODE_HEADER_HEIGHT +
+    Math.max(0, detailLineCount) * NODE_DETAIL_LINE_HEIGHT +
+    NODE_PADDING_BOTTOM
+  );
+}
 
 /**
  * 计算 DAG 布局。
  *
  * @param {Array}  nodes          - 任务节点列表
  * @param {Array}  edges          - 依赖关系边列表 [{source, target}]
- * @param {string|null} projectFilter - 过滤项目路径，null 表示显示全部
+ * @param {string|null} projectFilter - 过滤项目路径（或分类哨兵值，见 filterNodes），null 表示显示全部
  * @param {string|null} tagFilter - 过滤标签名，null 表示不按标签过滤；和 projectFilter 同时生效（取交集）
+ * @param {Object} [projects] - 项目路径 -> ProjectNode 字典，仅按分类哨兵值筛选时需要
+ * @param {number} [nodeHeight] - 当前应使用的节点高度（由显示设置决定的详情行数算出），默认按 4 行算
  * @returns {{ nodes: Array, edges: Array }}
  *   nodes 每项附加 { x, y } 坐标（节点中心点）
  *   edges 每项附加 { points } 折线控制点数组
  */
-export function computeLayout(nodes, edges, projectFilter, tagFilter) {
+export function computeLayout(
+  nodes,
+  edges,
+  projectFilter,
+  tagFilter,
+  projects = {},
+  nodeHeight = nodeHeightFor(4),
+) {
   // 按项目、标签过滤（两者同时指定时取交集）
-  const visibleNodes = filterNodes(nodes, projectFilter).filter(
+  const visibleNodes = filterNodes(nodes, projectFilter, projects).filter(
     (n) => !tagFilter || n.tags?.includes(tagFilter),
   );
   const visibleUUIDs = new Set(visibleNodes.map((n) => n.uuid));
@@ -57,7 +84,7 @@ export function computeLayout(nodes, edges, projectFilter, tagFilter) {
 
   // 添加节点
   for (const node of visibleNodes) {
-    g.setNode(node.uuid, { width: NODE_WIDTH, height: NODE_HEIGHT });
+    g.setNode(node.uuid, { width: NODE_WIDTH, height: nodeHeight });
   }
 
   // 添加边
@@ -74,7 +101,7 @@ export function computeLayout(nodes, edges, projectFilter, tagFilter) {
     return {
       ...node,
       x: pos.x - NODE_WIDTH / 2, // 转为左上角坐标
-      y: pos.y - NODE_HEIGHT / 2,
+      y: pos.y - nodeHeight / 2,
     };
   });
 
@@ -94,15 +121,27 @@ export function computeLayout(nodes, edges, projectFilter, tagFilter) {
  * @description
  *  null：显示全部
  *  "无项目"：只显示无项目归属的任务
+ *  "__stage__xxx" 分类哨兵值：显示 ProjectNode.group === "xxx" 的项目下的任务
+ *    （对应项目树里点击"计划中/进行中/已归档/回收站"分组标题）
  *  其他路径：显示该项目及所有子项目的任务
  * @param {Array} nodes - 所有任务
  * @param {String} projectFilter - 项目过滤
+ * @param {Object} projects - 项目路径 -> ProjectNode 字典，按分类哨兵值筛选时用来查每个任务所属项目的 group
  */
-function filterNodes(nodes, projectFilter) {
+function filterNodes(nodes, projectFilter, projects = {}) {
   if (!projectFilter) return nodes;
 
   if (projectFilter === config.INBOX_PROJECT) {
     return nodes.filter((n) => !n.project);
+  }
+
+  if (projectFilter === config.TODAY_PROJECT) {
+    return nodes.filter((n) => n.is_today);
+  }
+
+  if (projectFilter.startsWith(config.STAGE_FILTER_PREFIX)) {
+    const group = projectFilter.slice(config.STAGE_FILTER_PREFIX.length);
+    return nodes.filter((n) => n.project && projects[n.project]?.group === group);
   }
 
   return nodes.filter(

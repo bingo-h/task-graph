@@ -103,7 +103,7 @@ export async function reconnectDependency(sourceUuid, oldTargetUuid, newTargetUu
 
 /** 重命名标签（用到旧名字的任务一起改名）；若新名字已存在则合并为同一个标签。 */
 export async function renameTag(oldTag, newTag) {
-  return call("rename_tag", { old_tag: oldTag, new_tag: newTag });
+  return call("rename_tag", { oldTag, newTag });
 }
 
 /** 设置标签颜色，color 传 null/空字符串表示清空（前端回退到默认颜色）。 */
@@ -188,4 +188,36 @@ export async function saveTimeEntryNote(id, title, body) {
 /** 删除某条计时记录（不可恢复）。 */
 export async function deleteTimeEntry(id) {
   return call("delete_time_entry", { id });
+}
+
+/**
+ * 开启/关闭任务的周期性重复。
+ * rule 形如 {kind:"daily",interval:2} / {kind:"weekly",weekdays:[0,2,4]} / {kind:"monthly",day:15}，
+ * 传 null 表示停止重复（历史打卡记录保留）。
+ */
+export async function setTaskRecur(uuid, rule) {
+  return call("set_task_recur", { args: { uuid, rule } });
+}
+
+/** 获取某个周期性任务当前的连续完成天数。 */
+export async function getRecurStreak(uuid) {
+  return call("get_recur_streak", { uuid });
+}
+
+/** 获取某个周期性任务的全部完成记录（日历页用）。 */
+export async function listRecurLog(uuid) {
+  return call("list_recur_log", { uuid });
+}
+
+/**
+ * 为"今日任务"视图新增一条手动排序边：fromUuid 应先于 toUuid 完成。
+ * 后端会校验不能和真实依赖图矛盾、不能在排序图里成环。
+ */
+export async function addTodayOrderEdge(fromUuid, toUuid) {
+  return call("add_today_order_edge", { fromUuid, toUuid });
+}
+
+/** 删除一条"今日任务"手动排序边。 */
+export async function removeTodayOrderEdge(fromUuid, toUuid) {
+  return call("remove_today_order_edge", { fromUuid, toUuid });
 }

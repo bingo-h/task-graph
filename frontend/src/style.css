@@ -170,7 +170,12 @@ input:focus {
 }
 
 .rect-overdue {
-    fill: #fbe9e9;
+    fill: rgba(247, 118, 142, 0.18);
+}
+/* 超时任务需要在图中一眼可见，单靠浅色填充不够醒目，加一圈醒目的红色描边 */
+rect.rect-overdue {
+    stroke: var(--red);
+    stroke-width: 2;
 }
 
 .rect-today {
@@ -193,7 +198,8 @@ input:focus {
     font-weight: 500;
 }
 
-.node-sub {
+/* 详情行：项目/截止日期/优先级/重复标记，每项各占一行，避免挤在一起互相重叠 */
+.node-detail {
     fill: var(--fg-dim);
     font-size: 0.7692rem;
     font-family: monospace;
@@ -214,10 +220,31 @@ input:focus {
         stroke 0.25s;
 }
 
+/* "今日任务"视图下用户手动排的今日工作顺序边，颜色区别于真实依赖边 */
+.edge-today-order {
+    stroke: var(--green);
+    stroke-width: 2;
+}
 
-/* 箭头 */
+/* 悬浮/选中节点时预览它在真实依赖图里的完整链路：虚线，颜色和普通依赖边/今日排序边都不同 */
+.chain-edge {
+    stroke: var(--magenta);
+    stroke-width: 1.5;
+    stroke-dasharray: 5 3;
+    opacity: 0.7;
+    pointer-events: none;
+}
+
+
+/* 箭头：颜色跟对应的连线保持一致，不能全部共用一个固定颜色 */
 .arrow-head {
     fill: var(--fg-dark);
+}
+.arrow-head-green {
+    fill: var(--green);
+}
+.arrow-head-magenta {
+    fill: var(--magenta);
 }
 
 /* 已有连线终点的拖拽手柄：大的透明命中区域（好抓）+ 小的可见圆点（悬浮命中区域才显示）。

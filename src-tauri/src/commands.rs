@@ -241,7 +241,10 @@ fn build_graph() -> anyhow::Result<GraphResponse> {
 /// 计算并填充派生字段：is_overdue / is_due_today / is_today / blocking / is_locked / total_seconds / is_timing / active_since
 fn apply_derived_fields(conn: &rusqlite::Connection, tasks: &mut Vec<Task>) -> anyhow::Result<()> {
     let (totals, active) = db::time_entry::totals_by_task(conn)?;
-    let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
+    // "今日任务"是给人看的"今天"概念，要跟着本地日历天走，不能用 UTC 天——
+    // 否则时区偏移大的用户（如 UTC+8）会在本地已经跨天几个小时后，
+    // 这个标记还因为 UTC 还没跨天而没有被清掉，看起来像"没有自动刷新"。
+    let today = chrono::Local::now().format("%Y-%m-%d").to_string();
 
     for task in tasks.iter_mut() {
         task.is_overdue = task.compute_overdue();

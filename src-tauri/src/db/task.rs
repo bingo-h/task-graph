@@ -95,10 +95,15 @@ pub fn get_by_uuid(conn: &Connection, uuid: &str) -> Result<Option<Task>> {
     Ok(Some(task))
 }
 
-/// 设置/取消"今日任务"标记，标记时记录当前 UTC 日期
+/// 设置/取消"今日任务"标记，标记时记录当前本地日期
+///
+/// 这里特意用本地时区而不是 UTC：跟这个应用别处的"今天"（截止日期、重复周期）
+/// 不一样，"今日任务"是直接给人看的"今天"概念，要跟着用户本地日历天走，
+/// 否则时区偏移较大的用户会在本地已经跨天之后，这个标记还因为 UTC 没跨天
+/// 而一直没清掉。
 pub fn set_today(conn: &Connection, uuid: &str, marked: bool) -> Result<()> {
     let date = if marked {
-        Some(chrono::Utc::now().format("%Y-%m-%d").to_string())
+        Some(chrono::Local::now().format("%Y-%m-%d").to_string())
     } else {
         None
     };
@@ -113,7 +118,7 @@ pub fn set_today(conn: &Connection, uuid: &str, marked: bool) -> Result<()> {
 
 /// 清除已经跨天的"今日任务"标记（不等于今天的 today_marked_date 一律清空）
 pub fn reset_stale_today_marks(conn: &Connection) -> Result<()> {
-    let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
+    let today = chrono::Local::now().format("%Y-%m-%d").to_string();
 
     conn.execute(
         "UPDATE tasks SET today_marked_date = NULL

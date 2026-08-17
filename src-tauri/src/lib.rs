@@ -6,6 +6,7 @@
 
 mod commands;
 mod db;
+mod graph_utils;
 mod models;
 mod settings;
 
@@ -64,6 +65,11 @@ pub fn run() {
             commands::list_all_time_entries,
             commands::save_time_entry_note,
             commands::delete_time_entry,
+            commands::set_task_recur,
+            commands::get_recur_streak,
+            commands::list_recur_log,
+            commands::add_today_order_edge,
+            commands::remove_today_order_edge,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

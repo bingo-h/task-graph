@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::db;
 use crate::db::task::{CreateTaskRequest, UpdateTaskRequest};
+use crate::graph_utils;
 use crate::models::project::{ProjectNode, STAGE_ACTIVE, STAGE_PLANNED};
 use crate::models::task::Task;
 use crate::settings::Settings;
@@ -20,6 +21,8 @@ use crate::settings::Settings;
 pub struct GraphResponse {
     pub nodes: Vec<Task>,
     pub edges: Vec<Edge>,
+    /// "今日任务"视图下的手动排序边，独立于 edges（真实依赖），source 应先于 target 完成
+    pub today_order_edges: Vec<Edge>,
     pub projects: HashMap<String, ProjectNode>,
     pub planned_project_roots: Vec<String>,
     pub active_project_roots: Vec<String>,
@@ -54,6 +57,15 @@ pub struct AddTaskArgs {
     /// 备注：非空时作为任务唯一的一条 annotation
     #[serde(default)]
     pub annotation: Option<String>,
+
+    #[serde(default)]
+    pub icon: Option<String>,
+
+    #[serde(default)]
+    pub color: Option<String>,
+
+    #[serde(default)]
+    pub recur_rule: Option<crate::models::task::RecurRule>,
 }
 
 /// 修改任务参数
@@ -103,6 +115,18 @@ pub struct ModifyTaskArgs {
     /// 显式清空备注（annotation 为空时才有意义）
     #[serde(default)]
     pub clear_annotation: bool,
+
+    #[serde(default)]
+    pub icon: Option<String>,
+
+    #[serde(default)]
+    pub clear_icon: bool,
+
+    #[serde(default)]
+    pub color: Option<String>,
+
+    #[serde(default)]
+    pub clear_color: bool,
 }
 
 /// 无项目归属任务的虚拟项目路径标识符，与 `db::project` 内的常量保持一致
@@ -139,6 +163,18 @@ fn validate_stage(stage: &str) -> Result<(), String> {
     }
 }
 
+/// 校验任务图标恰好是一个 emoji（按 grapheme cluster 计数，不能用 chars().count()——
+/// 旗帜、肤色变体、家庭组合 emoji 等本来就是多个 Unicode 码位拼成一个视觉字符）
+fn validate_icon(icon: &str) -> Result<(), String> {
+    use unicode_segmentation::UnicodeSegmentation;
+
+    let icon = icon.trim();
+    if icon.is_empty() || icon.graphemes(true).count() != 1 {
+        return Err("图标必须是单个 emoji".to_string());
+    }
+    Result::Ok(())
+}
+
 /// 从数据库加载所有任务，计算派生字段，构建完整图数据。
 fn build_graph() -> anyhow::Result<GraphResponse> {
     let conn = db::open()?;
@@ -146,6 +182,7 @@ fn build_graph() -> anyhow::Result<GraphResponse> {
     let retention_days = crate::settings::load()?.trash_retention_days;
     db::project::purge_expired(&conn, retention_days)?;
     db::task::reset_stale_today_marks(&conn)?;
+    db::recur::process_rollovers(&conn)?;
 
     let mut tasks = db::task::list_all(&conn)?;
     apply_derived_fields(&conn, &mut tasks)?;
@@ -158,6 +195,11 @@ fn build_graph() -> anyhow::Result<GraphResponse> {
                 target: t.uuid.clone(),
             })
         })
+        .collect();
+
+    let today_order_edges: Vec<Edge> = db::today_order::list_all(&conn)?
+        .into_iter()
+        .map(|(source, target)| Edge { source, target })
         .collect();
 
     let project_records = db::project::list_all(&conn)?;
@@ -177,6 +219,7 @@ fn build_graph() -> anyhow::Result<GraphResponse> {
     Ok(GraphResponse {
         nodes: tasks,
         edges,
+        today_order_edges,
         projects,
         planned_project_roots,
         active_project_roots,
@@ -417,10 +460,44 @@ pub fn save_settings(settings: Settings) -> Result<Settings, String> {
     if !(8..=32).contains(&settings.font_size) {
         return Err("字体大小需在 8-32 之间".to_string());
     }
+    if !crate::settings::validate_due_time(&settings.default_due_time) {
+        return Err("默认到期时间格式需为 HH:MM".to_string());
+    }
+    for label in [
+        &settings.node_label_project,
+        &settings.node_label_due,
+        &settings.node_label_priority,
+        &settings.node_label_recur,
+    ] {
+        if label.chars().count() > crate::settings::NODE_LABEL_MAX_LEN {
+            return Err(format!(
+                "节点信息标签文字最多 {} 个字符",
+                crate::settings::NODE_LABEL_MAX_LEN
+            ));
+        }
+    }
 
     crate::settings::save(&settings).map_err(|e| e.to_string())?;
 
     Result::Ok(settings)
+}
+
+/// 把前端传来的 `due` 补全成完整的 RFC3339 时间戳。
+/// 前端日期选择器只给"YYYY-MM-DD"（不带时间），若不补时间，
+/// `Task::compute_overdue()` 用的 `parse_from_rfc3339` 会直接解析失败、
+/// 永远判定不出逾期。已经是完整时间戳（带 "T"）的值原样透传。
+fn normalize_due(due: Option<String>) -> Result<Option<String>, String> {
+    let Some(due) = due else { return Result::Ok(None) };
+
+    if due.contains('T') {
+        return Result::Ok(Some(due));
+    }
+
+    let default_time = crate::settings::load()
+        .map_err(|e| e.to_string())?
+        .default_due_time;
+
+    Result::Ok(Some(format!("{due}T{default_time}:00Z")))
 }
 
 /// 新建任务
@@ -428,6 +505,9 @@ pub fn save_settings(settings: Settings) -> Result<Settings, String> {
 pub fn add_task(args: AddTaskArgs) -> Result<GraphResponse, String> {
     if args.description.trim().is_empty() {
         return Err("任务描述不能为空".to_string());
+    }
+    if let Some(icon) = &args.icon {
+        validate_icon(icon)?;
     }
 
     let conn = db::open().map_err(|e| e.to_string())?;
@@ -438,11 +518,14 @@ pub fn add_task(args: AddTaskArgs) -> Result<GraphResponse, String> {
             description: args.description,
             project: args.project,
             priority: args.priority,
-            due: args.due,
+            due: normalize_due(args.due)?,
             scheduled: args.scheduled,
             tags: args.tags,
             depends: args.depends,
             annotation: args.annotation,
+            icon: args.icon,
+            color: args.color,
+            recur_rule: args.recur_rule,
         },
     )
     .map_err(|e| e.to_string())?;
@@ -453,6 +536,10 @@ pub fn add_task(args: AddTaskArgs) -> Result<GraphResponse, String> {
 /// 修改任务
 #[tauri::command]
 pub fn modify_task(args: ModifyTaskArgs) -> Result<GraphResponse, String> {
+    if let Some(icon) = &args.icon {
+        validate_icon(icon)?;
+    }
+
     let conn = db::open().map_err(|e| e.to_string())?;
 
     db::task::update(
@@ -462,7 +549,7 @@ pub fn modify_task(args: ModifyTaskArgs) -> Result<GraphResponse, String> {
             description: args.description,
             project: args.project,
             priority: args.priority,
-            due: args.due,
+            due: normalize_due(args.due)?,
             scheduled: args.scheduled,
             tags: args.tags,
             depends: args.depends,
@@ -472,6 +559,10 @@ pub fn modify_task(args: ModifyTaskArgs) -> Result<GraphResponse, String> {
             clear_scheduled: args.clear_scheduled,
             annotation: args.annotation,
             clear_annotation: args.clear_annotation,
+            icon: args.icon,
+            clear_icon: args.clear_icon,
+            color: args.color,
+            clear_color: args.clear_color,
         },
     )
     .map_err(|e| e.to_string())?;
@@ -513,6 +604,47 @@ pub fn reconnect_dependency(args: ReconnectDependencyArgs) -> Result<GraphRespon
             db::task::set_depends(&conn, new_target_uuid, depends).map_err(|e| e.to_string())?;
         }
     }
+
+    build_graph().map_err(|e| e.to_string())
+}
+
+/// 为"今日任务"视图新增一条手动排序边：from_uuid 应先于 to_uuid 完成。
+/// 校验：不能和真实的 depends 依赖图矛盾（不能要求后置任务先于前置任务完成），
+/// 也不能在手动排序图自身内部形成环。
+#[tauri::command]
+pub fn add_today_order_edge(from_uuid: String, to_uuid: String) -> Result<GraphResponse, String> {
+    if from_uuid == to_uuid {
+        return Err("不能连接到自己".to_string());
+    }
+
+    let conn = db::open().map_err(|e| e.to_string())?;
+    let tasks = db::task::list_all(&conn).map_err(|e| e.to_string())?;
+
+    // 1. 不能与真实依赖图矛盾：若 to_uuid 在真实依赖图里能到达 from_uuid，
+    //    说明原本的顺序是 to 必须先于 from，和这条新边要求的方向正好相反
+    let depends_adj = graph_utils::forward_adjacency(&tasks);
+    if graph_utils::reachable(&depends_adj, &to_uuid, &from_uuid) {
+        return Err("与已有的依赖链矛盾：这两个任务原本的先后顺序不能颠倒".to_string());
+    }
+
+    // 2. 不能在手动排序图自身内部形成环
+    let existing_edges = db::today_order::list_all(&conn).map_err(|e| e.to_string())?;
+    let order_adj = graph_utils::adjacency_from_pairs(&existing_edges);
+    if graph_utils::reachable(&order_adj, &to_uuid, &from_uuid) {
+        return Err("这样连接会在今日任务排序里形成循环".to_string());
+    }
+
+    db::today_order::add_edge(&conn, &from_uuid, &to_uuid).map_err(|e| e.to_string())?;
+
+    build_graph().map_err(|e| e.to_string())
+}
+
+/// 删除一条"今日任务"手动排序边
+#[tauri::command]
+pub fn remove_today_order_edge(from_uuid: String, to_uuid: String) -> Result<GraphResponse, String> {
+    let conn = db::open().map_err(|e| e.to_string())?;
+
+    db::today_order::remove_edge(&conn, &from_uuid, &to_uuid).map_err(|e| e.to_string())?;
 
     build_graph().map_err(|e| e.to_string())
 }
@@ -623,6 +755,38 @@ pub fn set_tasks_today(args: SetTasksTodayArgs) -> Result<GraphResponse, String>
     }
 
     build_graph().map_err(|e| e.to_string())
+}
+
+/// 设置周期性任务规则的参数
+#[derive(Deserialize)]
+pub struct SetTaskRecurArgs {
+    pub uuid: String,
+    /// None 表示停止重复（历史 recur_log 保留，只是不再产生新记录）
+    pub rule: Option<crate::models::task::RecurRule>,
+}
+
+/// 开启/关闭任务的周期性重复
+#[tauri::command]
+pub fn set_task_recur(args: SetTaskRecurArgs) -> Result<GraphResponse, String> {
+    let conn = db::open().map_err(|e| e.to_string())?;
+
+    db::recur::set_recur_rule(&conn, &args.uuid, args.rule).map_err(|e| e.to_string())?;
+
+    build_graph().map_err(|e| e.to_string())
+}
+
+/// 查询某个周期性任务当前的连续完成天数
+#[tauri::command]
+pub fn get_recur_streak(uuid: String) -> Result<i64, String> {
+    let conn = db::open().map_err(|e| e.to_string())?;
+    db::recur::current_streak(&conn, &uuid).map_err(|e| e.to_string())
+}
+
+/// 查询某个周期性任务的全部完成记录（日历页用）
+#[tauri::command]
+pub fn list_recur_log(uuid: String) -> Result<Vec<db::recur::RecurLogEntry>, String> {
+    let conn = db::open().map_err(|e| e.to_string())?;
+    db::recur::list_log(&conn, &uuid).map_err(|e| e.to_string())
 }
 
 /// 开始为指定任务计时，若有其他任务正在计时则自动先结束

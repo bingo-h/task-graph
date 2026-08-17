@@ -250,7 +250,7 @@ const trendAreaPath = computed(() => {
 <template>
     <div class="charts-page">
         <div class="charts-toolbar">
-            <h2 class="charts-title">图表</h2>
+            <h2 class="charts-title">分析</h2>
             <div class="view-nav">
                 <button
                     v-for="v in VIEW_OPTIONS"

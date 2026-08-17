@@ -17,8 +17,10 @@ import SettingsModal from "./components/SettingsModal.vue";
 import TagManagerModal from "./components/TagManagerModal.vue";
 import Dashboard from "./components/Dashboard.vue";
 import ChartsPage from "./components/ChartsPage.vue";
+import CalendarPage from "./components/CalendarPage.vue";
 import TimeEntryNoteModal from "./components/TimeEntryNoteModal.vue";
 import { computeHighlight, wouldCreateCycle } from "./composables/useLayout";
+import constants from "./config/constants";
 import {
     formatDuration,
     setDurationFormat,
@@ -53,6 +55,9 @@ import {
     startGroupTimer,
     saveTimeEntryNote,
     deleteTimeEntry,
+    setTaskRecur,
+    addTodayOrderEdge,
+    removeTodayOrderEdge,
 } from "./composables/useApi";
 
 // 无边框窗口：自定义标题栏控制
@@ -69,7 +74,8 @@ function closeWindow() {
 
 // 全局状态
 const nodes = ref([]); // 所有任务节点
-const edges = ref([]); // 所有边
+const edges = ref([]); // 所有边（真实依赖关系）
+const todayOrderEdges = ref([]); // "今日任务"视图下用户手动排的顺序边，独立于 edges
 const projects = ref({});
 const plannedProjectRoots = ref([]);
 const activeProjectRoots = ref([]);
@@ -83,6 +89,15 @@ const settings = ref({
     trash_retention_days: 30,
     font_size: 14,
     duration_format: DEFAULT_DURATION_FORMAT,
+    default_due_time: "23:59",
+    node_show_project: true,
+    node_show_due: true,
+    node_show_priority: true,
+    node_show_recur: true,
+    node_label_project: constants.DEFAULT_NODE_LABELS.project,
+    node_label_due: constants.DEFAULT_NODE_LABELS.due,
+    node_label_priority: constants.DEFAULT_NODE_LABELS.priority,
+    node_label_recur: constants.DEFAULT_NODE_LABELS.recur,
 });
 const showSettings = ref(false);
 
@@ -91,11 +106,11 @@ function applyFontSize(size) {
     document.documentElement.style.setProperty("--app-font-size", `${size}px`);
 }
 
-// 当前页面："home" 首页仪表盘 / "board" 任务看板（原有的三栏视图）/ "charts" 图表页
+// 当前页面："home" 首页仪表盘 / "board" 任务看板（原有的三栏视图）/ "charts" 分析页 / "calendar" 日历页
 const currentPage = ref("home");
 
 /**
- * 首页"今日任务"或图表页里点击某个任务，跳转到任务看板并选中它
+ * 首页"今日任务"或分析页里点击某个任务，跳转到任务看板并选中它
  *
  * @description 由 Dashboard / ChartsPage 的 @jump-to-task 事件触发
  * @param {string} uuid - 任务 UUID
@@ -113,6 +128,28 @@ const hlMode = ref("ancestors"); // 高亮模式
 const loading = ref(false);
 const error = ref("");
 
+// 新建任务弹窗的默认项目：selectedProject 也可能是分类哨兵值（如 __stage__planned）
+// 或无项目/今日任务虚拟节点，这些都不是真实项目路径，不能当默认项目回填进表单
+const defaultProjectForNewTask = computed(() =>
+    selectedProject.value &&
+    !selectedProject.value.startsWith(constants.STAGE_FILTER_PREFIX) &&
+    selectedProject.value !== constants.INBOX_PROJECT &&
+    selectedProject.value !== constants.TODAY_PROJECT
+        ? selectedProject.value
+        : null,
+);
+
+// ----------------------------------------
+// "今日任务"分类下的独立排序图：不显示真实依赖边，改显示用户手动排的今日顺序
+// ----------------------------------------
+const graphMode = computed(() =>
+    selectedProject.value === constants.TODAY_PROJECT ? "today-order" : "depends",
+);
+const graphEdges = computed(() =>
+    graphMode.value === "today-order" ? todayOrderEdges.value : edges.value,
+);
+const todayCount = computed(() => nodes.value.filter((n) => n.is_today).length);
+
 // 任务看板图谱里框选 / Ctrl+点击多选中的任务，用于批量操作工具栏
 const multiSelectedUUIDs = ref(new Set());
 
@@ -121,8 +158,10 @@ const selectedTask = computed(
     () => nodes.value.find((n) => n.uuid === selectedUUID.value) || null,
 ); // 当前选中的任务对象，未选中时为null
 
+// 用当前实际展示的边（今日任务视图下是手动排序边，否则是真实依赖）算链路高亮，
+// 这样选中节点后淡化/高亮的范围跟图上画的线是同一套关系，不会对不上
 const highlightSet = computed(() =>
-    computeHighlight(selectedUUID.value, edges.value, hlMode.value),
+    computeHighlight(selectedUUID.value, graphEdges.value, hlMode.value),
 );
 
 // ----------------------------------------
@@ -176,6 +215,7 @@ async function load() {
         const data = await fetchTasks();
         nodes.value = data.nodes;
         edges.value = data.edges;
+        todayOrderEdges.value = data.today_order_edges;
         projects.value = data.projects;
         plannedProjectRoots.value = data.planned_project_roots;
         activeProjectRoots.value = data.active_project_roots;
@@ -206,6 +246,7 @@ async function loadSettings() {
 function applyUpdate(data) {
     nodes.value = data.nodes;
     edges.value = data.edges;
+    todayOrderEdges.value = data.today_order_edges;
     projects.value = data.projects;
     plannedProjectRoots.value = data.planned_project_roots;
     activeProjectRoots.value = data.active_project_roots;
@@ -388,12 +429,17 @@ function openModify(task) {
  * @param {string} uuid
  * @param {object} fields - 结构化任务字段
  */
-async function onModalSubmit({ mode, uuid, fields }) {
+async function onModalSubmit({ mode, uuid, fields, recurRuleChanged, recurRule }) {
     try {
         if (mode === "add") {
             applyUpdate(await addTask(fields));
         } else {
             applyUpdate(await modifyTask(uuid, fields));
+            // 只有用户实际改动过重复设置才调用，否则每次编辑任务的其它字段
+            // （比如改个描述）都会误触发"重新开始周期"的重置逻辑
+            if (recurRuleChanged) {
+                applyUpdate(await setTaskRecur(uuid, recurRule));
+            }
         }
 
         showModal.value = false;
@@ -685,6 +731,22 @@ async function onConnectNodes({ fromUuid, fromSide, toUuid }) {
     const precursorUuid = fromSide === "right" ? fromUuid : toUuid;
     const successorUuid = fromSide === "right" ? toUuid : fromUuid;
 
+    // "今日任务"视图下拖出的连线是手动排序边，不是真实依赖关系；
+    // 后端会校验不能和真实依赖图矛盾、不能在排序图里成环
+    if (graphMode.value === "today-order") {
+        const already = todayOrderEdges.value.some(
+            (e) => e.source === precursorUuid && e.target === successorUuid,
+        );
+        if (already) return;
+
+        try {
+            applyUpdate(await addTodayOrderEdge(precursorUuid, successorUuid));
+        } catch (e) {
+            error.value = e.message;
+        }
+        return;
+    }
+
     const successor = nodes.value.find((n) => n.uuid === successorUuid);
     if (!successor) return;
 
@@ -713,6 +775,20 @@ async function onConnectNodes({ fromUuid, fromSide, toUuid }) {
  * @param {{ sourceUuid: string, oldTargetUuid: string, newTargetUuid: string|null }} payload
  */
 async function onReconnectEdge({ sourceUuid, oldTargetUuid, newTargetUuid }) {
+    if (graphMode.value === "today-order") {
+        try {
+            const afterRemove = await removeTodayOrderEdge(sourceUuid, oldTargetUuid);
+            applyUpdate(
+                newTargetUuid && newTargetUuid !== sourceUuid
+                    ? await addTodayOrderEdge(sourceUuid, newTargetUuid)
+                    : afterRemove,
+            );
+        } catch (e) {
+            error.value = e.message;
+        }
+        return;
+    }
+
     if (newTargetUuid) {
         if (newTargetUuid === sourceUuid) {
             error.value = "不能把依赖指向自己";
@@ -836,9 +912,17 @@ onMounted(() => {
                     :class="{ active: currentPage === 'charts' }"
                     @click="currentPage = 'charts'"
                 >
-                    图表
+                    分析
                 </button>
-                
+
+                <button
+                    class="page-nav-btn"
+                    :class="{ active: currentPage === 'calendar' }"
+                    @click="currentPage = 'calendar'"
+                >
+                    日历
+                </button>
+
                 <button
                     class="page-nav-btn"
                     :class="{ active: currentPage === 'board' }"
@@ -977,6 +1061,14 @@ onMounted(() => {
             @jump-to-task="onJumpToTask"
         />
 
+        <!-- 日历页 -->
+        <CalendarPage
+            v-show="currentPage === 'calendar'"
+            :nodes="nodes"
+            :visible="currentPage === 'calendar'"
+            @jump-to-task="onJumpToTask"
+        />
+
         <!-- 主体三栏（任务看板） -->
         <div v-show="currentPage === 'board'" class="main">
             <ProjectTree
@@ -986,6 +1078,7 @@ onMounted(() => {
                 :archived-roots="archivedProjectRoots"
                 :trash-roots="trashProjectRoots"
                 :selected="selectedProject"
+                :today-count="todayCount"
                 @select="selectedProject = $event"
                 @create-project="onCreateProject"
                 @toggle-archive="onToggleArchive"
@@ -998,14 +1091,18 @@ onMounted(() => {
 
             <TaskGraph
                 :nodes="nodes"
-                :edges="edges"
+                :edges="graphEdges"
+                :mode="graphMode"
+                :depends-edges="edges"
                 :selected="selectedUUID"
                 :highlight-set="highlightSet"
                 :project-filter="selectedProject"
                 :tag-filter="tagFilter"
+                :projects="projects"
                 :tags="tags"
                 :multi-selected="multiSelectedUUIDs"
                 :has-active-timer="activeTimingNodes.length > 0"
+                :node-display="settings"
                 @select="onGraphSelect"
                 @toggle-multi-select="onToggleMultiSelect"
                 @box-select="onBoxSelect"
@@ -1044,7 +1141,7 @@ onMounted(() => {
             :visible="showModal"
             :prefill="modalPrefill"
             :projects="projects"
-            :default-project="selectedProject"
+            :default-project="defaultProjectForNewTask"
             :all-tasks="nodes"
             :tag-colors="tags"
             @close="showModal = false"

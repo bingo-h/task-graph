@@ -192,6 +192,8 @@ onBeforeUnmount(() => {
 <style scoped>
 .date-picker {
     position: relative;
+    width: 150px;
+    flex-shrink: 0;
 }
 
 .date-input {

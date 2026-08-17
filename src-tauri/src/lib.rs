@@ -70,6 +70,7 @@ pub fn run() {
             commands::list_recur_log,
             commands::add_today_order_edge,
             commands::remove_today_order_edge,
+            commands::reorder_siblings,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

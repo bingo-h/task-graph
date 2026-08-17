@@ -23,6 +23,9 @@ pub struct GraphResponse {
     pub edges: Vec<Edge>,
     /// "今日任务"视图下的手动排序边，独立于 edges（真实依赖），source 应先于 target 完成
     pub today_order_edges: Vec<Edge>,
+    /// DAG 视图里同一层级（dagre 同一 rank 列）任务之间的手动纵向顺序，
+    /// 独立于 edges，source 排在 target 上面
+    pub sibling_order_edges: Vec<Edge>,
     pub projects: HashMap<String, ProjectNode>,
     pub planned_project_roots: Vec<String>,
     pub active_project_roots: Vec<String>,
@@ -202,6 +205,11 @@ fn build_graph() -> anyhow::Result<GraphResponse> {
         .map(|(source, target)| Edge { source, target })
         .collect();
 
+    let sibling_order_edges: Vec<Edge> = db::sibling_order::list_all(&conn)?
+        .into_iter()
+        .map(|(source, target)| Edge { source, target })
+        .collect();
+
     let project_records = db::project::list_all(&conn)?;
     let (
         projects,
@@ -220,6 +228,7 @@ fn build_graph() -> anyhow::Result<GraphResponse> {
         nodes: tasks,
         edges,
         today_order_edges,
+        sibling_order_edges,
         projects,
         planned_project_roots,
         active_project_roots,
@@ -645,6 +654,18 @@ pub fn remove_today_order_edge(from_uuid: String, to_uuid: String) -> Result<Gra
     let conn = db::open().map_err(|e| e.to_string())?;
 
     db::today_order::remove_edge(&conn, &from_uuid, &to_uuid).map_err(|e| e.to_string())?;
+
+    build_graph().map_err(|e| e.to_string())
+}
+
+/// 前端在 DAG 视图里拖拽调整了同一层级（dagre 同一 rank 列）任务的纵向顺序，
+/// `uuids` 是这一列节点落定后的完整新顺序。整体替换掉这些节点之间原有的排序边，
+/// 不需要额外的成环校验——一条链天然无环。
+#[tauri::command]
+pub fn reorder_siblings(uuids: Vec<String>) -> Result<GraphResponse, String> {
+    let conn = db::open().map_err(|e| e.to_string())?;
+
+    db::sibling_order::replace_chain(&conn, &uuids).map_err(|e| e.to_string())?;
 
     build_graph().map_err(|e| e.to_string())
 }

@@ -18,6 +18,7 @@ use std::sync::OnceLock;
 pub mod project;
 pub mod recur;
 pub mod schema;
+pub mod sibling_order;
 pub mod tag;
 pub mod task;
 pub mod time_entry;

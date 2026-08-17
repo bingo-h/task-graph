@@ -347,9 +347,10 @@ pub fn mark_deleted(conn: &Connection, uuid: &str) -> Result<()> {
         params![uuid, end],
     )?;
 
-    // 删除任务后，跟它相关的"今日任务"手动排序边就没有意义了，一并清理，
-    // 避免留下指向已删除任务的孤儿行
+    // 删除任务后，跟它相关的手动排序边（今日任务顺序 + DAG 同层纵向顺序）就没有意义了，
+    // 一并清理，避免留下指向已删除任务的孤儿行
     crate::db::today_order::prune_for_task(conn, uuid)?;
+    crate::db::sibling_order::prune_for_task(conn, uuid)?;
 
     Ok(())
 }

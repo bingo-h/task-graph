@@ -130,6 +130,20 @@ const MIGRATIONS: &[&str] = &[
 
     CREATE INDEX IF NOT EXISTS idx_today_order_to ON today_order_edges (to_uuid);
     "#,
+    // 版本 14: DAG 视图里、同一层级（dagre 同一 rank 列）任务之间的手动纵向顺序，
+    // 独立于真实的 depends 依赖图，也独立于 today_order_edges。语义同样是链式的
+    // "from 排在 to 上面"，一次拖拽重排会把涉及的整列节点重新写成一条新链
+    // （见 db::sibling_order::replace_chain）。
+    r#"
+    CREATE TABLE IF NOT EXISTS sibling_order_edges (
+        from_uuid  TEXT NOT NULL,
+        to_uuid    TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        PRIMARY KEY (from_uuid, to_uuid)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_sibling_order_to ON sibling_order_edges (to_uuid);
+    "#,
 ];
 
 /// 初始化数据库 schema ，自动执行尚未应用的迁移

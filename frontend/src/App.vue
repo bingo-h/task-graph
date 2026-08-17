@@ -997,6 +997,16 @@ onMounted(() => {
     load();
     loadSettings();
 });
+
+// "今日任务"标记、逾期等状态只在每次拉取数据时惰性重新计算（后端没有常驻定时任务），
+// 应用如果一直开着不关、也不做任何触发刷新的操作（比如正好跨过午夜），
+// 界面会一直停留在旧状态。这里跟 Dashboard/ChartsPage 一样加一个定时兜底刷新。
+const AUTO_REFRESH_MS = 5 * 60 * 1000; // 5 分钟
+let autoRefreshTimer = null;
+onMounted(() => {
+    autoRefreshTimer = setInterval(load, AUTO_REFRESH_MS);
+});
+onUnmounted(() => clearInterval(autoRefreshTimer));
 </script>
 
 <template>

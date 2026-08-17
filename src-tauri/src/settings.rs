@@ -14,6 +14,10 @@ fn default_font_size() -> u32 {
     14
 }
 
+fn default_font_family() -> String {
+    "sans-serif".to_string()
+}
+
 fn default_duration_format() -> String {
     "%H:%M:%S".to_string()
 }
@@ -53,6 +57,12 @@ pub struct Settings {
     /// 界面字体大小（像素）
     #[serde(default = "default_font_size")]
     pub font_size: u32,
+    /// 界面字体家族名（从系统已安装字体里选，前端直接用作 CSS font-family）
+    #[serde(default = "default_font_family")]
+    pub font_family: String,
+    /// 图谱任务节点卡片单独的字体；空字符串表示跟随上面的 font_family
+    #[serde(default)]
+    pub node_font_family: String,
     /// 计时时长的显示格式，由前端 useDuration.js 解析
     /// （沿用 strftime 的 % 前缀记号：%D/%DD 天，%H/%h 时，%M/%m 分，%S/%s 秒）
     #[serde(default = "default_duration_format")]
@@ -85,6 +95,8 @@ impl Default for Settings {
         Settings {
             trash_retention_days: default_trash_retention_days(),
             font_size: default_font_size(),
+            font_family: default_font_family(),
+            node_font_family: String::new(),
             duration_format: default_duration_format(),
             default_due_time: default_due_time(),
             node_show_project: default_true(),

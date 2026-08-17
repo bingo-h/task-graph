@@ -460,6 +460,12 @@ pub fn get_settings() -> Result<Settings, String> {
     crate::settings::load().map_err(|e| e.to_string())
 }
 
+/// 枚举系统已安装字体的家族名，供设置里"字体"下拉框做模糊搜索候选
+#[tauri::command]
+pub fn list_system_fonts() -> Vec<String> {
+    crate::fonts::list_families()
+}
+
 /// 保存应用设置
 #[tauri::command]
 pub fn save_settings(settings: Settings) -> Result<Settings, String> {
@@ -468,6 +474,16 @@ pub fn save_settings(settings: Settings) -> Result<Settings, String> {
     }
     if !(8..=32).contains(&settings.font_size) {
         return Err("字体大小需在 8-32 之间".to_string());
+    }
+    if settings.font_family.trim().is_empty() {
+        return Err("字体不能为空".to_string());
+    }
+    if settings.font_family.chars().count() > 100 {
+        return Err("字体名称过长".to_string());
+    }
+    // 节点字体允许为空（表示跟随上面的全局字体），非空时才校验长度
+    if settings.node_font_family.chars().count() > 100 {
+        return Err("节点字体名称过长".to_string());
     }
     if !crate::settings::validate_due_time(&settings.default_due_time) {
         return Err("默认到期时间格式需为 HH:MM".to_string());

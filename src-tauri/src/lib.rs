@@ -6,6 +6,7 @@
 
 mod commands;
 mod db;
+mod fonts;
 mod graph_utils;
 mod models;
 mod settings;
@@ -45,6 +46,7 @@ pub fn run() {
             commands::move_project,
             commands::get_settings,
             commands::save_settings,
+            commands::list_system_fonts,
             commands::add_task,
             commands::modify_task,
             commands::reconnect_dependency,

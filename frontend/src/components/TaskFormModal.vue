@@ -803,6 +803,12 @@ function submit() {
                                     {{ task.description }}
                                 </span>
                                 <span
+                                    v-if="task.status === 'completed'"
+                                    class="depends-done-badge"
+                                >
+                                    ✓ 已完成
+                                </span>
+                                <span
                                     v-if="task.project"
                                     class="depends-project"
                                 >
@@ -1344,6 +1350,11 @@ function submit() {
 .depends-project {
     color: var(--fg-dim);
     font-size: 0.8462rem;
+}
+.depends-done-badge {
+    color: var(--green);
+    font-size: 0.8462rem;
+    white-space: nowrap;
 }
 
 .empty-hint {

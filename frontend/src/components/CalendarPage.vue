@@ -344,15 +344,11 @@ function backToMonth() {
             </div>
         </div>
 
-        <!-- 日视图：0-24 点时间轴 -->
+        <!-- 日视图：0-24 点时间轴，无论这一天有没有计时记录都完整显示一整天的刻度，不能因为没数据就整个空着 -->
         <div v-else class="day-view-card">
             <div class="day-view-header">{{ selectedDate }}</div>
 
-            <div v-if="dayEntries.length === 0" class="empty-hint">
-                这一天没有任何计时记录
-            </div>
-
-            <div v-else class="day-timeline">
+            <div class="day-timeline">
                 <div class="hour-ruler">
                     <div
                         v-for="h in HOUR_MARKS"

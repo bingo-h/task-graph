@@ -188,10 +188,17 @@ function openDay(dateStr) {
 // ----------------------------------------
 const uuidToTask = computed(() => Object.fromEntries(props.nodes.map((t) => [t.uuid, t])));
 
+/** "YYYY-MM-DD" 对应的本地日历天起止时刻（毫秒时间戳）；计时记录 start/end
+ *  是真实发生过的时刻，日视图应该按用户本地的一天划分，而不是 UTC 的一天 */
+function localDayBounds(dateStr) {
+    const [y, m, d] = dateStr.split("-").map(Number);
+    const start = new Date(y, m - 1, d).getTime();
+    return { start, end: start + 86400 * 1000 };
+}
+
 const dayEntries = computed(() => {
     if (!selectedDate.value) return [];
-    const dayStart = new Date(`${selectedDate.value}T00:00:00Z`).getTime();
-    const dayEnd = dayStart + 86400 * 1000;
+    const { start: dayStart, end: dayEnd } = localDayBounds(selectedDate.value);
     const now = Date.now();
 
     return entries.value
@@ -211,7 +218,7 @@ const dayEntries = computed(() => {
 });
 
 function blockStyle(entry) {
-    const dayStart = new Date(`${selectedDate.value}T00:00:00Z`).getTime();
+    const { start: dayStart } = localDayBounds(selectedDate.value);
     const topPct = ((entry.clampedStart - dayStart) / 86400000) * 100;
     const heightPct = Math.max(
         0.6,
@@ -227,7 +234,7 @@ function blockStyle(entry) {
 
 function formatHM(ms) {
     const d = new Date(ms);
-    return `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
+    return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
 const HOUR_MARKS = Array.from({ length: 25 }, (_, h) => h);

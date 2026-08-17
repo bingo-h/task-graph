@@ -198,11 +198,14 @@ const filteredEntries = computed(() => {
     );
 });
 
-/** 按日期（YYYY-MM-DD）分组的计时记录，用于详情栏展示 */
+/** 按本地日期（YYYY-MM-DD）分组的计时记录，用于详情栏展示；
+ *  entry.start 是真实时刻，分组基准要跟组内展示的本地钟点（formatTime）、
+ *  以及今天/本周/本月筛选（filterSinceDate）保持一致，不能直接切 UTC 字符串 */
 const entriesByDate = computed(() => {
     const groups = {};
     for (const entry of filteredEntries.value) {
-        const date = entry.start.slice(0, 10);
+        const d = new Date(entry.start);
+        const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
         (groups[date] ??= []).push(entry);
     }
     return Object.entries(groups).sort((a, b) => (a[0] < b[0] ? 1 : -1));
@@ -275,6 +278,16 @@ function formatDate(iso) {
 function formatDateTime(iso) {
     if (!iso) return "";
     return `${iso.slice(0, 10)} ${iso.slice(11, 16)}`;
+}
+
+/** 日期 + 本地时间（HH:MM），用于完成时间这类"真实发生过的时刻"字段；
+ *  和 formatDateTime 相反——这里要经过 Date 对象换算成用户本地时区，
+ *  否则后端存的 UTC 时间戳原样显示出来，会跟用户实际操作的钟点差一个时区 */
+function formatLocalDateTime(iso) {
+    if (!iso) return "";
+    const d = new Date(iso);
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 /** 优先级标签颜色 */
@@ -392,7 +405,7 @@ function statusLabel(s) {
                 >
                     <span class="detail-key">完成于</span>
                     <span class="detail-val">
-                        {{ formatDateTime(task.end) }}
+                        {{ formatLocalDateTime(task.end) }}
                     </span>
                 </div>
 

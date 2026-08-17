@@ -322,8 +322,10 @@ const dueSoonTasks = computed(() =>
         .slice(0, 6),
 );
 
+/** due 是目标日期（后端统一钉死 UTC 23:59:59），不能经过 Date 对象换算成本地时区——
+ *  正偏移时区下换算会把 getDate() 进位到下一天，导致显示的日期比用户实际设置的晚一天 */
 function formatDueLabel(due) {
-    return monthDayFormatter.format(new Date(due));
+    return `${due.slice(5, 7)}-${due.slice(8, 10)}`;
 }
 
 // ----------------------------------------

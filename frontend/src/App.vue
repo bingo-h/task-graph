@@ -169,6 +169,9 @@ const currentPage = ref("home");
 function onJumpToTask(uuid) {
     currentPage.value = "board";
     selectedUUID.value = uuid;
+
+    const task = nodes.value.find((n) => n.uuid === uuid);
+    selectedProject.value = task?.project || constants.INBOX_PROJECT;
 }
 
 // 当前状态

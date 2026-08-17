@@ -9,6 +9,8 @@
 import constants from "../config/constants";
 import { computed, nextTick, ref, watch } from "vue";
 import DatePicker from "./DatePicker.vue";
+import ColorSwatchPicker from "./ColorSwatchPicker.vue";
+import IconPicker from "./IconPicker.vue";
 import { tagChipStyle } from "../composables/useTagColor";
 
 const props = defineProps({
@@ -588,26 +590,9 @@ function submit() {
                             </span>
                         </label>
                         <div class="icon-color-row">
-                            <input
-                                v-model="icon"
-                                class="form-input icon-input"
-                                maxlength="8"
-                                placeholder="🔥"
-                            />
+                            <IconPicker v-model="icon" :size="26" />
 
-                            <label
-                                class="color-swatch"
-                                :style="{
-                                    background: color || 'var(--fg-dark)',
-                                }"
-                                title="点击选择颜色"
-                            >
-                                <input
-                                    type="color"
-                                    :value="color || '#8250df'"
-                                    @input="color = $event.target.value"
-                                />
-                            </label>
+                            <ColorSwatchPicker v-model="color" :size="22" />
                             <button
                                 v-if="color"
                                 type="button"
@@ -1012,27 +997,6 @@ function submit() {
     display: flex;
     align-items: center;
     gap: 8px;
-}
-.icon-input {
-    width: 70px;
-    flex: none;
-    text-align: center;
-    font-size: 1.0769rem;
-}
-.color-swatch {
-    position: relative;
-    flex-shrink: 0;
-    width: 22px;
-    height: 22px;
-    border-radius: 50%;
-    cursor: pointer;
-    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.15);
-}
-.color-swatch input[type="color"] {
-    position: absolute;
-    inset: 0;
-    opacity: 0;
-    cursor: pointer;
 }
 .color-clear {
     flex-shrink: 0;

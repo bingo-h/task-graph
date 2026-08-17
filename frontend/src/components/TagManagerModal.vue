@@ -9,6 +9,7 @@
 <script setup>
 import { nextTick, ref, watch } from "vue";
 import { tagChipStyle } from "../composables/useTagColor";
+import ColorSwatchPicker from "./ColorSwatchPicker.vue";
 
 const props = defineProps({
     visible: { type: Boolean, required: true },
@@ -69,10 +70,10 @@ function confirmRename() {
 }
 
 // ----------------------------------------
-// 颜色：原生颜色选择器，选完立刻生效
+// 颜色：自绘取色面板，选完立刻生效
 // ----------------------------------------
-function onColorInput(name, event) {
-    emit("set-color", name, event.target.value);
+function onColorInput(name, hex) {
+    emit("set-color", name, hex);
 }
 
 function clearColor(name) {
@@ -106,19 +107,13 @@ function confirmDelete(name) {
                             :key="t.name"
                             class="tag-row"
                         >
-                            <label
-                                class="tag-color-swatch"
-                                :style="{
-                                    background: t.color || 'var(--fg-dark)',
-                                }"
-                                title="点击选择颜色"
-                            >
-                                <input
-                                    type="color"
-                                    :value="t.color || '#8250df'"
-                                    @input="onColorInput(t.name, $event)"
-                                />
-                            </label>
+                            <ColorSwatchPicker
+                                :model-value="t.color"
+                                :size="18"
+                                @update:model-value="
+                                    (hex) => onColorInput(t.name, hex)
+                                "
+                            />
 
                             <button
                                 v-if="t.color"
@@ -250,22 +245,6 @@ function confirmDelete(name) {
 }
 .tag-row:hover {
     background: var(--bg-select);
-}
-
-.tag-color-swatch {
-    position: relative;
-    flex-shrink: 0;
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    cursor: pointer;
-    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.15);
-}
-.tag-color-swatch input[type="color"] {
-    position: absolute;
-    inset: 0;
-    opacity: 0;
-    cursor: pointer;
 }
 
 .tag-color-clear {

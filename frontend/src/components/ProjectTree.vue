@@ -12,6 +12,7 @@
 import { computed, nextTick, provide, reactive, ref } from "vue";
 import ProjectTreeNode from "./ProjectTreeNode.vue";
 import ProjectContextMenu from "./ProjectContextMenu.vue";
+import constants from "../config/constants";
 
 const props = defineProps({
     projects: { type: Object, required: true },
@@ -20,6 +21,8 @@ const props = defineProps({
     archivedRoots: { type: Array, default: () => [] },
     trashRoots: { type: Array, default: () => [] },
     selected: { type: String, default: null },
+    // 被标记为"今日任务"的任务数，用于旁边的计数徽标
+    todayCount: { type: Number, default: 0 },
 });
 
 const emit = defineEmits([
@@ -282,6 +285,22 @@ function onMenuRestore() {
 function onMenuPurge() {
     emit("purge-project", contextMenu.path);
 }
+
+// ----------------------------------------
+// 分组标题栏本身即可点击筛选（取代原来单独的"全部"按钮）
+// ----------------------------------------
+function selectGroup(key) {
+    const filterValue = constants.stageFilter(key);
+    emit("select", props.selected === filterValue ? null : filterValue);
+}
+
+/** "今日任务"入口：所有 is_today 的任务，不分实际项目归属，依赖图边替换成手动排序 */
+function selectToday() {
+    emit(
+        "select",
+        props.selected === constants.TODAY_PROJECT ? null : constants.TODAY_PROJECT,
+    );
+}
 </script>
 
 <template>
@@ -300,13 +319,6 @@ function onMenuPurge() {
                     @click="openNewProjectInput()"
                 >
                     +
-                </button>
-                <button
-                    class="show-all-btn"
-                    :class="{ active: selected === null }"
-                    @click="emit('select', null)"
-                >
-                    全部
                 </button>
             </div>
 
@@ -350,6 +362,19 @@ function onMenuPurge() {
         </div>
 
         <div class="tree-body">
+            <!-- "今日任务"：所有标记为今日任务的任务，跨越实际项目归属，不是真实项目分组 -->
+            <button
+                class="today-entry"
+                :class="{ active: selected === constants.TODAY_PROJECT }"
+                @click="selectToday"
+            >
+                <span class="today-entry-icon">☀</span>
+                <span class="today-entry-label">今日任务</span>
+                <span v-if="todayCount > 0" class="today-entry-count">
+                    {{ todayCount }}
+                </span>
+            </button>
+
             <template v-for="group in groups" :key="group.key">
                 <div
                     v-if="
@@ -360,11 +385,19 @@ function onMenuPurge() {
                 >
                     <div
                         class="group-header"
-                        @click="toggleGroup(group.key)"
+                        :class="{
+                            'group-header-active':
+                                selected === constants.stageFilter(group.key),
+                        }"
+                        :title="`点击筛选『${group.label}』分类下的全部任务`"
+                        @click="selectGroup(group.key)"
                     >
-                        <span class="toggle-icon">{{
-                            collapsedGroups[group.key] ? "▶" : "▼"
-                        }}</span>
+                        <span
+                            class="toggle-icon"
+                            @click.stop="toggleGroup(group.key)"
+                        >
+                            {{ collapsedGroups[group.key] ? "▶" : "▼" }}
+                        </span>
                         <span>{{ group.label }} ({{ group.roots.length }})</span>
                     </div>
 
@@ -533,23 +566,6 @@ function onMenuPurge() {
     background: rgba(122, 162, 247, 0.1);
 }
 
-/* "全部"按钮 */
-.show-all-btn {
-    font-size: 0.8462rem;
-    padding: 2px 8px;
-    border-radius: 4px;
-    border: 1px solid var(--border);
-    color: var(--fg-dim);
-    transition: all 0.15s;
-}
-.show-all-btn:hover {
-    color: var(--fg);
-}
-.show-all-btn.active {
-    color: var(--blue);
-    border-color: var(--blue);
-}
-
 /* 拖拽时的"移到顶层"投放区：悬浮覆盖在标题栏上方，不挤占列表空间 */
 .drop-to-root {
     position: absolute;
@@ -569,6 +585,45 @@ function onMenuPurge() {
     border-color: var(--blue);
     background: rgba(122, 162, 247, 0.12);
     color: var(--blue);
+}
+
+/* "今日任务"入口 */
+.today-entry {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 12px;
+    margin: 4px 8px;
+    border-radius: 7px;
+    font-size: 0.9231rem;
+    font-weight: 600;
+    color: var(--fg-dim);
+    transition: all 0.15s;
+}
+.today-entry:hover {
+    background: rgba(0, 0, 0, 0.05);
+    color: var(--fg);
+}
+.today-entry.active {
+    color: var(--orange);
+    background: rgba(224, 175, 104, 0.15);
+}
+.today-entry-icon {
+    flex-shrink: 0;
+}
+.today-entry-label {
+    flex: 1;
+    text-align: left;
+}
+.today-entry-count {
+    flex-shrink: 0;
+    font-size: 0.7692rem;
+    font-weight: 700;
+    padding: 1px 7px;
+    border-radius: 999px;
+    background: rgba(224, 175, 104, 0.2);
+    color: var(--orange);
 }
 
 /* 分组 */
@@ -595,11 +650,19 @@ function onMenuPurge() {
 .group-header:hover {
     color: var(--fg);
 }
+.group-header-active {
+    color: var(--blue);
+}
 .group-header .toggle-icon {
     font-size: 0.7692rem;
     width: 14px;
     text-align: center;
     flex-shrink: 0;
+    border-radius: 3px;
+    transition: background 0.15s;
+}
+.group-header .toggle-icon:hover {
+    background: rgba(0, 0, 0, 0.08);
 }
 
 .empty-hint {

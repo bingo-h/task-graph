@@ -16,10 +16,12 @@ use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
 pub mod project;
+pub mod recur;
 pub mod schema;
 pub mod tag;
 pub mod task;
 pub mod time_entry;
+pub mod today_order;
 
 /// 获取数据库文件路径
 ///

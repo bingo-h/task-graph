@@ -329,6 +329,8 @@ pub fn build(
                 .copied()
                 .unwrap_or(STAGE_ACTIVE)
                 .to_string();
+
+            node.group = group_of(node).to_string();
         }
     }
 
@@ -460,6 +462,7 @@ pub fn build(
     if !inbox.is_empty() {
         let mut inbox_node = ProjectNode::new(INBOX_PROJECT.to_string(), "无项目".to_string(), 0);
         inbox_node.stage = STAGE_ACTIVE.to_string();
+        inbox_node.group = STAGE_ACTIVE.to_string();
 
         for t in &inbox {
             match t.status.as_str() {

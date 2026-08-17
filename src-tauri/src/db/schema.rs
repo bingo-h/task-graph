@@ -96,6 +96,40 @@ const MIGRATIONS: &[&str] = &[
     r#"
     ALTER TABLE tasks DROP COLUMN tags;
     "#,
+    // 版本 11: 任务图标/颜色（日历页打卡展示用）+ 周期性任务规则（JSON，见 models::task::RecurRule）
+    r#"
+    ALTER TABLE tasks ADD COLUMN icon TEXT;
+    ALTER TABLE tasks ADD COLUMN color TEXT;
+    ALTER TABLE tasks ADD COLUMN recur_rule TEXT;
+    "#,
+    // 版本 12: 周期性任务每个周期的完成结果记录，用于日历页计算"连续完成天数"。
+    // 逾期后补做也算维持连续（outcome=completed_late），完全错过才算断掉（outcome=missed）。
+    r#"
+    CREATE TABLE IF NOT EXISTS recur_log (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        task_uuid    TEXT NOT NULL,
+        cycle_due    TEXT NOT NULL,
+        outcome      TEXT NOT NULL CHECK (outcome IN ('completed_on_time','completed_late','missed')),
+        completed_at TEXT,
+        recorded_at  TEXT NOT NULL,
+        UNIQUE (task_uuid, cycle_due)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_recur_log_task_cycle
+        ON recur_log (task_uuid, cycle_due DESC);
+    "#,
+    // 版本 13:"今日任务"视图下用户手动排的工作顺序，独立于真实的 depends 依赖图，
+    // 只在按"今日任务"分类筛选时生效。from_uuid 应先于 to_uuid 完成。
+    r#"
+    CREATE TABLE IF NOT EXISTS today_order_edges (
+        from_uuid  TEXT NOT NULL,
+        to_uuid    TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        PRIMARY KEY (from_uuid, to_uuid)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_today_order_to ON today_order_edges (to_uuid);
+    "#,
 ];
 
 /// 初始化数据库 schema ，自动执行尚未应用的迁移

@@ -24,6 +24,9 @@ pub struct CreateTaskRequest {
     pub depends: Vec<String>,
     /// 备注：非空时作为任务唯一的一条 annotation
     pub annotation: Option<String>,
+    pub icon: Option<String>,
+    pub color: Option<String>,
+    pub recur_rule: Option<crate::models::task::RecurRule>,
 }
 
 /// 请求体：更新任务
@@ -43,6 +46,10 @@ pub struct UpdateTaskRequest {
     /// 备注：非空时整体替换原有的那一条 annotation；为空且 clear_annotation 为 false 时不改动
     pub annotation: Option<String>,
     pub clear_annotation: bool,
+    pub icon: Option<String>,
+    pub clear_icon: bool,
+    pub color: Option<String>,
+    pub clear_color: bool,
 }
 
 /// 查询所有非删除状态的任务
@@ -50,7 +57,7 @@ pub fn list_all(conn: &Connection) -> Result<Vec<Task>> {
     let mut stmt = conn.prepare(
         "SELECT uuid, description, status, project, priority, urgency,
              due, scheduled, created_at, end, depends, annotations,
-             today_marked_date
+             today_marked_date, icon, color, recur_rule
         FROM tasks WHERE status != 'deleted' ORDER BY urgency DESC",
     )?;
 
@@ -73,7 +80,7 @@ pub fn get_by_uuid(conn: &Connection, uuid: &str) -> Result<Option<Task>> {
     let mut stmt = conn.prepare(
         "SELECT uuid, description, status, project, priority, urgency,
                     due, scheduled, created_at, end, depends, annotations,
-                    today_marked_date
+                    today_marked_date, icon, color, recur_rule
               FROM tasks WHERE uuid = ?1",
     )?;
 
@@ -143,8 +150,8 @@ pub fn create(conn: &Connection, req: &CreateTaskRequest) -> Result<Task> {
         "
             INSERT INTO tasks
                 (uuid, description, status, project, priority, urgency,
-                 due, scheduled, created_at, depends, annotations)
-            VALUES (?1, ?2, 'pending', ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
+                 due, scheduled, created_at, depends, annotations, icon, color)
+            VALUES (?1, ?2, 'pending', ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
         ",
         params![
             uuid,
@@ -156,11 +163,19 @@ pub fn create(conn: &Connection, req: &CreateTaskRequest) -> Result<Task> {
             req.scheduled,
             created_at,
             depends_json,
-            annotations_json
+            annotations_json,
+            req.icon,
+            req.color,
         ],
     )?;
 
     tag::set_tags_for_task(conn, &uuid, &req.tags)?;
+
+    // 新建时就带了周期性规则：立刻算出第一个周期（复用和 set_task_recur 命令同一套逻辑），
+    // 这样表单一次提交就能直接建出一个"正在进行中"的周期性任务，不用创建后再补一次调用
+    if let Some(rule) = &req.recur_rule {
+        crate::db::recur::set_recur_rule(conn, &uuid, Some(rule.clone()))?;
+    }
 
     Ok(get_by_uuid(conn, &uuid)?.unwrap())
 }
@@ -201,6 +216,18 @@ pub fn update(conn: &Connection, uuid: &str, req: &UpdateTaskRequest) -> Result<
     let tags = req.tags.as_ref().unwrap_or(&current.tags);
     let depends = req.depends.as_ref().unwrap_or(&current.depends);
 
+    let icon = if req.clear_icon {
+        None
+    } else {
+        req.icon.as_deref().or(current.icon.as_deref())
+    };
+
+    let color = if req.clear_color {
+        None
+    } else {
+        req.color.as_deref().or(current.color.as_deref())
+    };
+
     let depends_json = serde_json::to_string(depends)?;
     let urgency = compute_urgency(priority, due, &current.created_at, tags, depends);
 
@@ -222,7 +249,8 @@ pub fn update(conn: &Connection, uuid: &str, req: &UpdateTaskRequest) -> Result<
     conn.execute(
         "UPDATE tasks SET
                 description=?2, project=?3, priority=?4, urgency=?5,
-                due=?6, scheduled=?7, depends=?8, annotations=?9
+                due=?6, scheduled=?7, depends=?8, annotations=?9,
+                icon=?10, color=?11
              WHERE uuid=?1
         ",
         params![
@@ -234,7 +262,9 @@ pub fn update(conn: &Connection, uuid: &str, req: &UpdateTaskRequest) -> Result<
             due,
             scheduled,
             depends_json,
-            annotations_json
+            annotations_json,
+            icon,
+            color,
         ],
     )?;
 
@@ -266,6 +296,10 @@ pub fn set_depends(conn: &Connection, uuid: &str, depends: Vec<String>) -> Resul
             clear_scheduled: false,
             annotation: None,
             clear_annotation: false,
+            icon: None,
+            clear_icon: false,
+            color: None,
+            clear_color: false,
         },
     )?;
     Ok(())
@@ -313,6 +347,10 @@ pub fn mark_deleted(conn: &Connection, uuid: &str) -> Result<()> {
         params![uuid, end],
     )?;
 
+    // 删除任务后，跟它相关的"今日任务"手动排序边就没有意义了，一并清理，
+    // 避免留下指向已删除任务的孤儿行
+    crate::db::today_order::prune_for_task(conn, uuid)?;
+
     Ok(())
 }
 
@@ -341,6 +379,11 @@ fn row_to_task(row: &rusqlite::Row) -> rusqlite::Result<Task> {
         _ => None,
     });
 
+    let recur_rule_json: Option<String> = row.get(15)?;
+    let recur_rule: Option<crate::models::task::RecurRule> = recur_rule_json
+        .as_deref()
+        .and_then(|s| serde_json::from_str(s).ok());
+
     Ok(Task {
         uuid: row.get(0)?,
         description: row.get(1)?,
@@ -364,5 +407,9 @@ fn row_to_task(row: &rusqlite::Row) -> rusqlite::Result<Task> {
         total_seconds: 0,
         is_timing: false,
         active_since: None,
+        icon: row.get(13)?,
+        color: row.get(14)?,
+        is_recurring: recur_rule.is_some(),
+        recur_rule,
     })
 }

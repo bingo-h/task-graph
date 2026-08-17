@@ -305,6 +305,36 @@ pub fn set_depends(conn: &Connection, uuid: &str, depends: Vec<String>) -> Resul
     Ok(())
 }
 
+/// 只替换某个任务的 project 字段，其余字段不变（批量转移项目用）
+/// project 传 None 表示移到"无项目"（Inbox）
+pub fn set_project(conn: &Connection, uuid: &str, project: Option<String>) -> Result<()> {
+    let clear_project = project.is_none();
+    update(
+        conn,
+        uuid,
+        &UpdateTaskRequest {
+            description: None,
+            project,
+            priority: None,
+            due: None,
+            scheduled: None,
+            tags: None,
+            depends: None,
+            clear_project,
+            clear_priority: false,
+            clear_due: false,
+            clear_scheduled: false,
+            annotation: None,
+            clear_annotation: false,
+            icon: None,
+            clear_icon: false,
+            color: None,
+            clear_color: false,
+        },
+    )?;
+    Ok(())
+}
+
 /// 将任务标记为完成
 pub fn mark_done(conn: &Connection, uuid: &str) -> Result<()> {
     let end = chrono::Utc::now().to_rfc3339();

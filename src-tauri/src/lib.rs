@@ -53,6 +53,7 @@ pub fn run() {
             commands::delete_tag,
             commands::done_task,
             commands::done_tasks,
+            commands::set_tasks_project,
             commands::undone_task,
             commands::set_task_today,
             commands::set_tasks_today,

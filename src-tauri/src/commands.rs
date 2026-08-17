@@ -739,6 +739,27 @@ pub fn done_tasks(uuids: Vec<String>) -> Result<GraphResponse, String> {
     build_graph().map_err(|e| e.to_string())
 }
 
+/// 批量转移项目的参数
+#[derive(Deserialize)]
+pub struct SetTasksProjectArgs {
+    pub uuids: Vec<String>,
+    /// 目标项目路径；None/空 表示移到"无项目"（Inbox）
+    #[serde(default)]
+    pub project: Option<String>,
+}
+
+/// 批量将多个任务转移到同一个项目下（框选/Ctrl 多选后的批量操作）
+#[tauri::command]
+pub fn set_tasks_project(args: SetTasksProjectArgs) -> Result<GraphResponse, String> {
+    let conn = db::open().map_err(|e| e.to_string())?;
+
+    for uuid in &args.uuids {
+        db::task::set_project(&conn, uuid, args.project.clone()).map_err(|e| e.to_string())?;
+    }
+
+    build_graph().map_err(|e| e.to_string())
+}
+
 /// 取消任务完成，恢复为待办
 #[tauri::command]
 pub fn undone_task(uuid: String) -> Result<GraphResponse, String> {

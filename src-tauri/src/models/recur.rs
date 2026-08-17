@@ -1,13 +1,18 @@
 //! 周期性任务的日期计算（纯函数，不碰数据库/Tauri 类型）
 //!
-//! 所有周期的截止时间统一落在当天 23:59:59Z，跟应用里其它日期字段一样
-//! 只按 UTC 计算，不做用户时区换算（沿用 today_marked_date/created_at 已有的约定）。
+//! 所有周期的截止时间落在"当天"本地日历天的 23:59:59（本地时区，即系统配置的
+//! 时区），不是 UTC 天——"每日任务"是直接给人看的日历天概念，按 UTC 天算的话，
+//! 非 UTC+0 的用户会在本地已经跨天几个小时之后，周期才会翻篇，看起来像是没有
+//! 按时重置。对外仍然用 `DateTime<Utc>` 表示时刻（跟数据库里存的 RFC3339 时刻
+//! 一致，方便直接比较排序），只是在提取"这是哪一天/星期几/几号"时先转成本地时间。
 
 use super::task::RecurRule;
-use chrono::{DateTime, Datelike, Duration, NaiveDate, TimeZone, Utc};
+use chrono::{DateTime, Datelike, Duration, Local, NaiveDate, TimeZone, Utc};
 
 /// 算出严格晚于 `from` 的下一个周期截止时间
 pub fn next_cycle_due(rule: &RecurRule, from: DateTime<Utc>) -> DateTime<Utc> {
+    let from = from.with_timezone(&Local);
+
     match rule {
         RecurRule::Daily { interval } => {
             let days = (*interval).max(1) as i64;
@@ -37,14 +42,16 @@ pub fn next_cycle_due(rule: &RecurRule, from: DateTime<Utc>) -> DateTime<Utc> {
 
 /// 首次开启周期性时算第一个周期的截止时间：规则当天就命中则用今天，否则找下一个命中日
 pub fn first_cycle_due(rule: &RecurRule, now: DateTime<Utc>) -> DateTime<Utc> {
-    if matches_today(rule, now) {
-        end_of_day(now.date_naive())
+    let now_local = now.with_timezone(&Local);
+
+    if matches_today(rule, now_local) {
+        end_of_day(now_local.date_naive())
     } else {
         next_cycle_due(rule, now)
     }
 }
 
-fn matches_today(rule: &RecurRule, now: DateTime<Utc>) -> bool {
+fn matches_today(rule: &RecurRule, now: DateTime<Local>) -> bool {
     match rule {
         RecurRule::Daily { .. } => true,
         RecurRule::Weekly { weekdays } => {
@@ -57,7 +64,7 @@ fn matches_today(rule: &RecurRule, now: DateTime<Utc>) -> bool {
 }
 
 /// 周几列表为空时的兜底：按基准时间当天的星期几算（相当于"每周同一天"）
-fn normalized_weekdays(weekdays: &[u8], fallback_from: DateTime<Utc>) -> Vec<u32> {
+fn normalized_weekdays(weekdays: &[u8], fallback_from: DateTime<Local>) -> Vec<u32> {
     if weekdays.is_empty() {
         vec![fallback_from.weekday().num_days_from_monday()]
     } else {
@@ -79,8 +86,17 @@ fn days_in_month(year: i32, month: u32) -> u32 {
         .day()
 }
 
+/// 把某个本地日历日期的 23:59:59（本地时区）转成对应的 UTC 时刻。
+/// 本地时间在夏令时切换附近可能是重复（Ambiguous）或不存在（None）的，
+/// 这两种极端情况都退化取一个合理的近似值，不影响正常日期的计算。
 fn end_of_day(d: NaiveDate) -> DateTime<Utc> {
-    Utc.from_utc_datetime(&d.and_hms_opt(23, 59, 59).unwrap())
+    let naive = d.and_hms_opt(23, 59, 59).unwrap();
+    let local = match Local.from_local_datetime(&naive) {
+        chrono::LocalResult::Single(dt) => dt,
+        chrono::LocalResult::Ambiguous(dt, _) => dt,
+        chrono::LocalResult::None => Local.from_utc_datetime(&naive),
+    };
+    local.with_timezone(&Utc)
 }
 
 #[cfg(test)]

@@ -126,6 +126,11 @@ export async function doneTasks(uuids) {
   return call("done_tasks", { uuids });
 }
 
+/** 批量将多个任务转移到同一个项目下（框选/Ctrl 多选后的批量操作）；project 传 null 表示移到"无项目"。 */
+export async function setTasksProject(uuids, project) {
+  return call("set_tasks_project", { args: { uuids, project: project || null } });
+}
+
 /** 取消任务完成，恢复为待办。 */
 export async function undoneTask(uuid) {
   return call("undone_task", { uuid });
@@ -220,4 +225,12 @@ export async function addTodayOrderEdge(fromUuid, toUuid) {
 /** 删除一条"今日任务"手动排序边。 */
 export async function removeTodayOrderEdge(fromUuid, toUuid) {
   return call("remove_today_order_edge", { fromUuid, toUuid });
+}
+
+/**
+ * 在 DAG 视图里拖拽调整了同一层级（dagre 同一 rank 列）任务的纵向顺序，
+ * uuids 是这一列节点落定后的完整新顺序，后端整体替换掉这些节点之间原有的排序边。
+ */
+export async function reorderSiblings(uuids) {
+  return call("reorder_siblings", { uuids });
 }

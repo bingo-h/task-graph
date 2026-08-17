@@ -6,7 +6,8 @@
       - 平移和缩放（d3-zoom）
       - 节点点击选中
       - 选中后高亮链路，其余节点淡化
-      - Ctrl/Cmd + 点击、右键长按拖拽框选：多选任务，弹出批量操作工具栏
+      - Ctrl/Cmd + 点击、Ctrl/Cmd + 右键点击、右键长按拖拽框选：多选任务，弹出批量操作工具栏
+      - 左键按住已选中的同层任务：拖拽调整这些任务的纵向顺序
       - 带动画的状态切换
       - 锁定节点显示🔒图标
       - 边上的箭头指示依赖方向
@@ -15,7 +16,7 @@
 -->
 
 <script setup>
-import { ref, computed, onMounted, watch, nextTick } from "vue";
+import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from "vue";
 import * as d3 from "d3";
 import {
     computeLayout,
@@ -45,6 +46,9 @@ const props = defineProps({
     projects: { type: Object, default: () => ({}) }, // 项目路径 -> ProjectNode，按分类哨兵值筛选时用
     tags: { type: Object, default: () => ({}) }, // 标签名 -> { name, color, task_count }
     multiSelected: { type: Object, default: () => new Set() }, // Set(uuid)，框选/Ctrl 多选的任务
+    // DAG 视图里同一 rank 列内任务的手动纵向顺序边 [{source, target}]，source 排在 target 上面，
+    // 只在 "depends" 模式下参与布局（today-order 模式有自己独立的一套手动排序机制）
+    siblingOrderEdges: { type: Array, default: () => [] },
     hasActiveTimer: { type: Boolean, default: false }, // 是否已有任务（单个或一批）正在计时
     // 任务卡片上默认显示哪些信息、以及每项的标签文字（悬浮详情窗不受影响，总是显示全部信息、用固定标签）
     nodeDisplay: {
@@ -71,9 +75,11 @@ const emit = defineEmits([
     "bulk-delete",
     "bulk-today",
     "bulk-start-timer",
+    "bulk-move-project",
     "clear-tag-filter",
     "connect-nodes", // 拖拽节点边框的连接点建立依赖关系：{ fromUuid, fromSide, toUuid }
     "reconnect-edge", // 拖拽已有连线的终点：{ sourceUuid, oldTargetUuid, newTargetUuid }
+    "reorder-siblings", // 拖拽调整同层任务纵向顺序落定：{ uuids }（这一列节点的完整新顺序）
 ]);
 
 const svgRef = ref(null);
@@ -180,6 +186,9 @@ function render() {
         props.tagFilter,
         props.projects,
         currentNodeHeight,
+        // today-order 模式下 rank 列的含义完全不同（是手动排的今日顺序，不是依赖层级），
+        // 这里的同层纵向排序只在真实依赖图视图里生效
+        props.mode === "today-order" ? [] : props.siblingOrderEdges,
     );
 
     if (nodes.length === 0) {
@@ -255,7 +264,9 @@ function render() {
         .attr("transform", (n) => `translate(${n.x},${n.y})`)
         .style("opacity", 0)
         .style("cursor", "pointer")
+        .on("mousedown", (event, n) => startReorderPress(event, n))
         .on("click", (event, n) => {
+            event.stopPropagation(); // 阻止冒泡到画布背景的点击处理，避免和下面的空白处取消多选逻辑冲突
             if (event.ctrlKey || event.metaKey) {
                 emit("toggle-multi-select", n.uuid);
             } else {
@@ -610,8 +621,13 @@ function hitTestBox(x, y, w, h) {
 }
 
 /**
- * 初始化右键长按拖拽框选：按住右键拖出一个矩形，松开后选中矩形范围内的所有任务节点。
+ * 初始化右键交互：按住右键拖出一个矩形做框选，松开后选中矩形范围内的所有任务节点；
  * 用右键而非左键，是因为左键拖拽已经用于平移画布（d3-zoom）。
+ * 同一个 mousedown 入口上还叠加了一个不冲突的手势：
+ *  - Ctrl/Cmd + 右键点击（不拖动）某个节点：只切换这一个节点的多选状态，不清空其它已选中项，
+ *    不触发框选。
+ * （拖拽调整同层纵向顺序绑在节点本体的左键 mousedown 上，见 startReorderPress()，
+ *  和这里的右键框选是两套独立的入口。）
  */
 function initBoxSelect() {
     const svg = d3.select(svgRef.value);
@@ -620,9 +636,31 @@ function initBoxSelect() {
     // 拖拽结束时松开的是右键，阻止浏览器/系统弹出右键菜单
     svg.on("contextmenu", (event) => event.preventDefault());
 
+    // 左键点击空白处（未命中任何节点，节点自身的点击处理会 stopPropagation 挡住冒泡）：
+    // 取消当前多选，和左键点击单个任务时的取消效果一致；按住 ctrl 时不触发，为后续多选操作让路
+    svg.on("click", (event) => {
+        if (event.ctrlKey || event.metaKey) return;
+        emit("clear-multi-select");
+    });
+
     svg.on("mousedown", (event) => {
         if (event.button !== 2) return; // 只响应右键
         event.preventDefault();
+
+        // Ctrl/Cmd + 右键：只做单节点多选状态切换（跟 Ctrl+左键一致），不进入框选
+        if (event.ctrlKey || event.metaKey) {
+            const targetGroup = event.target.closest?.("g.node");
+            const targetNode = targetGroup ? d3.select(targetGroup).datum() : null;
+
+            function onCtrlUp(e) {
+                window.removeEventListener("mouseup", onCtrlUp);
+                if (targetNode && (e.ctrlKey || e.metaKey)) {
+                    emit("toggle-multi-select", targetNode.uuid);
+                }
+            }
+            window.addEventListener("mouseup", onCtrlUp);
+            return;
+        }
 
         const bounds = svgEl.getBoundingClientRect();
         const startX = event.clientX - bounds.left;
@@ -686,6 +724,13 @@ function nodePosByUuid(uuid) {
     return layoutNodes.find((n) => n.uuid === uuid) || null;
 }
 
+/** 把屏幕坐标（clientX/clientY）换算成画布世界坐标，换算时会考虑当前的缩放/平移 */
+function pointToWorld(clientX, clientY) {
+    const bounds = svgRef.value.getBoundingClientRect();
+    const transform = d3.zoomTransform(svgRef.value);
+    return transform.invert([clientX - bounds.left, clientY - bounds.top]);
+}
+
 /**
  * 从固定原点拖出一条临时连接线，实时跟踪鼠标悬停的目标节点；
  * 松开时回调 onDrop(hoveredUuid)（没有指向任何节点时为 null），由调用方决定接下来做什么。
@@ -702,8 +747,6 @@ function dragConnectionLine(event, origin, lineClass, excludeUuid, onDrop) {
     event.preventDefault();
 
     const svg = d3.select(svgRef.value);
-    const svgEl = svgRef.value;
-    const bounds = svgEl.getBoundingClientRect();
     const canvas = svg.select("g.canvas");
 
     // 挂在 g.canvas 下面，直接用世界坐标画线，会自动跟着当前的平移/缩放走
@@ -714,11 +757,6 @@ function dragConnectionLine(event, origin, lineClass, excludeUuid, onDrop) {
         .attr("d", `M${origin.x},${origin.y} L${origin.x},${origin.y}`);
 
     let hoveredUuid = null;
-
-    function pointToWorld(clientX, clientY) {
-        const transform = d3.zoomTransform(svgEl);
-        return transform.invert([clientX - bounds.left, clientY - bounds.top]);
-    }
 
     function onMove(e) {
         const [wx, wy] = pointToWorld(e.clientX, e.clientY);
@@ -810,6 +848,123 @@ function startEdgeEndDrag(event, edge) {
             });
         },
     );
+}
+
+/**
+ * 节点本体按下左键：只有这个节点当前已经在多选集合里（一般是刚用右键框选/Ctrl+右键选出来的）
+ * 才会立即进入"拖拽调整同层纵向顺序"，先 stopPropagation 挡住 d3-zoom 的画布平移（跟
+ * dragConnectionLine 挡平移用的是同一招）。没有实际移动的话，beginReorderDrag 的 onUp
+ * 会发现顺序没变、直接原地归位、不 emit 任何东西，随后节点自身独立绑定的 click 监听器
+ * 仍会正常触发（stopPropagation 只挡了 mousedown 的冒泡，不影响后续单独派发的 click 事件），
+ * 所以点一下已选中的节点照样能正常切换选中态。
+ * 未选中的节点、today-order 模式、Ctrl/Cmd 点击（走多选切换）、非左键，一律不触发。
+ *
+ * @param {MouseEvent} event
+ * @param {Object} node - 被按下的节点（带 x/y 的布局节点）
+ */
+function startReorderPress(event, node) {
+    if (props.mode === "today-order") return;
+    if (event.button !== 0 || event.ctrlKey || event.metaKey) return;
+    if (!props.multiSelected.has(node.uuid)) return; // 只有已经选中的节点才能拖拽
+
+    event.stopPropagation(); // 阻止触发 d3-zoom 的画布平移；点击选中走单独绑定的 click 事件，不受影响
+    beginReorderDrag(event, node);
+}
+
+/**
+ * beginReorderDrag() 内部实现，正式进入"拖拽调整同层纵向顺序"：
+ *  - 只有 x 坐标相同（同一 dagre rank 列）的节点之间才能互相排序；
+ *  - 调用方（startReorderPress）已经保证了 node 当前在多选集合里；多选集合里跟它同列的其它
+ *    成员会被当成一个整体一起拖，彼此原有的相对间距保持不变（如果只选中了这一个节点，
+ *    就是单独拖它自己）；
+ *  - 拖拽过程中被拖的节点跟手（只响应纵向移动，排序只在同一列内发生，不响应横向移动），
+ *    列里其它节点根据实时算出的插入位置滑动让位；
+ *  - 松手时把这一列节点的完整新顺序 emit 出去，由父组件调用后端整体替换排序边。
+ *
+ * @param {MouseEvent} event - 触发拖拽的原始 mousedown 事件
+ * @param {Object} node - 被按下的节点，一定已经在 props.multiSelected 里
+ */
+function beginReorderDrag(event, node) {
+    const rankUuids = layoutNodes
+        .filter((n) => Math.round(n.x) === Math.round(node.x))
+        .sort((a, b) => a.y - b.y);
+
+    if (rankUuids.length < 2) return; // 这一列只有它自己，没什么可排的
+
+    // 多选集合里跟按下的节点同列的成员，作为一个整体一起拖
+    const blockNodes = rankUuids.filter((n) => props.multiSelected.has(n.uuid));
+    const blockUuids = new Set(blockNodes.map((n) => n.uuid));
+    const remainingNodes = rankUuids.filter((n) => !blockUuids.has(n.uuid));
+    if (remainingNodes.length === 0) return;
+
+    const originX = node.x;
+    const ySlots = rankUuids.map((n) => n.y); // 已按升序排列：这一列各行本该有的纵坐标
+    const baseYByUuid = new Map(blockNodes.map((n) => [n.uuid, n.y]));
+    const pressedBaseY = node.y;
+    const [, initialWorldY] = pointToWorld(event.clientX, event.clientY);
+
+    const svg = d3.select(svgRef.value);
+    const draggedSel = svg
+        .selectAll("g.node")
+        .filter((n) => blockUuids.has(n.uuid))
+        .classed("reorder-dragging", true)
+        .raise();
+
+    let finalOrder = rankUuids.map((n) => n.uuid);
+
+    function onMove(e) {
+        const [, worldY] = pointToWorld(e.clientX, e.clientY);
+        const deltaY = worldY - initialWorldY;
+
+        draggedSel.attr(
+            "transform",
+            (n) => `translate(${originX},${baseYByUuid.get(n.uuid) + deltaY})`,
+        );
+
+        const referenceY = pressedBaseY + deltaY;
+        const insertIndex = remainingNodes.filter((n) => n.y < referenceY).length;
+
+        finalOrder = [
+            ...remainingNodes.slice(0, insertIndex).map((n) => n.uuid),
+            ...blockNodes.map((n) => n.uuid),
+            ...remainingNodes.slice(insertIndex).map((n) => n.uuid),
+        ];
+
+        // 没被拖拽的节点实时滑动让位到新顺序对应的槽位上（不加过渡动画，避免和拖拽本身的
+        // 高频更新打架，松手后 render() 的正常过渡会负责把最终落定位置补上平滑动画）
+        remainingNodes.forEach((n) => {
+            const slotIndex = finalOrder.indexOf(n.uuid);
+            svg
+                .selectAll("g.node")
+                .filter((d) => d.uuid === n.uuid)
+                .attr("transform", `translate(${originX},${ySlots[slotIndex]})`);
+        });
+    }
+
+    function onUp() {
+        window.removeEventListener("mousemove", onMove);
+        window.removeEventListener("mouseup", onUp);
+        draggedSel.classed("reorder-dragging", false);
+
+        const original = rankUuids.map((n) => n.uuid);
+        const changed =
+            finalOrder.length !== original.length ||
+            finalOrder.some((uuid, i) => uuid !== original[i]);
+
+        if (!changed) {
+            // 顺序没变：把跟手的节点归位（其它节点在 onMove 里本来就没挪动过）
+            draggedSel.attr(
+                "transform",
+                (n) => `translate(${originX},${baseYByUuid.get(n.uuid)})`,
+            );
+            return;
+        }
+
+        emit("reorder-siblings", { uuids: finalOrder });
+    }
+
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
 }
 
 /**
@@ -927,6 +1082,7 @@ watch(
         () => props.highlightSet,
         () => props.multiSelected,
         () => props.nodeDisplay,
+        () => props.siblingOrderEdges,
     ],
     async () => {
         await nextTick();
@@ -955,6 +1111,57 @@ watch(
 const tagFilterColor = computed(
     () => props.tags[props.tagFilter]?.color || "#8250df",
 );
+
+// ----------------------------------------
+// 批量转移项目：多选工具栏里的下拉框，样式对齐添加任务表单里的项目下拉框
+// （自绘面板而非原生 <select>，原生控件在不同平台下样式差异太大，且和其它按钮高度对不齐）
+// ----------------------------------------
+const bulkMoveProjectOptions = computed(() =>
+    Object.keys(props.projects)
+        .filter((p) => p !== constants.INBOX_PROJECT)
+        .sort(),
+);
+
+const showBulkProjectMenu = ref(false);
+const bulkProjectMenuRef = ref(null);
+
+function toggleBulkProjectMenu() {
+    showBulkProjectMenu.value = !showBulkProjectMenu.value;
+}
+
+/** 点击某个候选项目，立即执行批量转移并收起面板；project 传 null 表示移到"无项目" */
+function selectBulkProject(project) {
+    emit("bulk-move-project", { uuids: [...props.multiSelected], project });
+    showBulkProjectMenu.value = false;
+}
+
+function handleBulkProjectMenuClickOutside(event) {
+    if (
+        bulkProjectMenuRef.value &&
+        !bulkProjectMenuRef.value.contains(event.target)
+    ) {
+        showBulkProjectMenu.value = false;
+    }
+}
+
+// 多选被清空时（工具栏本身会因 v-if 一起隐藏），面板展开状态是这个组件实例的本地 ref，
+// 不会跟着 v-if 卸载自动重置——不主动清一下的话，下次重新多选时工具栏刚出现，面板就已经是展开的
+watch(
+    () => props.multiSelected.size,
+    (size) => {
+        if (size === 0) showBulkProjectMenu.value = false;
+    },
+);
+
+onMounted(() => {
+    document.addEventListener("mousedown", handleBulkProjectMenuClickOutside);
+});
+onBeforeUnmount(() => {
+    document.removeEventListener(
+        "mousedown",
+        handleBulkProjectMenuClickOutside,
+    );
+});
 
 defineExpose({ resetZoom });
 </script>
@@ -1086,9 +1293,35 @@ defineExpose({ resetZoom });
             >
                 🗑 删除
             </button>
-            <button class="ms-btn ms-btn-ghost" @click="emit('clear-multi-select')">
-                ✕ 取消选择
-            </button>
+            <div class="ms-project-menu" ref="bulkProjectMenuRef">
+                <button
+                    type="button"
+                    class="ms-btn"
+                    title="移动到项目"
+                    @click="toggleBulkProjectMenu"
+                >
+                    📁 移动到项目
+                </button>
+
+                <div v-if="showBulkProjectMenu" class="suggest-dropdown ms-project-dropdown">
+                    <button
+                        type="button"
+                        class="suggest-dropdown-item"
+                        @click="selectBulkProject(null)"
+                    >
+                        无项目
+                    </button>
+                    <button
+                        v-for="p in bulkMoveProjectOptions"
+                        :key="p"
+                        type="button"
+                        class="suggest-dropdown-item"
+                        @click="selectBulkProject(p)"
+                    >
+                        {{ p }}
+                    </button>
+                </div>
+            </div>
         </div>
     </div>
 </template>
@@ -1279,10 +1512,73 @@ defineExpose({ resetZoom });
     color: var(--red);
 }
 
-.ms-btn-ghost {
-    background: transparent;
-    border-color: transparent;
-    color: var(--fg-dim);
+/* 移动到项目：按钮 + 自绘下拉面板，需要一个定位锚点 */
+.ms-project-menu {
+    position: relative;
+}
+
+/* 面板样式对齐添加任务表单里的项目/标签下拉框（.suggest-dropdown），
+   这里覆盖几个和表单场景不一样的地方：不需要撑满整行宽度、锚点在下方按钮而非输入框 */
+.ms-project-dropdown {
+    top: calc(100% + 6px);
+    left: 0;
+    right: auto;
+    min-width: 160px;
+    width: max-content;
+    max-width: 260px;
+}
+
+.suggest-dropdown {
+    position: absolute;
+    z-index: 10;
+    max-height: 220px;
+    overflow-y: auto;
+    background: var(--bg-popup);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow:
+        0 10px 28px rgba(0, 0, 0, 0.22),
+        0 2px 6px rgba(0, 0, 0, 0.12);
+    padding: 5px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    animation: suggest-dropdown-in 0.12s ease-out;
+}
+
+@keyframes suggest-dropdown-in {
+    from {
+        opacity: 0;
+        transform: translateY(-4px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.suggest-dropdown::-webkit-scrollbar {
+    width: 4px;
+}
+.suggest-dropdown::-webkit-scrollbar-thumb {
+    background: var(--fg-dark);
+    border-radius: 2px;
+}
+
+.suggest-dropdown-item {
+    text-align: left;
+    padding: 6px 10px;
+    border-radius: 5px;
+    font-size: 0.9231rem;
+    color: var(--fg);
+    white-space: nowrap;
+    transition:
+        background 0.12s,
+        color 0.12s;
+}
+.suggest-dropdown-item:hover {
+    background: var(--bg-select);
+    color: var(--magenta);
 }
 
 /*

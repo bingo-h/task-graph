@@ -104,6 +104,16 @@ input:focus {
     filter: drop-shadow(0 0 6px rgba(130, 80, 223, 0.4));
 }
 
+/* 长按拖拽调整同层纵向顺序时，正被拖拽的节点：跟手期间提高透明度/加阴影，
+   跟未被拖拽、正在滑动让位的节点区分开 */
+.node.reorder-dragging {
+    cursor: grabbing;
+}
+.node.reorder-dragging rect {
+    opacity: 0.85;
+    filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.3));
+}
+
 /* 右键长按拖拽框选时的选框 */
 .select-box {
     fill: rgba(130, 80, 223, 0.12);

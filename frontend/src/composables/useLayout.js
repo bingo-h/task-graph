@@ -44,6 +44,8 @@ export function nodeHeightFor(detailLineCount) {
  * @param {string|null} tagFilter - 过滤标签名，null 表示不按标签过滤；和 projectFilter 同时生效（取交集）
  * @param {Object} [projects] - 项目路径 -> ProjectNode 字典，仅按分类哨兵值筛选时需要
  * @param {number} [nodeHeight] - 当前应使用的节点高度（由显示设置决定的详情行数算出），默认按 4 行算
+ * @param {Array} [siblingOrderEdges] - DAG 视图里同一 rank 列内任务的手动纵向顺序边
+ *   [{source, target}]，source 排在 target 上面，dagre 布局完成后用来覆盖同列节点的默认纵向顺序
  * @returns {{ nodes: Array, edges: Array }}
  *   nodes 每项附加 { x, y } 坐标（节点中心点）
  *   edges 每项附加 { points } 折线控制点数组
@@ -55,6 +57,7 @@ export function computeLayout(
   tagFilter,
   projects = {},
   nodeHeight = nodeHeightFor(4),
+  siblingOrderEdges = [],
 ) {
   // 按项目、标签过滤（两者同时指定时取交集）
   const visibleNodes = filterNodes(nodes, projectFilter, projects).filter(
@@ -113,7 +116,119 @@ export function computeLayout(
     };
   });
 
+  // 按用户手动排的同层纵向顺序覆盖 dagre 默认算出的顺序（只在同一 rank 列内生效）
+  const movedY = applySiblingOrder(layoutNodes, siblingOrderEdges);
+  patchEdgeEndpoints(layoutEdges, movedY);
+
   return { nodes: layoutNodes, edges: layoutEdges };
+}
+
+/**
+ * 用同层纵向顺序边覆盖 dagre 算出的默认顺序。
+ * @description
+ *  同一 dagre rank（LR 布局下即同一列）内的节点 x 坐标完全相同，据此把可见节点分组；
+ *  组内如果存在手动排序边，则以它们为约束做拓扑排序（没有约束覆盖到的节点维持 dagre
+ *  原有的相对顺序作为并列时的 tie-break），再把排序结果套回 dagre 已经算好的那一组
+ *  y 坐标"卡槽"上（卡槽本身的间距已经考虑过节点高度/nodesep，只是换节点占哪个槽）。
+ * @param {Array} layoutNodes - 会被就地修改 y 字段
+ * @param {Array} siblingOrderEdges - [{source, target}]
+ * @returns {Map<string, number>} uuid -> y 坐标变化量（delta），只包含实际发生了变化的节点
+ */
+function applySiblingOrder(layoutNodes, siblingOrderEdges) {
+  const movedY = new Map();
+  if (!siblingOrderEdges || siblingOrderEdges.length === 0) return movedY;
+
+  const groups = new Map(); // 取整后的 x -> 节点数组，用于把同一 rank 列的节点分到一组
+  for (const n of layoutNodes) {
+    const key = Math.round(n.x);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(n);
+  }
+
+  for (const group of groups.values()) {
+    if (group.length < 2) continue;
+
+    const groupUuids = new Set(group.map((n) => n.uuid));
+    const relevantEdges = siblingOrderEdges.filter(
+      (e) => groupUuids.has(e.source) && groupUuids.has(e.target),
+    );
+    if (relevantEdges.length === 0) continue;
+
+    const order = topoSortGroup(group, relevantEdges);
+    const ySlots = group.map((n) => n.y).sort((a, b) => a - b);
+
+    order.forEach((uuid, i) => {
+      const node = group.find((n) => n.uuid === uuid);
+      const newY = ySlots[i];
+      if (newY !== node.y) {
+        movedY.set(uuid, newY - node.y);
+        node.y = newY;
+      }
+    });
+  }
+
+  return movedY;
+}
+
+/**
+ * 对同一 rank 列内的节点按手动排序边做拓扑排序。
+ * 没有被任何排序边约束到的节点，或排序边之间出现矛盾（正常情况下不会发生，
+ * 因为后端每次都是整体替换成一条无环的链）时，按 dagre 原有的 y 顺序兜底排列。
+ * @param {Array} group - 同一 rank 列的节点（带 uuid/y）
+ * @param {Array} edges - 约束这组节点顺序的 [{source, target}]
+ * @returns {string[]} 排好序的 uuid 列表
+ */
+function topoSortGroup(group, edges) {
+  const sortedByDagre = [...group].sort((a, b) => a.y - b.y);
+  const originalIndex = new Map(sortedByDagre.map((n, i) => [n.uuid, i]));
+
+  const indegree = new Map(group.map((n) => [n.uuid, 0]));
+  const adj = new Map(group.map((n) => [n.uuid, []]));
+  for (const e of edges) {
+    adj.get(e.source).push(e.target);
+    indegree.set(e.target, indegree.get(e.target) + 1);
+  }
+
+  const remaining = new Set(group.map((n) => n.uuid));
+  const result = [];
+
+  while (remaining.size > 0) {
+    const candidates = [...remaining]
+      .filter((uuid) => indegree.get(uuid) === 0)
+      .sort((a, b) => originalIndex.get(a) - originalIndex.get(b));
+
+    const next = candidates[0] ?? [...remaining].sort(
+      (a, b) => originalIndex.get(a) - originalIndex.get(b),
+    )[0];
+
+    result.push(next);
+    remaining.delete(next);
+    for (const target of adj.get(next) || []) {
+      indegree.set(target, indegree.get(target) - 1);
+    }
+  }
+
+  return result;
+}
+
+/**
+ * 同层纵向重排后，dagre 原本算出的边折线控制点（points）还留在旧位置，
+ * 只挪动首尾两个端点跟上被重排节点的新 y，中间的控制点（跨层依赖走的虚拟节点）保持不变。
+ * @param {Array} layoutEdges
+ * @param {Map<string, number>} movedY - uuid -> y 坐标变化量
+ */
+function patchEdgeEndpoints(layoutEdges, movedY) {
+  if (movedY.size === 0) return;
+
+  for (const edge of layoutEdges) {
+    if (!edge.points || edge.points.length === 0) continue;
+
+    const sourceDelta = movedY.get(edge.source);
+    if (sourceDelta) edge.points[0].y += sourceDelta;
+
+    const targetDelta = movedY.get(edge.target);
+    if (targetDelta) edge.points[edge.points.length - 1].y += targetDelta;
+  }
 }
 
 /**

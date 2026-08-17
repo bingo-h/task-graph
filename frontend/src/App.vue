@@ -45,6 +45,7 @@ import {
     deleteTag,
     doneTask,
     doneTasks,
+    setTasksProject,
     undoneTask,
     setTaskToday,
     setTasksToday,
@@ -58,6 +59,7 @@ import {
     setTaskRecur,
     addTodayOrderEdge,
     removeTodayOrderEdge,
+    reorderSiblings,
 } from "./composables/useApi";
 
 // 无边框窗口：自定义标题栏控制
@@ -76,6 +78,7 @@ function closeWindow() {
 const nodes = ref([]); // 所有任务节点
 const edges = ref([]); // 所有边（真实依赖关系）
 const todayOrderEdges = ref([]); // "今日任务"视图下用户手动排的顺序边，独立于 edges
+const siblingOrderEdges = ref([]); // DAG 视图里同一层级任务的手动纵向顺序边，独立于 edges
 const projects = ref({});
 const plannedProjectRoots = ref([]);
 const activeProjectRoots = ref([]);
@@ -216,6 +219,7 @@ async function load() {
         nodes.value = data.nodes;
         edges.value = data.edges;
         todayOrderEdges.value = data.today_order_edges;
+        siblingOrderEdges.value = data.sibling_order_edges;
         projects.value = data.projects;
         plannedProjectRoots.value = data.planned_project_roots;
         activeProjectRoots.value = data.active_project_roots;
@@ -247,6 +251,7 @@ function applyUpdate(data) {
     nodes.value = data.nodes;
     edges.value = data.edges;
     todayOrderEdges.value = data.today_order_edges;
+    siblingOrderEdges.value = data.sibling_order_edges;
     projects.value = data.projects;
     plannedProjectRoots.value = data.planned_project_roots;
     activeProjectRoots.value = data.active_project_roots;
@@ -690,6 +695,21 @@ async function onBulkDelete(uuids) {
 }
 
 /**
+ * 批量转移到另一个项目下
+ *
+ * @description 由 TaskGraph 的 @bulk-move-project 事件触发
+ * @param {{ uuids: string[], project: string|null }} payload - 选中的任务 UUID 列表和目标项目路径（null 表示无项目）
+ */
+async function onBulkMoveProject({ uuids, project }) {
+    try {
+        applyUpdate(await setTasksProject(uuids, project));
+        multiSelectedUUIDs.value = new Set();
+    } catch (e) {
+        error.value = e.message;
+    }
+}
+
+/**
  * 批量设为今日任务
  *
  * @description 由 TaskGraph 的 @bulk-today 事件触发
@@ -817,6 +837,20 @@ async function onReconnectEdge({ sourceUuid, oldTargetUuid, newTargetUuid }) {
         applyUpdate(
             await reconnectDependency(sourceUuid, oldTargetUuid, newTargetUuid),
         );
+    } catch (e) {
+        error.value = e.message;
+    }
+}
+
+/**
+ * DAG 视图里长按拖拽调整了同一层级任务的纵向顺序，落定后整列节点的新顺序回传过来
+ *
+ * @description 由 TaskGraph 的 @reorder-siblings 事件触发
+ * @param {{ uuids: string[] }} payload - 这一列节点落定后的完整新顺序
+ */
+async function onReorderSiblings({ uuids }) {
+    try {
+        applyUpdate(await reorderSiblings(uuids));
     } catch (e) {
         error.value = e.message;
     }
@@ -1103,6 +1137,7 @@ onMounted(() => {
                 :multi-selected="multiSelectedUUIDs"
                 :has-active-timer="activeTimingNodes.length > 0"
                 :node-display="settings"
+                :sibling-order-edges="siblingOrderEdges"
                 @select="onGraphSelect"
                 @toggle-multi-select="onToggleMultiSelect"
                 @box-select="onBoxSelect"
@@ -1111,9 +1146,11 @@ onMounted(() => {
                 @bulk-delete="onBulkDelete"
                 @bulk-today="onBulkToday"
                 @bulk-start-timer="onBulkStartTimer"
+                @bulk-move-project="onBulkMoveProject"
                 @clear-tag-filter="tagFilter = null"
                 @connect-nodes="onConnectNodes"
                 @reconnect-edge="onReconnectEdge"
+                @reorder-siblings="onReorderSiblings"
             />
 
             <TaskDetail

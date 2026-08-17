@@ -42,6 +42,12 @@ const emit = defineEmits([
 const description = ref("");
 const project = ref("");
 const due = ref(""); // 格式: YYYY-MM-DD
+const dueTime = ref(""); // 格式: HH:MM，可选；留空则由后端用设置里的默认到期时间补上
+
+// 日期被清空（比如点了 DatePicker 的清除按钮）时，时间也一并清空，避免残留一个没有日期配的时间
+watch(due, (value) => {
+    if (!value) dueTime.value = "";
+});
 const priority = ref(""); // H | M | L
 const tags = ref([]);
 const tagInput = ref(""); // 标签输入框临时值
@@ -49,6 +55,42 @@ const showTagDropdown = ref(false); // 是否显示标签下拉建议框
 const showProjectDropdown = ref(false); // 是否显示项目下拉建议框
 const depends = ref([]); // 任务的uuid
 const annotationInput = ref(""); // 备注输入框：只保留一条，修改时会整体替换原有内容
+const icon = ref(""); // 单个 emoji，日历页打卡展示用
+const color = ref(""); // 十六进制颜色，日历页打卡展示用，空字符串表示未设置
+
+// ----------------------------------------
+// 周期性重复
+// ----------------------------------------
+const recurEnabled = ref(false);
+const recurKind = ref("daily"); // "daily" | "weekly" | "monthly"
+const recurInterval = ref(1); // 仅 daily 用：每几天重复一次
+const recurWeekdays = ref([]); // 仅 weekly 用：0=周一..6=周日
+const recurMonthDay = ref(1); // 仅 monthly 用：每月第几天
+
+const WEEKDAY_LABELS = ["一", "二", "三", "四", "五", "六", "日"];
+
+function toggleRecurWeekday(day) {
+    recurWeekdays.value = recurWeekdays.value.includes(day)
+        ? recurWeekdays.value.filter((d) => d !== day)
+        : [...recurWeekdays.value, day].sort();
+}
+
+/** 根据当前表单里的重复设置，拼出后端 RecurRule 的 JSON 形状；不重复时为 null */
+const currentRecurRule = computed(() => {
+    if (!recurEnabled.value) return null;
+    if (recurKind.value === "daily") {
+        return { kind: "daily", interval: Math.max(1, Number(recurInterval.value) || 1) };
+    }
+    if (recurKind.value === "weekly") {
+        return { kind: "weekly", weekdays: recurWeekdays.value };
+    }
+    return { kind: "monthly", day: Math.min(31, Math.max(1, Number(recurMonthDay.value) || 1)) };
+});
+
+// 打开修改弹窗那一刻的重复规则快照，用于判断提交时用户是否真的改动过重复设置——
+// 只有改动过才需要额外调用 setTaskRecur，否则每次编辑任务其它字段（比如改个描述）
+// 都会误触发"重新开始周期"的重置逻辑（状态被强制拉回待办、截止日期被重新计算）
+let initialRecurRuleJson = "null";
 
 // 根据模式设置表单标题
 const isModify = computed(() => !!props.prefill);
@@ -126,11 +168,24 @@ watch(
             description.value = props.prefill.description || "";
             project.value = props.prefill.project || "";
             due.value = props.prefill.due ? props.prefill.due.slice(0, 10) : ""; // 截断长时间格式，只保留日期
+            // due 存的一定是带时间的完整时间戳（后端 normalize_due 保证），直接截出 HH:MM 展示，
+            // 不经过 Date 对象，避免浏览器本地时区换算把它换算错
+            dueTime.value = props.prefill.due ? props.prefill.due.slice(11, 16) : "";
             priority.value = props.prefill.priority || "";
             tags.value = [...(props.prefill.tags || [])]; // ...操作符代表把(数组内)的元素放入外部[新数组]内
             depends.value = [...(props.prefill.depends || [])];
             // 备注只保留一条，预填现有内容，修改后整体替换
             annotationInput.value = props.prefill.annotations?.[0]?.description || "";
+            icon.value = props.prefill.icon || "";
+            color.value = props.prefill.color || "";
+
+            const rule = props.prefill.recur_rule || null;
+            recurEnabled.value = !!rule;
+            recurKind.value = rule?.kind || "daily";
+            recurInterval.value = rule?.kind === "daily" ? rule.interval : 1;
+            recurWeekdays.value = rule?.kind === "weekly" ? [...rule.weekdays] : [];
+            recurMonthDay.value = rule?.kind === "monthly" ? rule.day : new Date().getDate();
+            initialRecurRuleJson = JSON.stringify(rule);
         } else {
             // 新建模式，清空
             description.value = "";
@@ -143,10 +198,20 @@ watch(
                     : "";
 
             due.value = "";
+            dueTime.value = "";
             priority.value = "";
             tags.value = [];
             depends.value = [];
             annotationInput.value = "";
+            icon.value = "";
+            color.value = "";
+
+            recurEnabled.value = false;
+            recurKind.value = "daily";
+            recurInterval.value = 1;
+            recurWeekdays.value = [];
+            recurMonthDay.value = new Date().getDate();
+            initialRecurRuleJson = "null";
         }
 
         tagInput.value = "";
@@ -313,6 +378,15 @@ function toggleDepend(uuid) {
  *
  * 修改模式下若某字段被清空，用 clear_* 标志告知后端删除该字段。
  */
+/**
+ * 拼出提交给后端的 due 值：选了具体时间就拼成完整时间戳（后端原样透传），
+ * 只选了日期就传裸日期（后端 normalize_due 会用设置里的默认到期时间补上）
+ */
+function buildDueValue() {
+    if (!due.value) return null;
+    return dueTime.value ? `${due.value}T${dueTime.value}:00Z` : due.value;
+}
+
 function submit() {
     if (!description.value.trim()) return;
 
@@ -335,7 +409,7 @@ function submit() {
         }
 
         if (due.value) {
-            fields.due = due.value;
+            fields.due = buildDueValue();
         } else if (props.prefill.due) {
             fields.clear_due = true;
         }
@@ -346,10 +420,28 @@ function submit() {
             fields.clear_priority = true;
         }
 
+        if (icon.value.trim()) {
+            fields.icon = icon.value.trim();
+        } else if (props.prefill.icon) {
+            fields.clear_icon = true;
+        }
+
+        if (color.value) {
+            fields.color = color.value;
+        } else if (props.prefill.color) {
+            fields.clear_color = true;
+        }
+
+        const nextRecurRule = currentRecurRule.value;
+        const recurRuleChanged =
+            JSON.stringify(nextRecurRule) !== initialRecurRuleJson;
+
         emit("submit", {
             mode: "modify",
             uuid: props.prefill.uuid,
             fields,
+            recurRuleChanged,
+            recurRule: nextRecurRule,
         });
     } else {
         emit("submit", {
@@ -357,12 +449,15 @@ function submit() {
             fields: {
                 description: description.value,
                 project: project.value || null,
-                due: due.value || null,
+                due: buildDueValue(),
                 priority: priority.value || null,
                 scheduled: null,
                 tags: tags.value,
                 depends: depends.value,
                 annotation: annotationInput.value.trim() || null,
+                icon: icon.value.trim() || null,
+                color: color.value || null,
+                recur_rule: currentRecurRule.value,
             },
         });
     }
@@ -438,8 +533,23 @@ function submit() {
 
                     <!-- 截止日期 -->
                     <div class="form-row">
-                        <label class="form-label">截止日期</label>
-                        <DatePicker v-model="due" />
+                        <label class="form-label">
+                            <span>截止日期</span>
+                            <span class="form-hint">
+                                不指定具体时间就用设置里的默认到期时间
+                            </span>
+                        </label>
+                        <div class="due-row">
+                            <DatePicker v-model="due" />
+                            <input
+                                v-model="dueTime"
+                                type="time"
+                                step="60"
+                                class="form-input due-time-input"
+                                :disabled="!due"
+                                :title="due ? '' : '先选日期再指定时间'"
+                            />
+                        </div>
                     </div>
 
                     <!-- 优先级 -->
@@ -460,6 +570,123 @@ function submit() {
                             >
                                 {{ p }}
                             </button>
+                        </div>
+                    </div>
+
+                    <!-- 图标 / 颜色：日历页打卡展示用 -->
+                    <div class="form-row">
+                        <label class="form-label">
+                            <span>图标 / 颜色</span>
+                            <span class="form-hint">
+                                可选，主要用于日历页展示打卡记录
+                            </span>
+                        </label>
+                        <div class="icon-color-row">
+                            <input
+                                v-model="icon"
+                                class="form-input icon-input"
+                                maxlength="8"
+                                placeholder="🔥"
+                            />
+
+                            <label
+                                class="color-swatch"
+                                :style="{
+                                    background: color || 'var(--fg-dark)',
+                                }"
+                                title="点击选择颜色"
+                            >
+                                <input
+                                    type="color"
+                                    :value="color || '#8250df'"
+                                    @input="color = $event.target.value"
+                                />
+                            </label>
+                            <button
+                                v-if="color"
+                                type="button"
+                                class="color-clear"
+                                title="清除颜色"
+                                @click="color = ''"
+                            >
+                                ✕
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 周期性重复 -->
+                    <div class="form-row">
+                        <label class="form-label recur-label">
+                            <span>周期性重复</span>
+                            <input
+                                type="checkbox"
+                                v-model="recurEnabled"
+                                class="recur-toggle"
+                            />
+                        </label>
+
+                        <div v-if="recurEnabled" class="recur-config">
+                            <div class="recur-kind-group">
+                                <button
+                                    v-for="k in [
+                                        { key: 'daily', label: '每N天' },
+                                        { key: 'weekly', label: '每周' },
+                                        { key: 'monthly', label: '每月' },
+                                    ]"
+                                    :key="k.key"
+                                    type="button"
+                                    class="recur-kind-btn"
+                                    :class="{ active: recurKind === k.key }"
+                                    @click="recurKind = k.key"
+                                >
+                                    {{ k.label }}
+                                </button>
+                            </div>
+
+                            <div v-if="recurKind === 'daily'" class="recur-daily">
+                                每
+                                <input
+                                    v-model.number="recurInterval"
+                                    type="number"
+                                    min="1"
+                                    class="form-input recur-number-input"
+                                />
+                                天重复一次
+                            </div>
+
+                            <div
+                                v-else-if="recurKind === 'weekly'"
+                                class="recur-weekday-group"
+                            >
+                                <button
+                                    v-for="(label, idx) in WEEKDAY_LABELS"
+                                    :key="idx"
+                                    type="button"
+                                    class="recur-weekday-btn"
+                                    :class="{
+                                        active: recurWeekdays.includes(idx),
+                                    }"
+                                    @click="toggleRecurWeekday(idx)"
+                                >
+                                    {{ label }}
+                                </button>
+                            </div>
+
+                            <div v-else class="recur-monthly">
+                                每月第
+                                <input
+                                    v-model.number="recurMonthDay"
+                                    type="number"
+                                    min="1"
+                                    max="31"
+                                    class="form-input recur-number-input"
+                                />
+                                天重复一次（超出当月天数按月末算）
+                            </div>
+
+                            <div class="form-hint">
+                                周期到达时会自动重置为待办、加入今日任务；错过截止会标红，直到下个周期到来才重置
+                            </div>
                         </div>
                     </div>
 
@@ -768,9 +995,139 @@ function submit() {
     border-color: var(--fg-dark);
 }
 
+/* 图标 / 颜色 */
+.icon-color-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.icon-input {
+    width: 70px;
+    flex: none;
+    text-align: center;
+    font-size: 1.0769rem;
+}
+.color-swatch {
+    position: relative;
+    flex-shrink: 0;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.15);
+}
+.color-swatch input[type="color"] {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+}
+.color-clear {
+    flex-shrink: 0;
+    font-size: 0.7692rem;
+    color: var(--fg-dim);
+}
+.color-clear:hover {
+    color: var(--red);
+}
+
+/* 周期性重复 */
+.recur-label {
+    flex-direction: row !important;
+    align-items: center;
+    justify-content: space-between;
+}
+.recur-toggle {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--blue);
+    cursor: pointer;
+}
+.recur-config {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 6px;
+    padding: 10px;
+    background: var(--bg-dark);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+}
+.recur-kind-group {
+    display: flex;
+    gap: 6px;
+}
+.recur-kind-btn {
+    padding: 4px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    font-size: 0.8462rem;
+    color: var(--fg-dim);
+    transition: all 0.15s;
+}
+.recur-kind-btn:hover {
+    color: var(--fg);
+}
+.recur-kind-btn.active {
+    color: var(--blue);
+    border-color: var(--blue);
+    background: rgba(122, 162, 247, 0.1);
+}
+.recur-daily,
+.recur-monthly {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.9231rem;
+    color: var(--fg);
+}
+.recur-number-input {
+    width: 56px;
+    flex: none;
+    text-align: center;
+}
+.recur-weekday-group {
+    display: flex;
+    gap: 4px;
+}
+.recur-weekday-btn {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    font-size: 0.8462rem;
+    color: var(--fg-dim);
+    transition: all 0.15s;
+}
+.recur-weekday-btn:hover {
+    color: var(--fg);
+}
+.recur-weekday-btn.active {
+    color: var(--blue);
+    border-color: var(--blue);
+    background: rgba(122, 162, 247, 0.1);
+}
+
 /* 项目选择：自定义下拉框需要一个定位锚点 */
 .project-field-row {
     position: relative;
+}
+
+/* 截止日期 + 可选的具体时间 */
+.due-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.due-time-input {
+    width: 78px;
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.due-time-input:disabled {
+    opacity: 0.4;
 }
 
 /* 标签编辑器 */

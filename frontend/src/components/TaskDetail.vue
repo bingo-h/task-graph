@@ -12,9 +12,10 @@
 <script setup>
 import { ref, computed, watch, onUnmounted } from "vue";
 import constants from "../config/constants";
-import { listTimeEntries } from "../composables/useApi";
+import { listTimeEntries, getRecurStreak } from "../composables/useApi";
 import { formatDuration } from "../composables/useDuration";
 import { tagChipStyle as tagStyle } from "../composables/useTagColor";
+import { formatRecurSummary } from "../composables/useRecur";
 
 const props = defineProps({
     task: { type: Object, default: null }, // 选中的任务对象，null表示未选中
@@ -113,6 +114,29 @@ watch(
 
 // 供父组件在保存计时回忆总结后调用，刷新当前列表
 defineExpose({ refresh: loadTimeEntries });
+
+// ----------------------------------------
+// 周期性重复
+// ----------------------------------------
+/** 把后端 RecurRule 拼成人类可读的一句话摘要 */
+const recurSummary = computed(() => formatRecurSummary(props.task?.recur_rule));
+
+const recurStreak = ref(0);
+watch(
+    () => [props.task?.uuid, props.task?.is_recurring],
+    async ([uuid, isRecurring]) => {
+        if (!uuid || !isRecurring) {
+            recurStreak.value = 0;
+            return;
+        }
+        try {
+            recurStreak.value = await getRecurStreak(uuid);
+        } catch {
+            recurStreak.value = 0;
+        }
+    },
+    { immediate: true },
+);
 
 /** 当前任务累计耗时（秒），正在计时时随 nowTick 实时递增 */
 const displayTotalSeconds = computed(() => {
@@ -246,6 +270,13 @@ function formatDate(iso) {
     return iso.slice(0, 10);
 }
 
+/** 日期 + 具体时间（HH:MM），用于截止日期这类需要看到具体时刻的字段；
+ *  直接截字符串而不经过 Date 对象，避免浏览器本地时区换算把 UTC 时间换算错 */
+function formatDateTime(iso) {
+    if (!iso) return "";
+    return `${iso.slice(0, 10)} ${iso.slice(11, 16)}`;
+}
+
 /** 优先级标签颜色 */
 function priorityClass(p) {
     return { H: "priority-h", M: "priority-m", L: "priority-l" }[p] || "";
@@ -344,7 +375,7 @@ function statusLabel(s) {
                             'val-today': task.is_due_today,
                         }"
                     >
-                        {{ formatDate(task.due) }}
+                        {{ formatDateTime(task.due) }}
                     </span>
                 </div>
 
@@ -359,6 +390,17 @@ function statusLabel(s) {
                     <span class="detail-key">紧迫度</span>
                     <span class="detail-val">
                         {{ task.urgency.toFixed(2) }}
+                    </span>
+                </div>
+
+                <div v-if="task.is_recurring" class="detail-row">
+                    <span class="detail-key">重复</span>
+                    <span class="detail-val">
+                        <span v-if="task.icon">{{ task.icon }}</span>
+                        {{ recurSummary }}
+                        <span class="recur-streak">
+                            🔥 连续 {{ recurStreak }} 天
+                        </span>
                     </span>
                 </div>
 
@@ -807,6 +849,11 @@ function statusLabel(s) {
 }
 .val-today {
     color: var(--orange);
+}
+.recur-streak {
+    margin-left: 6px;
+    color: var(--orange);
+    font-weight: 600;
 }
 
 /* 标签 */

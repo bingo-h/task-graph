@@ -31,10 +31,10 @@ jobs:
         platform: [windows-latest, ubuntu-22.04]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: 安装 Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: '24'
           cache: 'npm'
@@ -51,7 +51,7 @@ jobs:
 
       # 缓存 Cargo 依赖与 tauri-cli 二进制，加速后续构建
       - name: 缓存 Cargo
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             ~/.cargo/registry
@@ -103,7 +103,7 @@ jobs:
 
       - name: 上传 Windows 安装包
         if: matrix.platform == 'windows-latest'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: task-graph-windows
           path: |
@@ -114,7 +114,7 @@ jobs:
 
       - name: 上传 Linux 安装包
         if: matrix.platform == 'ubuntu-22.04'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: task-graph-linux
           path: |
@@ -132,13 +132,13 @@ jobs:
 
     steps:
       - name: 下载 Windows 安装包
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: task-graph-windows
           path: dist/windows
 
       - name: 下载 Linux 安装包
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: task-graph-linux
           path: dist/linux

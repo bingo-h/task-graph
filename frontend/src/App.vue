@@ -19,6 +19,8 @@ import Dashboard from "./components/Dashboard.vue";
 import ChartsPage from "./components/ChartsPage.vue";
 import CalendarPage from "./components/CalendarPage.vue";
 import TimeEntryNoteModal from "./components/TimeEntryNoteModal.vue";
+import ConfirmDialog from "./components/ConfirmDialog.vue";
+import { confirmDialog } from "./composables/useConfirm";
 import { computeHighlight, wouldCreateCycle } from "./composables/useLayout";
 import constants from "./config/constants";
 import {
@@ -413,8 +415,11 @@ async function onRestoreProject(path) {
  * @param {string} path - 项目路径
  */
 async function onPurgeProject(path) {
-    if (!confirm(`确认彻底删除项目"${path}"？其下所有子项目和任务都无法恢复。`))
-        return;
+    const ok = await confirmDialog(
+        `确认彻底删除项目"${path}"？其下所有子项目和任务都无法恢复。`,
+        { danger: true, confirmText: "彻底删除" },
+    );
+    if (!ok) return;
 
     try {
         applyUpdate(await purgeProject(path));
@@ -541,7 +546,11 @@ async function onSetTagColor(name, color) {
  * @param {string} name
  */
 async function onDeleteTag(name) {
-    if (!confirm(`确认删除标签"${name}"？将从所有任务上移除，此操作不可恢复。`)) return;
+    const ok = await confirmDialog(
+        `确认删除标签"${name}"？将从所有任务上移除，此操作不可恢复。`,
+        { danger: true, confirmText: "删除" },
+    );
+    if (!ok) return;
 
     try {
         applyUpdate(await deleteTag(name));
@@ -734,7 +743,11 @@ async function onBulkDone(uuids) {
  * @param {string[]} uuids - 选中的任务 UUID 列表
  */
 async function onBulkDelete(uuids) {
-    if (!confirm(`确认删除选中的 ${uuids.length} 个任务？`)) return;
+    const ok = await confirmDialog(`确认删除选中的 ${uuids.length} 个任务？`, {
+        danger: true,
+        confirmText: "删除",
+    });
+    if (!ok) return;
 
     try {
         applyUpdate(await deleteTasks(uuids));
@@ -944,7 +957,11 @@ async function onSaveTimeEntryNote({ title, body }) {
  * @param {number} entryId - 计时记录 id
  */
 async function onDeleteTimeEntry(entryId) {
-    if (!confirm("确认删除这段计时记录？此操作不可恢复。")) return;
+    const ok = await confirmDialog("确认删除这段计时记录？此操作不可恢复。", {
+        danger: true,
+        confirmText: "删除",
+    });
+    if (!ok) return;
 
     try {
         applyUpdate(await deleteTimeEntry(entryId));
@@ -960,7 +977,11 @@ async function onDeleteTimeEntry(entryId) {
  * @param {string} uuid - 任务 UUID
  */
 async function onDelete(uuid) {
-    if (!confirm("确认删除此任务？")) return;
+    const ok = await confirmDialog("确认删除此任务？", {
+        danger: true,
+        confirmText: "删除",
+    });
+    if (!ok) return;
 
     try {
         applyUpdate(await deleteTask(uuid));
@@ -1271,6 +1292,9 @@ onMounted(() => {
             @close="noteModal.visible = false"
             @save="onSaveTimeEntryNote"
         />
+
+        <!-- 自绘确认弹窗：替代原生 confirm()，全局单例 -->
+        <ConfirmDialog />
     </div>
 </template>
 

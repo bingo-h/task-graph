@@ -131,6 +131,9 @@ jobs:
       contents: write   # 允许创建 Release 和上传文件
 
     steps:
+      # 后面要读仓库里的 CHANGELOG.md，这个 job 默认不 checkout，得自己加一步
+      - uses: actions/checkout@v7
+
       - name: 下载 Windows 安装包
         uses: actions/download-artifact@v7
         with:
@@ -198,28 +201,64 @@ jobs:
             fs.writeFileSync('latest.json', JSON.stringify(manifest, null, 2));
           "
 
+      # 从 CHANGELOG.md 里切出这个版本对应的章节（"## [版本号] ..." 到下一个 "## [" 之间的内容），
+      # 拼进 Release 说明。约定打 tag 前要把 CHANGELOG.md 里的 [未发布] 改名成 [版本号] - 日期
+      # （见 CHANGELOG.md 顶部说明）；如果忘了改，就退而求其次用 [未发布] 章节的内容，并打一条警告，
+      # 而不是让 Release 说明直接空着。
+      - name: 提取本次版本的更新日志
+        run: |
+          node -e "
+            const fs = require('fs');
+            const version = '${{ steps.version.outputs.VERSION }}';
+            const lines = fs.readFileSync('CHANGELOG.md', 'utf8').split('\n');
+
+            function extractSection(headingPrefix) {
+              const start = lines.findIndex((l) => l.startsWith(headingPrefix));
+              if (start === -1) return null;
+              let end = lines.findIndex((l, i) => i > start && l.startsWith('## ['));
+              if (end === -1) end = lines.length;
+              // 去掉章节本身的标题行（版本号已经在 Release 标题里出现过一次了），只保留正文
+              return lines.slice(start + 1, end).join('\n').trim();
+            }
+
+            let section = extractSection(\`## [\${version}]\`);
+            if (section === null) {
+              console.warn(\`::warning::CHANGELOG.md 里没有找到 [\${version}] 对应的章节，回退使用 [未发布] 章节；发布前记得把 CHANGELOG.md 里的 [未发布] 改名\`);
+              section = extractSection('## [未发布]') || '（本次没有找到对应的更新日志）';
+            }
+
+            fs.writeFileSync('release_notes.md', section + '\n');
+          "
+
+      - name: 拼接完整 Release 说明
+        run: |
+          cat release_notes.md > full_release_notes.md
+          cat >> full_release_notes.md <<'EOF'
+
+          ## 安装
+
+          ### Windows
+          下载并运行 `.exe`（NSIS 安装程序）或 `.msi`，按提示安装即可。
+
+          ### Linux
+          - `.AppImage`：赋予可执行权限后直接运行，无需安装
+            ```bash
+            chmod +x task-graph_*.AppImage
+            ./task-graph_*.AppImage
+            ```
+          - `.deb`：`sudo dpkg -i task-graph_*.deb`
+
+          ## 说明
+          数据库文件保存在程序自身所在目录，卸载/迁移只需删除对应文件夹即可（不写系统标准数据目录）。
+
+          应用内「设置 → 关于 → 检查更新」支持自动检查并安装新版本。
+          EOF
+
       - name: 创建 GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           name: "task-graph v${{ steps.version.outputs.VERSION }}"
-          body: |
-            ## 安装
-
-            ### Windows
-            下载并运行 `.exe`（NSIS 安装程序）或 `.msi`，按提示安装即可。
-
-            ### Linux
-            - `.AppImage`：赋予可执行权限后直接运行，无需安装
-              ```bash
-              chmod +x task-graph_*.AppImage
-              ./task-graph_*.AppImage
-              ```
-            - `.deb`：`sudo dpkg -i task-graph_*.deb`
-
-            ## 说明
-            数据库文件保存在程序自身所在目录，卸载/迁移只需删除对应文件夹即可（不写系统标准数据目录）。
-
-            应用内「设置 → 关于 → 检查更新」支持自动检查并安装新版本。
+          body_path: full_release_notes.md
           files: |
             dist/windows/**
             dist/linux/**

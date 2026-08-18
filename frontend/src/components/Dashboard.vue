@@ -10,6 +10,7 @@
 import { ref, computed, onMounted, onUnmounted, watch } from "vue";
 import { listAllTimeEntries } from "../composables/useApi";
 import { formatDuration } from "../composables/useDuration";
+import { isoToLocalDate } from "../composables/useLocalTime";
 
 const props = defineProps({
     // 全部任务节点，用于统计完成任务数、到期任务、优先级分布
@@ -325,7 +326,7 @@ const dueSoonTasks = computed(() =>
 /** due 是目标日期（后端统一钉死 UTC 23:59:59），不能经过 Date 对象换算成本地时区——
  *  正偏移时区下换算会把 getDate() 进位到下一天，导致显示的日期比用户实际设置的晚一天 */
 function formatDueLabel(due) {
-    return `${due.slice(5, 7)}-${due.slice(8, 10)}`;
+    return isoToLocalDate(due).slice(5, 10);
 }
 
 // ----------------------------------------

@@ -12,6 +12,7 @@ import DatePicker from "./DatePicker.vue";
 import ColorSwatchPicker from "./ColorSwatchPicker.vue";
 import IconPicker from "./IconPicker.vue";
 import { tagChipStyle } from "../composables/useTagColor";
+import { isoToLocalDate, isoToLocalTime, localDateTimeToIso } from "../composables/useLocalTime";
 
 const props = defineProps({
     // 是否显示弹窗
@@ -175,10 +176,10 @@ watch(
             // 修改模式，填写原有的值
             description.value = props.prefill.description || "";
             project.value = props.prefill.project || "";
-            due.value = props.prefill.due ? props.prefill.due.slice(0, 10) : ""; // 截断长时间格式，只保留日期
-            // due 存的一定是带时间的完整时间戳（后端 normalize_due 保证），直接截出 HH:MM 展示，
-            // 不经过 Date 对象，避免浏览器本地时区换算把它换算错
-            dueTime.value = props.prefill.due ? props.prefill.due.slice(11, 16) : "";
+            // due 存的是 UTC 时间戳，换算成本地日期/时刻再填进表单，
+            // 不然非 UTC+0 时区下日期选择器里显示的会跟用户原本设置的对不上
+            due.value = isoToLocalDate(props.prefill.due);
+            dueTime.value = isoToLocalTime(props.prefill.due);
             priority.value = props.prefill.priority || "";
             tags.value = [...(props.prefill.tags || [])]; // ...操作符代表把(数组内)的元素放入外部[新数组]内
             depends.value = [...(props.prefill.depends || [])];
@@ -387,12 +388,13 @@ function toggleDepend(uuid) {
  * 修改模式下若某字段被清空，用 clear_* 标志告知后端删除该字段。
  */
 /**
- * 拼出提交给后端的 due 值：选了具体时间就拼成完整时间戳（后端原样透传），
- * 只选了日期就传裸日期（后端 normalize_due 会用设置里的默认到期时间补上）
+ * 拼出提交给后端的 due 值：选了具体时间就把这组本地日期+时刻换算成正确的 UTC
+ * 时间戳（后端原样透传，不能自己再拼时区），只选了日期就传裸日期（后端
+ * normalize_due 会用设置里的默认到期时间按本地时区补上再转换）
  */
 function buildDueValue() {
     if (!due.value) return null;
-    return dueTime.value ? `${due.value}T${dueTime.value}:00Z` : due.value;
+    return dueTime.value ? localDateTimeToIso(due.value, dueTime.value) : due.value;
 }
 
 function submit() {

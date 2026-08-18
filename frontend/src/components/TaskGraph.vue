@@ -29,6 +29,7 @@ import {
 import { formatRecurSummary } from "../composables/useRecur";
 import { formatDuration } from "../composables/useDuration";
 import { tagChipStyle } from "../composables/useTagColor";
+import { isoToLocalDate, isoToLocalDateTime } from "../composables/useLocalTime";
 import constants from "../config/constants";
 
 const props = defineProps({
@@ -560,7 +561,7 @@ function nodeDetailLines(n, display) {
     }
     if (display.node_show_due) {
         const label = display.node_label_due || labels.due;
-        const value = n.due ? n.due.slice(0, 10) : "无";
+        const value = n.due ? isoToLocalDate(n.due) : "无";
         lines.push(`${label}：${value}`);
     }
     if (display.node_show_priority) {
@@ -1228,7 +1229,7 @@ defineExpose({ resetZoom });
             </div>
             <div v-if="tooltipTask.due" class="node-tooltip-row">
                 <span class="node-tooltip-label">截止</span>
-                {{ tooltipTask.due.slice(0, 10) }} {{ tooltipTask.due.slice(11, 16) }}
+                {{ isoToLocalDateTime(tooltipTask.due) }}
             </div>
             <div v-if="tooltipTask.scheduled" class="node-tooltip-row">
                 <span class="node-tooltip-label">计划开始</span>

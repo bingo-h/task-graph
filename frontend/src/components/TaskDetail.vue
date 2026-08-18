@@ -16,6 +16,7 @@ import { listTimeEntries, getRecurStreak } from "../composables/useApi";
 import { formatDuration } from "../composables/useDuration";
 import { tagChipStyle as tagStyle } from "../composables/useTagColor";
 import { formatRecurSummary } from "../composables/useRecur";
+import { isoToLocalDate, isoToLocalDateTime } from "../composables/useLocalTime";
 
 const props = defineProps({
     task: { type: Object, default: null }, // 选中的任务对象，null表示未选中
@@ -267,28 +268,16 @@ function startResize(e) {
     document.addEventListener("mouseup", onUp);
 }
 
-/** 格式化日期为易读形式 */
+/** 格式化纯日期字段（如"计划"）：只有日期没有时间概念，不涉及时区换算 */
 function formatDate(iso) {
     if (!iso) return "";
     return iso.slice(0, 10);
 }
 
-/** 日期 + 具体时间（HH:MM），用于截止日期这类需要看到具体时刻的字段；
- *  直接截字符串而不经过 Date 对象，避免浏览器本地时区换算把 UTC 时间换算错 */
-function formatDateTime(iso) {
-    if (!iso) return "";
-    return `${iso.slice(0, 10)} ${iso.slice(11, 16)}`;
-}
-
-/** 日期 + 本地时间（HH:MM），用于完成时间这类"真实发生过的时刻"字段；
- *  和 formatDateTime 相反——这里要经过 Date 对象换算成用户本地时区，
- *  否则后端存的 UTC 时间戳原样显示出来，会跟用户实际操作的钟点差一个时区 */
-function formatLocalDateTime(iso) {
-    if (!iso) return "";
-    const d = new Date(iso);
-    const pad = (n) => String(n).padStart(2, "0");
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
+/** 日期 + 本地时间（HH:MM），用于截止/完成时间这类后端存了完整 UTC 时间戳的字段；
+ *  必须经过 Date 对象换算成用户本地时区再显示，直接截字符串会把 UTC 钟点当成
+ *  本地钟点展示，跟用户实际设置/操作的时刻差一个时区偏移 */
+const formatDateTime = isoToLocalDateTime;
 
 /** 优先级标签颜色 */
 function priorityClass(p) {
@@ -405,7 +394,7 @@ function statusLabel(s) {
                 >
                     <span class="detail-key">完成于</span>
                     <span class="detail-val">
-                        {{ formatLocalDateTime(task.end) }}
+                        {{ formatDateTime(task.end) }}
                     </span>
                 </div>
 

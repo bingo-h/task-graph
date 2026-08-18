@@ -61,7 +61,9 @@ cd frontend && npm run build
 
 **Schema 迁移**（`db/schema.rs`）是一个纯 `&[&str]` 数组，只追加、不修改，由 `schema::init()` 自动执行并记录版本号（`schema_version` 表）。永远不要改已有的条目，只能追加新的。如果某次迁移需要搬迁/转换已有数据（不只是建表这种 DDL），就在 `init()` 的迁移循环里加一个针对该版本号的特殊分支处理（参考版本 9 后紧跟着执行的"标签从 JSON 搬到关系表"的回填逻辑，必须赶在版本 10 删掉旧列之前完成）。
 
-**重复任务**（`db/recur.rs` + `models/recur.rs`）：一个重复任务是*同一条* `Task` 记录在待办/完成之间循环，而不是每个周期都生成一条新记录。`models/recur.rs` 是纯粹的日期计算（`next_cycle_due`、`first_cycle_due`，对应 `RecurRule::{Daily,Weekly,Monthly}`）。`db/recur.rs::process_rollovers()` 会遍历所有设了 `recur_rule` 的任务，把已经完全过去的周期结算进 `recur_log`（`completed_on_time` / `completed_late` / `missed`），并把任务重置为待办、进入新周期。连续多个错过的周期会被折叠成一条 `missed` 记录（省事，且对"连续天数"计算无损——那个计算只是按 `cycle_due DESC` 扫描 `recur_log`，遇到第一条 `missed` 就停）。所有周期截止时间统一是 `23:59:59Z`——和这个应用其它地方一样，不做任何用户时区处理，约定一律用 UTC。
+**重复任务**（`db/recur.rs` + `models/recur.rs`）：一个重复任务是*同一条* `Task` 记录在待办/完成之间循环，而不是每个周期都生成一条新记录。`models/recur.rs` 是纯粹的日期计算（`next_cycle_due`、`first_cycle_due`，对应 `RecurRule::{Daily,Weekly,Monthly}`）。`db/recur.rs::process_rollovers()` 会遍历所有设了 `recur_rule` 的任务，把已经完全过去的周期结算进 `recur_log`（`completed_on_time` / `completed_late` / `missed`），并把任务重置为待办、进入新周期。连续多个错过的周期会被折叠成一条 `missed` 记录（省事，且对"连续天数"计算无损——那个计算只是按 `cycle_due DESC` 扫描 `recur_log`，遇到第一条 `missed` 就停）。所有周期截止时间统一是当天 `23:59:59`——但这个"当天"按**本地时区**（`chrono::Local`）算，不是 UTC（下面时区约定一节详述原因）。
+
+**时区约定：存储用 UTC，一切"哪一天"的判断和展示都要用本地时区。** 数据库里所有时间戳（`due`、`end`、`created_at`、`cycle_due`……）统一存 UTC 时刻的 RFC3339 字符串，这一点不变——用 UTC 存是为了排序/比较简单，任何两个 UTC 时刻直接比较大小就是对的，不用管时区。但凡是要回答"这算今天吗""这个截止时间对应哪一天""该不该把这个标记清掉了"这类问题，或者是要展示给用户看的时刻，都必须先把 UTC 时刻换算成本地时区（`chrono::Local::now()` / JS 里 `new Date(iso)` 取 `getFullYear()/getMonth()/getDate()/getHours()/getMinutes()`，不能对 ISO 字符串直接截子串）再判断/展示——`today_marked_date`（今日任务标记）、`cycle_due`（重复任务周期截止）、前端 `useLocalTime.js` 的这几个换算函数、`TaskFormModal.vue` 表单读写 `due` 的往返换算，都是这个约定的落地。这条约定是踩了好几次真实的时区 bug 之后（今日任务、重复任务周期过了本地零点却没重置）才定下来的，以后新增任何"今天/这一天"相关的判断或展示，都要延续这个模式，不要图省事直接假设本地时区就是 UTC。
 
 **"今日排序"图**（`db/today_order.rs` + `graph_utils.rs`）："今日任务"视图允许用户在标记为 `is_today` 的任务之间手动画一张*独立*的排序图（`today_order_edges` 表），跟真实的 `depends` 依赖图无关。`graph_utils.rs` 提供纯粹的 BFS 可达性判断（`forward_adjacency`、`reachable`），用来校验新加的手动边不会跟真实依赖方向矛盾，也不会在手动排序图内部形成环。这个模块特意跟 `apply_derived_fields()` 分开——它是 `add_today_order_edge` 里按需调用的"写入前校验"，不是每次读取都要跑的投影逻辑。
 
@@ -90,3 +92,4 @@ cd frontend && npm run build
 - 新增数据库表/列 → 追加到 `schema.rs` 的 `MIGRATIONS` 数组里，永远不改已有的条目。
 - 新的设置项 → 放进独立的 `settings.json`，不放 SQLite，除非它是关系型/高频写入的数据。
 - 新的顶层页面 → 在 `App.vue` 里加一个 `currentPage` 取值 + 导航按钮 + `v-show` 区块 + `:visible` prop。
+- 新增涉及"今天/这一天"的判断或展示 → 后端用 `chrono::Local` 而不是 `chrono::Utc` 提取日期/星期几/几号；前端用 `useLocalTime.js` 的换算函数或 `new Date(iso).getFullYear()/...` 而不是对 ISO 字符串截子串。数据库存储仍然一律 UTC，不受影响。

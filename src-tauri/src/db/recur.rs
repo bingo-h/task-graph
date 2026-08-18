@@ -29,6 +29,38 @@ fn row_to_entry(row: &rusqlite::Row) -> rusqlite::Result<RecurLogEntry> {
     })
 }
 
+/// 一次性数据修复（schema 版本 15）：早前周期截止时间一律按 UTC 当天 23:59:59 算，
+/// 现在改成了按本地日历天算（见 models::recur::end_of_day）。已经写进数据库的 due
+/// 是用旧逻辑算出来的，光改代码不会让这些历史数据自动变对——不修的话，这些任务
+/// 还要再等一次用旧逻辑算出来的、偏移了时区差的截止时间过去，才能真正用上新逻辑。
+///
+/// 这里把已有 due 的日期部分取出来（旧逻辑里这就是"这个截止时间打算表示哪一天"），
+/// 按新逻辑重新算一遍 23:59:59 再写回去，让修复立刻生效，不用等一个"旧的"周期。
+pub fn backfill_local_due(conn: &Connection) -> Result<()> {
+    let mut stmt = conn.prepare(
+        "SELECT uuid, due FROM tasks WHERE recur_rule IS NOT NULL AND due IS NOT NULL",
+    )?;
+    let rows: Vec<(String, String)> = stmt
+        .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?
+        .collect::<rusqlite::Result<_>>()?;
+    drop(stmt);
+
+    for (uuid, due_str) in rows {
+        let Ok(due) = chrono::DateTime::parse_from_rfc3339(&due_str) else {
+            continue;
+        };
+        let date = due.with_timezone(&chrono::Utc).date_naive();
+        let corrected = recur::end_of_day(date).to_rfc3339();
+
+        conn.execute(
+            "UPDATE tasks SET due = ?2 WHERE uuid = ?1",
+            params![uuid, corrected],
+        )?;
+    }
+
+    Ok(())
+}
+
 /// 某任务的全部周期完成记录，按 cycle_due 倒序
 pub fn list_log(conn: &Connection, task_uuid: &str) -> Result<Vec<RecurLogEntry>> {
     let mut stmt = conn.prepare(

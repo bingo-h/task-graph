@@ -144,6 +144,12 @@ const MIGRATIONS: &[&str] = &[
 
     CREATE INDEX IF NOT EXISTS idx_sibling_order_to ON sibling_order_edges (to_uuid);
     "#,
+    // 版本 15: 无 DDL 变更，纯粹标记一次数据修复——重复任务的周期截止时间(due)
+    // 早前一律按 UTC 当天 23:59:59 算，现在改成按本地日历天算。已经写进数据库的
+    // 历史 due 是按旧逻辑算的，不会因为代码修好了就自动变对，这里借用 schema
+    // 版本号机制保证只补算一次（见 init() 里版本 15 的特殊分支）。
+    r#"
+    "#,
 ];
 
 /// 初始化数据库 schema ，自动执行尚未应用的迁移
@@ -165,6 +171,12 @@ pub fn init(conn: &Connection) -> Result<()> {
             // 版本 10 的 DROP COLUMN 删掉，立刻把旧数据搬过去
             if version == 9 {
                 crate::db::tag::backfill_from_json(conn)?;
+            }
+
+            // 版本 15：把已有重复任务的 due 从旧的 UTC 日边界重新算成本地日边界，
+            // 让时区修复立刻生效，不用再等一个用旧逻辑算出来的周期过去
+            if version == 15 {
+                crate::db::recur::backfill_local_due(conn)?;
             }
 
             // 更新版本号

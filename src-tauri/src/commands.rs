@@ -513,7 +513,9 @@ pub fn save_settings(settings: Settings) -> Result<Settings, String> {
 /// 把前端传来的 `due` 补全成完整的 RFC3339 时间戳。
 /// 前端日期选择器只给"YYYY-MM-DD"（不带时间），若不补时间，
 /// `Task::compute_overdue()` 用的 `parse_from_rfc3339` 会直接解析失败、
-/// 永远判定不出逾期。已经是完整时间戳（带 "T"）的值原样透传。
+/// 永远判定不出逾期。已经是完整时间戳（带 "T"，前端已经按本地时区换算成正确的
+/// UTC 时刻）的值原样透传；裸日期按本地时区补上设置里的默认到期时间再转成 UTC
+/// （不能直接拼 "Z"，那样会把本地时刻错当成 UTC 时刻，跟本地时区差出偏移量）。
 fn normalize_due(due: Option<String>) -> Result<Option<String>, String> {
     let Some(due) = due else { return Result::Ok(None) };
 
@@ -525,7 +527,23 @@ fn normalize_due(due: Option<String>) -> Result<Option<String>, String> {
         .map_err(|e| e.to_string())?
         .default_due_time;
 
-    Result::Ok(Some(format!("{due}T{default_time}:00Z")))
+    let date = chrono::NaiveDate::parse_from_str(&due, "%Y-%m-%d")
+        .map_err(|_| "无效的日期格式".to_string())?;
+    let (hour, minute) = default_time
+        .split_once(':')
+        .and_then(|(h, m)| Some((h.parse::<u32>().ok()?, m.parse::<u32>().ok()?)))
+        .ok_or_else(|| "无效的默认到期时间格式".to_string())?;
+    let naive = date
+        .and_hms_opt(hour, minute, 0)
+        .ok_or_else(|| "无效的默认到期时间".to_string())?;
+
+    let local = match chrono::TimeZone::from_local_datetime(&chrono::Local, &naive) {
+        chrono::LocalResult::Single(dt) => dt,
+        chrono::LocalResult::Ambiguous(dt, _) => dt,
+        chrono::LocalResult::None => chrono::TimeZone::from_utc_datetime(&chrono::Local, &naive),
+    };
+
+    Result::Ok(Some(local.with_timezone(&chrono::Utc).to_rfc3339()))
 }
 
 /// 新建任务

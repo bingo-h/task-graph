@@ -89,7 +89,10 @@ fn days_in_month(year: i32, month: u32) -> u32 {
 /// 把某个本地日历日期的 23:59:59（本地时区）转成对应的 UTC 时刻。
 /// 本地时间在夏令时切换附近可能是重复（Ambiguous）或不存在（None）的，
 /// 这两种极端情况都退化取一个合理的近似值，不影响正常日期的计算。
-fn end_of_day(d: NaiveDate) -> DateTime<Utc> {
+///
+/// 对 db::recur::backfill_local_due 可见：数据库里可能还留着旧版本按 UTC
+/// 算出来的 due，需要用这个函数按新逻辑重新算一遍再写回去。
+pub(crate) fn end_of_day(d: NaiveDate) -> DateTime<Utc> {
     let naive = d.and_hms_opt(23, 59, 59).unwrap();
     let local = match Local.from_local_datetime(&naive) {
         chrono::LocalResult::Single(dt) => dt,

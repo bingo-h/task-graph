@@ -1,5 +1,7 @@
 # task-graph
 
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
+
 本地优先的桌面任务管理工具，以 DAG（有向无环图）可视化任务依赖关系。
 
 项目层级作为过滤维度，支持高亮任务链路、查看任务详情、图形化新建/修改任务。数据完全存储在本地 SQLite，不依赖 Taskwarrior，不依赖任何云服务，不依赖网络。
@@ -137,3 +139,11 @@ task-graph/
             ├── useDuration.js         # 时长格式化
             └── useTagColor.js         # 标签/任务颜色小工具
 ```
+
+## 贡献
+
+欢迎提 Issue 反馈问题或提交 Pull Request。提交 PR 前请阅读 [CONTRIBUTING.md](CONTRIBUTING.md)。
+
+## 许可证
+
+本项目基于 [GPL-3.0](LICENSE) 协议开源。

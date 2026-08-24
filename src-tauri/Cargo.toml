@@ -2,9 +2,9 @@
 name = "task-graph"
 version = "1.2.4"
 description = "桌面任务管理工具"
-authors = ["you"]
-license = ""
-repository = ""
+authors = ["Bin Huang"]
+license = "GPL-3.0-or-later"
+repository = "https://github.com/bingo-h/task-graph"
 edition = "2021"
 rust-version = "1.77.2"
 

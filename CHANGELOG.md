@@ -6,6 +6,10 @@
 
 ## [未发布]
 
+### 新增
+
+- 补齐开源相关内容：新增 `LICENSE`（GPL-3.0）、`CONTRIBUTING.md` 贡献指南；README 加入协议徽章、贡献/许可证章节；`Cargo.toml`、`frontend/package.json` 补上 `license`/`repository` 字段。
+
 ### 修复
 
 - 日历页日视图这一天没有任何计时记录时，原来整个 0-24 点时间轴都不显示、只有一行文字提示；现在时间轴刻度始终完整显示一整天，不会因为没数据就整个空掉。

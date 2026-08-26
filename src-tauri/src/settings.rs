@@ -30,6 +30,10 @@ fn default_inbox_label() -> String {
     "无项目".to_string()
 }
 
+fn default_notification_duration_seconds() -> u32 {
+    3
+}
+
 fn default_true() -> bool {
     true
 }
@@ -78,6 +82,9 @@ pub struct Settings {
     /// "无项目"作为筛选/匹配用的哨兵值，不受这个设置影响
     #[serde(default = "default_inbox_label")]
     pub inbox_label: String,
+    /// 错误提示悬浮通知自动消失前停留的时间（秒）
+    #[serde(default = "default_notification_duration_seconds")]
+    pub notification_duration_seconds: u32,
     /// 以下四项控制图谱里任务节点卡片上默认显示哪些信息（悬浮详情窗不受影响，总是显示全部）
     #[serde(default = "default_true")]
     pub node_show_project: bool,
@@ -108,6 +115,7 @@ impl Default for Settings {
             duration_format: default_duration_format(),
             default_due_time: default_due_time(),
             inbox_label: default_inbox_label(),
+            notification_duration_seconds: default_notification_duration_seconds(),
             node_show_project: default_true(),
             node_show_due: default_true(),
             node_show_priority: default_true(),

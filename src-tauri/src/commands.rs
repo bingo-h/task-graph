@@ -545,6 +545,9 @@ pub fn save_settings(settings: Settings) -> Result<Settings, String> {
     if settings.inbox_label.chars().count() > 20 {
         return Err("\"无项目\"分类名称过长".to_string());
     }
+    if !(1..=30).contains(&settings.notification_duration_seconds) {
+        return Err("通知自动消失时间需在 1-30 秒之间".to_string());
+    }
     for label in [
         &settings.node_label_project,
         &settings.node_label_due,

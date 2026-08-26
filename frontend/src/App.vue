@@ -6,7 +6,7 @@
 -->
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from "vue";
+import { ref, computed, watch, onMounted, onUnmounted } from "vue";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 
 import TaskFormModal from "./components/TaskFormModal.vue";
@@ -100,6 +100,7 @@ const settings = ref({
     duration_format: DEFAULT_DURATION_FORMAT,
     default_due_time: "23:59",
     inbox_label: constants.INBOX_PROJECT,
+    notification_duration_seconds: 3,
     node_show_project: true,
     node_show_due: true,
     node_show_priority: true,
@@ -187,6 +188,22 @@ const tagFilter = ref(null); // 任务看板按标签筛选，null 表示不筛�
 const hlMode = ref("ancestors"); // 高亮模式
 const loading = ref(false);
 const error = ref("");
+
+// 错误提示悬浮通知：出现后按设置里的"通知自动消失时间"过一段时间自动收回；
+// 新错误覆盖旧错误时要重新计时，不能让旧的定时器提前把新错误关掉
+let errorDismissTimer = null;
+watch(error, (value) => {
+    if (errorDismissTimer) {
+        clearTimeout(errorDismissTimer);
+        errorDismissTimer = null;
+    }
+    if (!value) return;
+
+    const seconds = settings.value.notification_duration_seconds || 3;
+    errorDismissTimer = setTimeout(() => {
+        error.value = "";
+    }, seconds * 1000);
+});
 
 // 新建任务弹窗的默认项目：selectedProject 也可能是分类哨兵值（如 __stage__planned）
 // 或无项目/今日任务虚拟节点，这些都不是真实项目路径，不能当默认项目回填进表单
@@ -1190,10 +1207,12 @@ onUnmounted(() => clearInterval(autoRefreshTimer));
             </div>
         </header>
 
-        <!-- 错误提示 -->
-        <div v-if="error" class="error-bar" @click="error = ''">
-            ⚠ {{ error }} <span class="dismiss">×</span>
-        </div>
+        <!-- 错误提示：独立悬浮通知，从标题栏下方滑出，不遮罩其它内容，过一段时间自动收回 -->
+        <Transition name="toast-slide">
+            <div v-if="error" class="error-toast" @click="error = ''">
+                ⚠ {{ error }} <span class="dismiss">×</span>
+            </div>
+        </Transition>
 
         <!-- 首页仪表盘 -->
         <Dashboard
@@ -1588,20 +1607,40 @@ onUnmounted(() => clearInterval(autoRefreshTimer));
     color: #fff;
 }
 
-/* 错误提示栏 */
-.error-bar {
-    padding: 8px 16px;
-    background: rgba(247, 118, 142, 0.15);
+/* 错误提示：独立悬浮通知，固定在标题栏下方水平居中，不占布局空间、不遮罩其它内容 */
+.error-toast {
+    position: fixed;
+    top: 52px;
+    left: 50%;
+    transform: translate(-50%, 0);
+    z-index: 2000;
+    max-width: 70vw;
+    padding: 9px 16px;
+    border-radius: 8px;
+    background: var(--bg-popup);
     color: var(--red);
-    border-bottom: 1px solid var(--red);
+    border: 1px solid var(--red);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
     font-size: 0.9231rem;
     cursor: pointer;
-    flex-shrink: 0;
 }
 
 .dismiss {
     margin-left: 8px;
     font-weight: 700;
+}
+
+/* 从标题栏下方滑出/收回的动画 */
+.toast-slide-enter-active,
+.toast-slide-leave-active {
+    transition:
+        transform 0.25s ease,
+        opacity 0.25s ease;
+}
+.toast-slide-enter-from,
+.toast-slide-leave-to {
+    transform: translate(-50%, -16px);
+    opacity: 0;
 }
 
 /* 主体三栏 */

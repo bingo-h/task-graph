@@ -56,6 +56,7 @@ const fontSize = ref(14);
 const durationFormat = ref(DEFAULT_DURATION_FORMAT);
 const defaultDueTime = ref("23:59");
 const inboxLabel = ref(constants.INBOX_PROJECT);
+const notificationDurationSeconds = ref(3);
 
 // ----------------------------------------
 // 字体：从系统已安装字体里选，边输入边模糊搜索筛选（子串匹配，不区分大小写）
@@ -153,6 +154,7 @@ watch(
             props.settings.duration_format || DEFAULT_DURATION_FORMAT;
         defaultDueTime.value = props.settings.default_due_time || "23:59";
         inboxLabel.value = props.settings.inbox_label || constants.INBOX_PROJECT;
+        notificationDurationSeconds.value = props.settings.notification_duration_seconds ?? 3;
         nodeShowProject.value = props.settings.node_show_project ?? true;
         nodeShowDue.value = props.settings.node_show_due ?? true;
         nodeShowPriority.value = props.settings.node_show_priority ?? true;
@@ -206,6 +208,10 @@ function submit() {
         duration_format: durationFormat.value.trim() || DEFAULT_DURATION_FORMAT,
         default_due_time: defaultDueTime.value || "23:59",
         inbox_label: inboxLabel.value.trim() || constants.INBOX_PROJECT,
+        notification_duration_seconds: Math.min(
+            30,
+            Math.max(1, Math.round(Number(notificationDurationSeconds.value) || 3)),
+        ),
         node_show_project: nodeShowProject.value,
         node_show_due: nodeShowDue.value,
         node_show_priority: nodeShowPriority.value,
@@ -381,6 +387,22 @@ function submit() {
                                     class="form-input"
                                     maxlength="20"
                                     placeholder="无项目"
+                                />
+                            </div>
+
+                            <div class="form-row">
+                                <label class="form-label">
+                                    通知自动消失时间
+                                    <span class="form-hint">
+                                        错误提示悬浮通知出现后，多少秒自动收回，单位秒，1-30
+                                    </span>
+                                </label>
+                                <input
+                                    v-model.number="notificationDurationSeconds"
+                                    type="number"
+                                    min="1"
+                                    max="30"
+                                    class="form-input"
                                 />
                             </div>
                         </template>

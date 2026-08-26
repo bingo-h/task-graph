@@ -27,15 +27,9 @@
       pkgs = import nixpkgs { inherit system; };
     in
     {
-      devShells.${system}.default = nix-config.lib.mkRustShell {
+      devShells.${system}.default = nix-config.lib.mkTauriShell {
         inherit pkgs rust-overlay;
-        extraBuildInputs = with pkgs; [
-          pkg-config
-          gtk3
-          dbus
-          atk
-          webkitgtk_4_1
-        ];
+        # extraBuildInputs = with pkgs; [ ];
         # crossSystems = [
         #     nixpkgs.lib.systems.examples.aarch64-multiplatform
         #     nixpkgs.lib.systems.examples.wasm32

@@ -8,6 +8,29 @@
         ]
       },
       "locked": {
+        "lastModified": 1787540599,
+        "narHash": "sha256-MHwk52ty3NsLhq9a1IbIfBJZlCUJIdiUYFo52JLK9hY=",
+        "owner": "nix-community",
+        "repo": "home-manager",
+        "rev": "03f4cd46bc1dd4f3a96da778d2ce9f7ce39dd450",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nix-community",
+        "repo": "home-manager",
+        "type": "github"
+      }
+    },
+    "home-manager_2": {
+      "inputs": {
+        "nixpkgs": [
+          "nix-config",
+          "task-graph",
+          "nix-config",
+          "nixpkgs"
+        ]
+      },
+      "locked": {
         "lastModified": 1786887553,
         "narHash": "sha256-0J8EwNSJ/2OeyuvXgfG+k5uBT1gkg0ww7VEo+14xl50=",
         "owner": "nix-community",
@@ -21,9 +44,11 @@
         "type": "github"
       }
     },
-    "home-manager_2": {
+    "home-manager_3": {
       "inputs": {
         "nixpkgs": [
+          "nix-config",
+          "task-graph",
           "nix-config",
           "task-graph",
           "nix-config",
@@ -44,9 +69,11 @@
         "type": "github"
       }
     },
-    "home-manager_3": {
+    "home-manager_4": {
       "inputs": {
         "nixpkgs": [
+          "nix-config",
+          "task-graph",
           "nix-config",
           "task-graph",
           "nix-config",
@@ -78,6 +105,30 @@
         "task-graph": "task-graph"
       },
       "locked": {
+        "lastModified": 1787661275,
+        "narHash": "sha256-VmDRZ6FJeZbXOnL5cIS24DXwY9nNzSTpoBhcGOaLa8Q=",
+        "ref": "refs/heads/master",
+        "rev": "a7d3f6c9da7935216861cbe875d0b2ac118b062b",
+        "revCount": 75,
+        "type": "git",
+        "url": "ssh://git@github.com/bingo-h/nixos-config"
+      },
+      "original": {
+        "type": "git",
+        "url": "ssh://git@github.com/bingo-h/nixos-config"
+      }
+    },
+    "nix-config_2": {
+      "inputs": {
+        "home-manager": "home-manager_2",
+        "nixpkgs": [
+          "nix-config",
+          "task-graph",
+          "nixpkgs"
+        ],
+        "task-graph": "task-graph_2"
+      },
+      "locked": {
         "lastModified": 1786896989,
         "narHash": "sha256-S9k3jfwakjeC3gE3SI3J6CAaChN2cdNXIiSRgSOOuno=",
         "ref": "refs/heads/master",
@@ -91,10 +142,12 @@
         "url": "ssh://git@github.com/bingo-h/nixos-config"
       }
     },
-    "nix-config_2": {
+    "nix-config_3": {
       "inputs": {
-        "home-manager": "home-manager_2",
+        "home-manager": "home-manager_3",
         "nixpkgs": [
+          "nix-config",
+          "task-graph",
           "nix-config",
           "task-graph",
           "nixpkgs"
@@ -116,10 +169,12 @@
         "url": "ssh://git@github.com/bingo-h/nixos-config"
       }
     },
-    "nix-config_3": {
+    "nix-config_4": {
       "inputs": {
-        "home-manager": "home-manager_3",
+        "home-manager": "home-manager_4",
         "nixpkgs": [
+          "nix-config",
+          "task-graph",
           "nix-config",
           "task-graph",
           "nix-config",
@@ -144,11 +199,11 @@
     },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1786599213,
-        "narHash": "sha256-yNJd40f11EzXBjSByCB7IPpeFFAdeoSKKM67dGkfFoU=",
+        "lastModified": 1787498568,
+        "narHash": "sha256-9i/VTdusq/+NM/tz+J1Re+ojkMB8MBf0QshnYfzHz30=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "0e251e24a4f24e036a084b6b4b2d2491af4167f4",
+        "rev": "56c02bc00adcf003215cc4bd996d6efaf4cff188",
         "type": "github"
       },
       "original": {
@@ -161,6 +216,8 @@
     "noctalia": {
       "inputs": {
         "nixpkgs": [
+          "nix-config",
+          "task-graph",
           "nix-config",
           "task-graph",
           "nix-config",
@@ -189,6 +246,8 @@
           "nix-config",
           "task-graph",
           "nix-config",
+          "task-graph",
+          "nix-config",
           "noctalia",
           "nixpkgs"
         ],
@@ -212,6 +271,8 @@
     "noctalia-qs_2": {
       "inputs": {
         "nixpkgs": [
+          "nix-config",
+          "task-graph",
           "nix-config",
           "task-graph",
           "nix-config",
@@ -243,6 +304,8 @@
           "nix-config",
           "task-graph",
           "nix-config",
+          "task-graph",
+          "nix-config",
           "task-web",
           "nix-config",
           "nixpkgs"
@@ -268,12 +331,14 @@
       "inputs": {
         "nix-config": "nix-config",
         "nixpkgs": "nixpkgs",
-        "rust-overlay": "rust-overlay_3"
+        "rust-overlay": "rust-overlay_4"
       }
     },
     "rust-overlay": {
       "inputs": {
         "nixpkgs": [
+          "nix-config",
+          "task-graph",
           "nix-config",
           "task-graph",
           "nix-config",
@@ -300,6 +365,8 @@
         "nixpkgs": [
           "nix-config",
           "task-graph",
+          "nix-config",
+          "task-graph",
           "nixpkgs"
         ]
       },
@@ -320,6 +387,8 @@
     "rust-overlay_3": {
       "inputs": {
         "nixpkgs": [
+          "nix-config",
+          "task-graph",
           "nixpkgs"
         ]
       },
@@ -329,6 +398,26 @@
         "owner": "oxalica",
         "repo": "rust-overlay",
         "rev": "b211eadeba8b180da9453ec3413a8a3535c85b3f",
+        "type": "github"
+      },
+      "original": {
+        "owner": "oxalica",
+        "repo": "rust-overlay",
+        "type": "github"
+      }
+    },
+    "rust-overlay_4": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1787627053,
+        "narHash": "sha256-QdVaU2WSCKsxZ0sBDIRnaaukp6Z5IMUE0gDEDoSRJd0=",
+        "owner": "oxalica",
+        "repo": "rust-overlay",
+        "rev": "132a10336af9ae819bdf640c0dd1c789b12d7107",
         "type": "github"
       },
       "original": {
@@ -374,6 +463,31 @@
           "nix-config",
           "nixpkgs"
         ],
+        "rust-overlay": "rust-overlay_3"
+      },
+      "locked": {
+        "lastModified": 1787561687,
+        "narHash": "sha256-STIGmwm7ye50eDIrpAJ5rx9/hrJWhuYogCZmGuyePH4=",
+        "owner": "bingo-h",
+        "repo": "task-graph",
+        "rev": "0b8a27e9580bc4f71b167930a52abb5aaae31c75",
+        "type": "github"
+      },
+      "original": {
+        "owner": "bingo-h",
+        "repo": "task-graph",
+        "type": "github"
+      }
+    },
+    "task-graph_2": {
+      "inputs": {
+        "nix-config": "nix-config_3",
+        "nixpkgs": [
+          "nix-config",
+          "task-graph",
+          "nix-config",
+          "nixpkgs"
+        ],
         "rust-overlay": "rust-overlay_2"
       },
       "locked": {
@@ -392,8 +506,10 @@
     },
     "task-web": {
       "inputs": {
-        "nix-config": "nix-config_3",
+        "nix-config": "nix-config_4",
         "nixpkgs": [
+          "nix-config",
+          "task-graph",
           "nix-config",
           "task-graph",
           "nix-config",
@@ -421,6 +537,8 @@
           "nix-config",
           "task-graph",
           "nix-config",
+          "task-graph",
+          "nix-config",
           "noctalia",
           "noctalia-qs",
           "nixpkgs"
@@ -443,6 +561,8 @@
     "treefmt-nix_2": {
       "inputs": {
         "nixpkgs": [
+          "nix-config",
+          "task-graph",
           "nix-config",
           "task-graph",
           "nix-config",

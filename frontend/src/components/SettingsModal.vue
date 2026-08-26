@@ -55,6 +55,7 @@ const trashRetentionDays = ref(30);
 const fontSize = ref(14);
 const durationFormat = ref(DEFAULT_DURATION_FORMAT);
 const defaultDueTime = ref("23:59");
+const inboxLabel = ref(constants.INBOX_PROJECT);
 
 // ----------------------------------------
 // 字体：从系统已安装字体里选，边输入边模糊搜索筛选（子串匹配，不区分大小写）
@@ -151,6 +152,7 @@ watch(
         durationFormat.value =
             props.settings.duration_format || DEFAULT_DURATION_FORMAT;
         defaultDueTime.value = props.settings.default_due_time || "23:59";
+        inboxLabel.value = props.settings.inbox_label || constants.INBOX_PROJECT;
         nodeShowProject.value = props.settings.node_show_project ?? true;
         nodeShowDue.value = props.settings.node_show_due ?? true;
         nodeShowPriority.value = props.settings.node_show_priority ?? true;
@@ -203,6 +205,7 @@ function submit() {
         node_font_family: nodeFontFamily.value.trim(),
         duration_format: durationFormat.value.trim() || DEFAULT_DURATION_FORMAT,
         default_due_time: defaultDueTime.value || "23:59",
+        inbox_label: inboxLabel.value.trim() || constants.INBOX_PROJECT,
         node_show_project: nodeShowProject.value,
         node_show_due: nodeShowDue.value,
         node_show_priority: nodeShowPriority.value,
@@ -363,6 +366,21 @@ function submit() {
                                     v-model="defaultDueTime"
                                     type="time"
                                     class="form-input"
+                                />
+                            </div>
+
+                            <div class="form-row">
+                                <label class="form-label">
+                                    "无项目"分类名称
+                                    <span class="form-hint">
+                                        没有归属到任何项目的任务，在项目树/项目筛选里显示的分类名字
+                                    </span>
+                                </label>
+                                <input
+                                    v-model="inboxLabel"
+                                    class="form-input"
+                                    maxlength="20"
+                                    placeholder="无项目"
                                 />
                             </div>
                         </template>

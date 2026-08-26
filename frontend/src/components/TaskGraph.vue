@@ -1123,6 +1123,11 @@ const bulkMoveProjectOptions = computed(() =>
         .sort(),
 );
 
+// "无项目"分类的显示名字，跟着设置走
+const inboxLabel = computed(
+    () => props.projects[constants.INBOX_PROJECT]?.name || constants.INBOX_PROJECT,
+);
+
 const showBulkProjectMenu = ref(false);
 const bulkProjectMenuRef = ref(null);
 
@@ -1310,7 +1315,7 @@ defineExpose({ resetZoom });
                         class="suggest-dropdown-item"
                         @click="selectBulkProject(null)"
                     >
-                        无项目
+                        {{ inboxLabel }}
                     </button>
                     <button
                         v-for="p in bulkMoveProjectOptions"

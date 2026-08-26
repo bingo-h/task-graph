@@ -26,6 +26,10 @@ fn default_due_time() -> String {
     "23:59".to_string()
 }
 
+fn default_inbox_label() -> String {
+    "无项目".to_string()
+}
+
 fn default_true() -> bool {
     true
 }
@@ -70,6 +74,10 @@ pub struct Settings {
     /// 任务表单里只选日期、不显式选时间时，自动补上的默认到期时刻（"HH:MM"）
     #[serde(default = "default_due_time")]
     pub default_due_time: String,
+    /// "无项目"虚拟归集节点在界面上显示的名字；只是显示文字，内部仍用固定的
+    /// "无项目"作为筛选/匹配用的哨兵值，不受这个设置影响
+    #[serde(default = "default_inbox_label")]
+    pub inbox_label: String,
     /// 以下四项控制图谱里任务节点卡片上默认显示哪些信息（悬浮详情窗不受影响，总是显示全部）
     #[serde(default = "default_true")]
     pub node_show_project: bool,
@@ -99,6 +107,7 @@ impl Default for Settings {
             node_font_family: String::new(),
             duration_format: default_duration_format(),
             default_due_time: default_due_time(),
+            inbox_label: default_inbox_label(),
             node_show_project: default_true(),
             node_show_due: default_true(),
             node_show_priority: default_true(),

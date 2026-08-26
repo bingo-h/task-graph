@@ -182,8 +182,8 @@ fn validate_icon(icon: &str) -> Result<(), String> {
 fn build_graph() -> anyhow::Result<GraphResponse> {
     let conn = db::open()?;
 
-    let retention_days = crate::settings::load()?.trash_retention_days;
-    db::project::purge_expired(&conn, retention_days)?;
+    let settings = crate::settings::load()?;
+    db::project::purge_expired(&conn, settings.trash_retention_days)?;
     db::task::reset_stale_today_marks(&conn)?;
     db::recur::process_rollovers(&conn)?;
 
@@ -217,7 +217,7 @@ fn build_graph() -> anyhow::Result<GraphResponse> {
         active_project_roots,
         archived_project_roots,
         trash_project_roots,
-    ) = db::project::build(&tasks, &project_records);
+    ) = db::project::build(&tasks, &project_records, &settings.inbox_label);
 
     let tags = db::tag::list_all(&conn)?
         .into_iter()
@@ -526,6 +526,12 @@ pub fn save_settings(settings: Settings) -> Result<Settings, String> {
     }
     if !crate::settings::validate_due_time(&settings.default_due_time) {
         return Err("默认到期时间格式需为 HH:MM".to_string());
+    }
+    if settings.inbox_label.trim().is_empty() {
+        return Err("\"无项目\"分类名称不能为空".to_string());
+    }
+    if settings.inbox_label.chars().count() > 20 {
+        return Err("\"无项目\"分类名称过长".to_string());
     }
     for label in [
         &settings.node_label_project,

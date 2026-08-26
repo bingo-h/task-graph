@@ -278,6 +278,7 @@ fn group_of(node: &ProjectNode) -> &str {
 pub fn build(
     tasks: &[Task],
     project_records: &[ProjectRecord],
+    inbox_label: &str,
 ) -> (
     HashMap<String, ProjectNode>,
     Vec<String>,
@@ -477,7 +478,7 @@ pub fn build(
         .collect();
 
     if !inbox.is_empty() {
-        let mut inbox_node = ProjectNode::new(INBOX_PROJECT.to_string(), "无项目".to_string(), 0);
+        let mut inbox_node = ProjectNode::new(INBOX_PROJECT.to_string(), inbox_label.to_string(), 0);
         inbox_node.stage = STAGE_ACTIVE.to_string();
         inbox_node.group = STAGE_ACTIVE.to_string();
 

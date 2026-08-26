@@ -99,6 +99,7 @@ const settings = ref({
     node_font_family: "",
     duration_format: DEFAULT_DURATION_FORMAT,
     default_due_time: "23:59",
+    inbox_label: constants.INBOX_PROJECT,
     node_show_project: true,
     node_show_due: true,
     node_show_priority: true,
@@ -1207,6 +1208,7 @@ onUnmounted(() => clearInterval(autoRefreshTimer));
         <ChartsPage
             v-show="currentPage === 'charts'"
             :nodes="nodes"
+            :projects="projects"
             :visible="currentPage === 'charts'"
             @jump-to-task="onJumpToTask"
         />

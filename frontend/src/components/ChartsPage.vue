@@ -11,14 +11,22 @@
 import { ref, computed, onMounted, onUnmounted, watch } from "vue";
 import { listAllTimeEntries } from "../composables/useApi";
 import { formatDuration } from "../composables/useDuration";
+import constants from "../config/constants";
 
 const props = defineProps({
     // 全部任务节点，用于取任务描述/项目、以及任务完成趋势统计
     nodes: { type: Array, default: () => [] },
+    // 项目路径 -> ProjectNode，这里只用它取"无项目"分类当前显示的名字（可在设置里自定义）
+    projects: { type: Object, default: () => ({}) },
     // 当前是否是正在展示的页面（父组件用 v-show 切换，不会重新挂载组件），
     // 只在挂载时拉取一次计时记录的话，长时间挂在后台会跨天而不自动刷新
     visible: { type: Boolean, default: true },
 });
+
+// "无项目"分类的显示名字，跟着设置走；projects 里还没有这个虚拟节点时（比如还没有任何无归属任务）兜底用默认名字
+const inboxLabel = computed(
+    () => props.projects[constants.INBOX_PROJECT]?.name || constants.INBOX_PROJECT,
+);
 
 const emit = defineEmits(["jump-to-task"]);
 
@@ -116,7 +124,7 @@ const todayTimeRows = computed(() => {
         const label =
             groupBy.value === "task"
                 ? task?.description || "(已删除的任务)"
-                : task?.project || "(无项目)";
+                : task?.project || `(${inboxLabel.value})`;
 
         const row = totals.get(key) || {
             key,

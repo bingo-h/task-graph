@@ -168,22 +168,39 @@ pub fn move_project(conn: &Connection, path: &str, new_parent: Option<&str>) -> 
         _ => leaf.to_string(),
     };
 
-    if new_path == path {
-        return Ok(());
-    }
-
     if let Some(p) = new_parent {
         if p == path || p.starts_with(&format!("{path}.")) {
             return Err(anyhow!("不能把项目移动到自己或自己的子项目下"));
         }
     }
 
-    // 冲突检测：目标路径不能与既有项目（排除正在移动的这一整棵子树）重名
+    rewrite_project_path(conn, path, &new_path)
+}
+
+/// 重命名一个项目：只改自身这一段路径名，父级不变（`new_name` 是单独一段名字，不是完整路径）。
+/// 和 move_project 共享同一套路径重写逻辑，级联更新子项目路径和其下任务的 project 字段。
+pub fn rename_project(conn: &Connection, path: &str, new_name: &str) -> Result<()> {
+    let new_path = match path.rsplit_once('.') {
+        Some((parent, _)) => format!("{parent}.{new_name}"),
+        None => new_name.to_string(),
+    };
+
+    rewrite_project_path(conn, path, &new_path)
+}
+
+/// 把项目自身及其所有子项目、其下任务的路径，从 `path` 整体重写成 `new_path`
+/// （move_project 改父级、rename_project 改叶子名，本质都是同一种路径前缀替换）
+fn rewrite_project_path(conn: &Connection, path: &str, new_path: &str) -> Result<()> {
+    if new_path == path {
+        return Ok(());
+    }
+
+    // 冲突检测：目标路径不能与既有项目（排除正在移动/改名的这一整棵子树）重名
     let existing = list_existing_project_paths(conn)?;
     let moving_prefix = format!("{path}.");
     let conflict = existing
         .iter()
-        .any(|p| p != path && !p.starts_with(&moving_prefix) && p == &new_path);
+        .any(|p| p != path && !p.starts_with(&moving_prefix) && p == new_path);
     if conflict {
         return Err(anyhow!("目标位置已存在同名项目：{new_path}"));
     }

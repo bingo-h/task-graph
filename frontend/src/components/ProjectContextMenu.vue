@@ -21,6 +21,7 @@ const props = defineProps({
 const emit = defineEmits([
     "close",
     "new-subproject",
+    "rename",
     "move",
     "toggle-archive",
     "trash",
@@ -80,6 +81,18 @@ function pickMoveTarget(targetPath) {
                         "
                     >
                         + 新建子项目
+                    </button>
+
+                    <!-- "无项目"是虚拟归集节点，没有对应的真实项目记录，不能重命名 -->
+                    <button
+                        v-if="node?.path !== '无项目'"
+                        class="menu-item"
+                        @click="
+                            emit('rename');
+                            close();
+                        "
+                    >
+                        ✎ 重命名
                     </button>
 
                     <div class="menu-item submenu-trigger" @click.stop="showMoveSubmenu = !showMoveSubmenu">

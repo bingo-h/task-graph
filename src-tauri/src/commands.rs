@@ -457,6 +457,42 @@ pub fn move_project(args: MoveProjectArgs) -> Result<GraphResponse, String> {
     build_graph().map_err(|e| e.to_string())
 }
 
+/// 重命名项目参数
+#[derive(Deserialize)]
+pub struct RenameProjectArgs {
+    pub path: String,
+    /// 新的名字，是单独一段（不含 "."），不是完整路径——父级不变，只改这个项目自己这一段
+    pub new_name: String,
+}
+
+/// 重命名项目（及级联更新其所有子项目路径、其下任务的 project 字段），父级不变
+#[tauri::command]
+pub fn rename_project(args: RenameProjectArgs) -> Result<GraphResponse, String> {
+    let path = args.path.trim();
+
+    if path.is_empty() || path == INBOX_PROJECT {
+        return Err("无效的项目路径".to_string());
+    }
+
+    let new_name = args.new_name.trim();
+
+    if new_name.is_empty() {
+        return Err("项目名称不能为空".to_string());
+    }
+    if new_name == INBOX_PROJECT {
+        return Err("该项目名称是保留名称".to_string());
+    }
+    if new_name.contains('.') {
+        return Err("项目名称不能包含符号 \".\"".to_string());
+    }
+
+    let conn = db::open().map_err(|e| e.to_string())?;
+
+    db::project::rename_project(&conn, path, new_name).map_err(|e| e.to_string())?;
+
+    build_graph().map_err(|e| e.to_string())
+}
+
 /// 获取应用设置
 #[tauri::command]
 pub fn get_settings() -> Result<Settings, String> {

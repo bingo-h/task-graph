@@ -12,6 +12,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import TaskFormModal from "./components/TaskFormModal.vue";
 import ProjectTree from "./components/ProjectTree.vue";
 import TaskGraph from "./components/TaskGraph.vue";
+import TaskListView from "./components/TaskListView.vue";
 import TaskDetail from "./components/TaskDetail.vue";
 import SettingsModal from "./components/SettingsModal.vue";
 import TagManagerModal from "./components/TagManagerModal.vue";
@@ -37,6 +38,7 @@ import {
     restoreProject,
     purgeProject,
     moveProject,
+    renameProject,
     getSettings,
     saveSettings,
     addTask,
@@ -157,6 +159,9 @@ function applyNodeFontFamily(nodeFamily, appFamily) {
 
 // 当前页面："home" 首页仪表盘 / "board" 任务看板（原有的三栏视图）/ "charts" 分析页 / "calendar" 日历页
 const currentPage = ref("home");
+
+// 任务看板中间面板："graph" 导图（DAG）/ "list" 列表；只是本次会话内的显示偏好，不持久化
+const boardViewMode = ref("graph");
 
 /**
  * 首页"今日任务"或分析页里点击某个任务，跳转到任务看板、选中它，
@@ -442,6 +447,33 @@ async function onPurgeProject(path) {
 async function onMoveProject(path, newParent) {
     try {
         applyUpdate(await moveProject(path, newParent));
+    } catch (e) {
+        error.value = e.message;
+    }
+}
+
+/**
+ * 重命名项目（父级不变，只改自己这一段名字），右键菜单触发
+ *
+ * @description 由 ProjectTree 的 @rename-project 事件触发
+ * @param {string} path - 被重命名的项目路径
+ * @param {string} newName - 新名字（单独一段，不是完整路径）
+ */
+async function onRenameProject(path, newName) {
+    try {
+        applyUpdate(await renameProject(path, newName));
+
+        // 项目路径整体变了，如果正好在看这个项目（或它的某个子项目），
+        // 把筛选也同步换成新路径，不然改完名字看着的图谱会突然变空
+        const dotIndex = path.lastIndexOf(".");
+        const parent = dotIndex === -1 ? null : path.slice(0, dotIndex);
+        const newPath = parent ? `${parent}.${newName}` : newName;
+
+        if (selectedProject.value === path) {
+            selectedProject.value = newPath;
+        } else if (selectedProject.value?.startsWith(`${path}.`)) {
+            selectedProject.value = newPath + selectedProject.value.slice(path.length);
+        }
     } catch (e) {
         error.value = e.message;
     }
@@ -1197,6 +1229,7 @@ onUnmounted(() => clearInterval(autoRefreshTimer));
                 :trash-roots="trashProjectRoots"
                 :selected="selectedProject"
                 :today-count="todayCount"
+                :board-view-mode="boardViewMode"
                 @select="selectedProject = $event"
                 @create-project="onCreateProject"
                 @toggle-archive="onToggleArchive"
@@ -1205,37 +1238,56 @@ onUnmounted(() => clearInterval(autoRefreshTimer));
                 @restore-project="onRestoreProject"
                 @purge-project="onPurgeProject"
                 @move-project="onMoveProject"
+                @rename-project="onRenameProject"
+                @update:board-view-mode="boardViewMode = $event"
             />
 
-            <TaskGraph
-                :nodes="nodes"
-                :edges="graphEdges"
-                :mode="graphMode"
-                :depends-edges="edges"
-                :selected="selectedUUID"
-                :highlight-set="highlightSet"
-                :project-filter="selectedProject"
-                :tag-filter="tagFilter"
-                :projects="projects"
-                :tags="tags"
-                :multi-selected="multiSelectedUUIDs"
-                :has-active-timer="activeTimingNodes.length > 0"
-                :node-display="settings"
-                :sibling-order-edges="siblingOrderEdges"
-                @select="onGraphSelect"
-                @toggle-multi-select="onToggleMultiSelect"
-                @box-select="onBoxSelect"
-                @clear-multi-select="onClearMultiSelect"
-                @bulk-done="onBulkDone"
-                @bulk-delete="onBulkDelete"
-                @bulk-today="onBulkToday"
-                @bulk-start-timer="onBulkStartTimer"
-                @bulk-move-project="onBulkMoveProject"
-                @clear-tag-filter="tagFilter = null"
-                @connect-nodes="onConnectNodes"
-                @reconnect-edge="onReconnectEdge"
-                @reorder-siblings="onReorderSiblings"
-            />
+            <div class="board-center">
+                <TaskGraph
+                    v-if="boardViewMode === 'graph'"
+                    :nodes="nodes"
+                    :edges="graphEdges"
+                    :mode="graphMode"
+                    :depends-edges="edges"
+                    :selected="selectedUUID"
+                    :highlight-set="highlightSet"
+                    :project-filter="selectedProject"
+                    :tag-filter="tagFilter"
+                    :projects="projects"
+                    :tags="tags"
+                    :multi-selected="multiSelectedUUIDs"
+                    :has-active-timer="activeTimingNodes.length > 0"
+                    :node-display="settings"
+                    :sibling-order-edges="siblingOrderEdges"
+                    @select="onGraphSelect"
+                    @toggle-multi-select="onToggleMultiSelect"
+                    @box-select="onBoxSelect"
+                    @clear-multi-select="onClearMultiSelect"
+                    @bulk-done="onBulkDone"
+                    @bulk-delete="onBulkDelete"
+                    @bulk-today="onBulkToday"
+                    @bulk-start-timer="onBulkStartTimer"
+                    @bulk-move-project="onBulkMoveProject"
+                    @clear-tag-filter="tagFilter = null"
+                    @connect-nodes="onConnectNodes"
+                    @reconnect-edge="onReconnectEdge"
+                    @reorder-siblings="onReorderSiblings"
+                />
+
+                <TaskListView
+                    v-else
+                    :nodes="nodes"
+                    :selected="selectedUUID"
+                    :project-filter="selectedProject"
+                    :tag-filter="tagFilter"
+                    :projects="projects"
+                    :tags="tags"
+                    @select="onGraphSelect"
+                    @done="onDone"
+                    @undone="onUndone"
+                    @clear-tag-filter="tagFilter = null"
+                />
+            </div>
 
             <TaskDetail
                 ref="taskDetailRef"
@@ -1554,6 +1606,13 @@ onUnmounted(() => clearInterval(autoRefreshTimer));
 .main {
     display: flex;
     flex: 1;
+    overflow: hidden;
+}
+
+/* 中间面板：导图/列表共用的容器 */
+.board-center {
+    flex: 1;
+    display: flex;
     overflow: hidden;
 }
 </style>

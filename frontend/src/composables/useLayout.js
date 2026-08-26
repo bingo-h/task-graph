@@ -243,7 +243,7 @@ function patchEdgeEndpoints(layoutEdges, movedY) {
  * @param {String} projectFilter - 项目过滤
  * @param {Object} projects - 项目路径 -> ProjectNode 字典，按分类哨兵值筛选时用来查每个任务所属项目的 group
  */
-function filterNodes(nodes, projectFilter, projects = {}) {
+export function filterNodes(nodes, projectFilter, projects = {}) {
   if (!projectFilter) return nodes;
 
   if (projectFilter === config.INBOX_PROJECT) {

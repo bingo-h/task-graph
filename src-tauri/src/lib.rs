@@ -44,6 +44,7 @@ pub fn run() {
             commands::restore_project,
             commands::purge_project,
             commands::move_project,
+            commands::rename_project,
             commands::get_settings,
             commands::save_settings,
             commands::list_system_fonts,

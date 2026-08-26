@@ -8,13 +8,14 @@
   @Date: 2026-05-25
 -->
 <script setup>
-import { computed, inject } from "vue";
+import { computed, inject, nextTick, ref, watch } from "vue";
 
 const props = defineProps({
     path: { type: String, required: true },
     projects: { type: Object, required: true },
     selected: { type: String, default: null }, // 是否是当前选择的项目
     collapsed: { type: Object, required: true }, // 折叠隐藏的节点列表
+    renamingPath: { type: String, default: null }, // 当前正在改名的项目路径，由 ProjectTree 统一持有
 });
 
 const emit = defineEmits([
@@ -25,6 +26,8 @@ const emit = defineEmits([
     "trash-project",
     "restore-project",
     "context-menu",
+    "rename",
+    "cancel-rename",
 ]);
 
 // 拖拽状态与拖拽发起函数由 ProjectTree 统一提供，避免每个节点各自维护一份。
@@ -47,6 +50,30 @@ const isRoot = computed(() => !props.path.includes("."));
 
 // 项目节点显示名称，只显示末端
 const displayName = computed(() => node.value?.name || props.path);
+
+// ----------------------------------------
+// 重命名：节点名原地变成输入框，Enter 确认、Esc/失焦取消
+// ----------------------------------------
+const isRenaming = computed(() => props.renamingPath === props.path);
+const renameInput = ref("");
+const renameInputRef = ref(null);
+
+watch(isRenaming, async (renaming) => {
+    if (!renaming) return;
+    renameInput.value = displayName.value;
+    await nextTick();
+    renameInputRef.value?.focus();
+    renameInputRef.value?.select();
+});
+
+function confirmRename() {
+    const newName = renameInput.value.trim();
+    if (!newName || newName === displayName.value) {
+        emit("cancel-rename");
+        return;
+    }
+    emit("rename", props.path, newName);
+}
 
 // 切换目标为当前阶段的对面（只在顶层项目上可操作，子项目跟随继承）
 const otherStage = computed(() =>
@@ -130,8 +157,19 @@ function onMouseDown(e) {
             >
             <span v-else class="toggle-icon placeholder">·</span>
 
-            <!-- 项目名 -->
-            <span class="node-name">{{ displayName }}</span>
+            <!-- 项目名：改名时原地变成输入框 -->
+            <input
+                v-if="isRenaming"
+                ref="renameInputRef"
+                v-model="renameInput"
+                class="node-name-input"
+                @click.stop
+                @mousedown.stop
+                @keydown.enter.prevent="confirmRename"
+                @keydown.esc.prevent="emit('cancel-rename')"
+                @blur="emit('cancel-rename')"
+            />
+            <span v-else class="node-name">{{ displayName }}</span>
 
             <!-- 计数标签 -->
             <span class="badges">
@@ -213,6 +251,7 @@ function onMouseDown(e) {
                 :projects="projects"
                 :selected="selected"
                 :collapsed="collapsed"
+                :renaming-path="renamingPath"
                 @select="emit('select', $event)"
                 @toggle="emit('toggle', $event)"
                 @toggle-archive="
@@ -224,6 +263,8 @@ function onMouseDown(e) {
                 @context-menu="
                     (x, y, p) => emit('context-menu', x, y, p)
                 "
+                @rename="(p, n) => emit('rename', p, n)"
+                @cancel-rename="emit('cancel-rename')"
             />
         </template>
     </div>
@@ -292,6 +333,18 @@ function onMouseDown(e) {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+/* 改名输入框：占位跟 .node-name 差不多大，避免替换时行高跳动 */
+.node-name-input {
+    flex: 1;
+    min-width: 0;
+    padding: 1px 5px;
+    font-size: 0.9231rem;
+    border: 1px solid var(--blue);
+    border-radius: 4px;
+    background: var(--bg-dark);
+    color: var(--fg);
 }
 
 /* 计数徽章组 */

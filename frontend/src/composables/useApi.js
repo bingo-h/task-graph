@@ -67,6 +67,11 @@ export async function moveProject(path, newParent) {
   return call("move_project", { args: { path, new_parent: newParent || null } });
 }
 
+/** 重命名项目（及级联更新子项目路径、其下任务的 project 字段），父级不变；newName 是单独一段名字，不是完整路径。 */
+export async function renameProject(path, newName) {
+  return call("rename_project", { args: { path, new_name: newName } });
+}
+
 /** 获取应用设置：{ trash_retention_days, font_size, font_family, ... }。 */
 export async function getSettings() {
   return call("get_settings");

@@ -23,6 +23,8 @@ const props = defineProps({
     selected: { type: String, default: null },
     // 被标记为"今日任务"的任务数，用于旁边的计数徽标
     todayCount: { type: Number, default: 0 },
+    // 任务看板中间面板当前是导图还是列表模式，标题栏放个切换按钮，状态本身由 App.vue 持有
+    boardViewMode: { type: String, default: "graph" },
 });
 
 const emit = defineEmits([
@@ -34,6 +36,8 @@ const emit = defineEmits([
     "restore-project",
     "purge-project",
     "move-project",
+    "rename-project",
+    "update:boardViewMode",
 ]);
 
 const collapsed = ref(new Set());
@@ -266,6 +270,25 @@ function onMenuNewSubproject() {
     openNewProjectInput(contextMenu.path);
 }
 
+// ----------------------------------------
+// 重命名：右键菜单触发，节点名原地变成输入框（ProjectTreeNode 自己渲染），
+// 这里只管跨递归层级传下去的"当前正在改名哪个路径"这一份状态
+// ----------------------------------------
+const renamingPath = ref(null);
+
+function onMenuRename() {
+    renamingPath.value = contextMenu.path;
+}
+
+function onNodeRename(path, newName) {
+    renamingPath.value = null;
+    emit("rename-project", path, newName);
+}
+
+function onNodeCancelRename() {
+    renamingPath.value = null;
+}
+
 function onMenuMove(target) {
     emit("move-project", contextMenu.path, target);
 }
@@ -313,12 +336,45 @@ function selectToday() {
         <div class="tree-header">
             <span class="tree-title">项目</span>
             <div class="tree-header-actions">
+                <!-- 任务看板导图/列表切换 -->
+                <div class="board-view-toggle">
+                    <button
+                        class="board-view-btn"
+                        :class="{ active: boardViewMode === 'graph' }"
+                        title="导图模式"
+                        @click="emit('update:boardViewMode', 'graph')"
+                    >
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="18" cy="5" r="3" />
+                            <circle cx="6" cy="12" r="3" />
+                            <circle cx="18" cy="19" r="3" />
+                            <line x1="8.6" y1="13.5" x2="15.4" y2="17.5" />
+                            <line x1="15.4" y1="6.5" x2="8.6" y2="10.5" />
+                        </svg>
+                    </button>
+                    <button
+                        class="board-view-btn"
+                        :class="{ active: boardViewMode === 'list' }"
+                        title="列表模式"
+                        @click="emit('update:boardViewMode', 'list')"
+                    >
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="8" y1="6" x2="21" y2="6" />
+                            <line x1="8" y1="12" x2="21" y2="12" />
+                            <line x1="8" y1="18" x2="21" y2="18" />
+                            <line x1="3" y1="6" x2="3.01" y2="6" />
+                            <line x1="3" y1="12" x2="3.01" y2="12" />
+                            <line x1="3" y1="18" x2="3.01" y2="18" />
+                        </svg>
+                    </button>
+                </div>
+
                 <button
                     class="new-project-btn"
                     title="新建项目"
                     @click="openNewProjectInput()"
                 >
-                    +
+                    <span>+</span>
                 </button>
             </div>
 
@@ -409,6 +465,7 @@ function selectToday() {
                             :projects="projects"
                             :selected="selected"
                             :collapsed="collapsed"
+                            :renaming-path="renamingPath"
                             @select="
                                 (path) =>
                                     emit(
@@ -431,6 +488,8 @@ function selectToday() {
                                 (path) => emit('restore-project', path)
                             "
                             @context-menu="onContextMenu"
+                            @rename="onNodeRename"
+                            @cancel-rename="onNodeCancelRename"
                         />
 
                         <div
@@ -455,6 +514,7 @@ function selectToday() {
             :move-targets="moveTargets"
             @close="closeContextMenu"
             @new-subproject="onMenuNewSubproject"
+            @rename="onMenuRename"
             @move="onMenuMove"
             @toggle-archive="onMenuArchive"
             @trash="onMenuTrash"
@@ -515,16 +575,56 @@ function selectToday() {
     gap: 6px;
 }
 
+/* 任务看板导图/列表切换：两个按钮装在同一个带边框的圆角容器里（跟 .page-nav 那组分段按钮
+   同一种视觉语言——圆角矩形，不是全圆的胶囊），高度对齐旁边的"新建项目"按钮 */
+.board-view-toggle {
+    display: flex;
+    gap: 1px;
+    padding: 1px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+}
+.board-view-btn {
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 5px;
+    color: var(--fg-dim);
+    transition: all 0.15s;
+}
+.board-view-btn svg {
+    width: 15px;
+    height: 15px;
+}
+.board-view-btn:hover {
+    color: var(--fg);
+    background: rgba(0, 0, 0, 0.05);
+}
+.board-view-btn.active {
+    color: var(--blue);
+    background: rgba(122, 162, 247, 0.14);
+}
+
 /* 新建项目按钮 */
 .new-project-btn {
-    width: 18px;
-    height: 18px;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     line-height: 1;
-    border-radius: 4px;
+    border-radius: 5px;
     border: 1px solid var(--border);
     color: var(--fg-dim);
-    font-size: 1rem;
+    font-size: 1.2308rem;
     transition: all 0.15s;
+}
+/* flex 居中只能对齐"+"这个字形所在行盒的几何中心，但大多数字体画"+"时
+   笔画本身比行盒中心略靠下，视觉上会偏下一点，手动往上挪一点点纠正 */
+.new-project-btn span {
+    transform: translateY(-1px);
 }
 .new-project-btn:hover {
     color: var(--blue);

@@ -20,8 +20,14 @@ pub struct ProjectRecord {
     pub trashed_at: Option<String>,
 }
 
-/// 显式创建一个项目，路径已存在时忽略
+/// 显式创建一个项目；路径已经存在就报错——不管是已经显式创建过，还是仅仅被某个任务
+/// 隐式引用过（这种情况下项目树里其实已经能看到这个路径了，"新建"等于什么都没发生，
+/// 原来用 INSERT OR IGNORE 静默忽略，用户会以为点了新建却什么反馈都没有）
 pub fn create(conn: &Connection, path: &str, stage: &str) -> Result<()> {
+    if list_existing_project_paths(conn)?.contains(path) {
+        return Err(anyhow!("项目\"{path}\"已存在"));
+    }
+
     let created_at = chrono::Utc::now().to_rfc3339();
 
     conn.execute(

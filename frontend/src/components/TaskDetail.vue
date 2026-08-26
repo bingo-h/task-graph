@@ -388,6 +388,13 @@ function statusLabel(s) {
                     </span>
                 </div>
 
+                <div v-if="task.started_at" class="detail-row">
+                    <span class="detail-key">开始于</span>
+                    <span class="detail-val">
+                        {{ formatDateTime(task.started_at) }}
+                    </span>
+                </div>
+
                 <div
                     v-if="task.status === 'completed' && task.end"
                     class="detail-row"

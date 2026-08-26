@@ -20,6 +20,7 @@ pub struct CreateTaskRequest {
     pub priority: Option<String>,
     pub due: Option<String>,
     pub scheduled: Option<String>,
+    pub started_at: Option<String>,
     pub tags: Vec<String>,
     pub depends: Vec<String>,
     /// 备注：非空时作为任务唯一的一条 annotation
@@ -37,12 +38,14 @@ pub struct UpdateTaskRequest {
     pub priority: Option<String>,
     pub due: Option<String>,
     pub scheduled: Option<String>,
+    pub started_at: Option<String>,
     pub tags: Option<Vec<String>>,
     pub depends: Option<Vec<String>>,
     pub clear_project: bool,
     pub clear_priority: bool,
     pub clear_due: bool,
     pub clear_scheduled: bool,
+    pub clear_started_at: bool,
     /// 备注：非空时整体替换原有的那一条 annotation；为空且 clear_annotation 为 false 时不改动
     pub annotation: Option<String>,
     pub clear_annotation: bool,
@@ -57,7 +60,7 @@ pub fn list_all(conn: &Connection) -> Result<Vec<Task>> {
     let mut stmt = conn.prepare(
         "SELECT uuid, description, status, project, priority, urgency,
              due, scheduled, created_at, end, depends, annotations,
-             today_marked_date, icon, color, recur_rule
+             today_marked_date, icon, color, recur_rule, started_at
         FROM tasks WHERE status != 'deleted' ORDER BY urgency DESC",
     )?;
 
@@ -80,7 +83,7 @@ pub fn get_by_uuid(conn: &Connection, uuid: &str) -> Result<Option<Task>> {
     let mut stmt = conn.prepare(
         "SELECT uuid, description, status, project, priority, urgency,
                     due, scheduled, created_at, end, depends, annotations,
-                    today_marked_date, icon, color, recur_rule
+                    today_marked_date, icon, color, recur_rule, started_at
               FROM tasks WHERE uuid = ?1",
     )?;
 
@@ -155,8 +158,8 @@ pub fn create(conn: &Connection, req: &CreateTaskRequest) -> Result<Task> {
         "
             INSERT INTO tasks
                 (uuid, description, status, project, priority, urgency,
-                 due, scheduled, created_at, depends, annotations, icon, color)
-            VALUES (?1, ?2, 'pending', ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
+                 due, scheduled, created_at, depends, annotations, icon, color, started_at)
+            VALUES (?1, ?2, 'pending', ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)
         ",
         params![
             uuid,
@@ -171,6 +174,7 @@ pub fn create(conn: &Connection, req: &CreateTaskRequest) -> Result<Task> {
             annotations_json,
             req.icon,
             req.color,
+            req.started_at,
         ],
     )?;
 
@@ -218,6 +222,12 @@ pub fn update(conn: &Connection, uuid: &str, req: &UpdateTaskRequest) -> Result<
         req.scheduled.as_deref().or(current.scheduled.as_deref())
     };
 
+    let started_at = if req.clear_started_at {
+        None
+    } else {
+        req.started_at.as_deref().or(current.started_at.as_deref())
+    };
+
     let tags = req.tags.as_ref().unwrap_or(&current.tags);
     let depends = req.depends.as_ref().unwrap_or(&current.depends);
 
@@ -255,7 +265,7 @@ pub fn update(conn: &Connection, uuid: &str, req: &UpdateTaskRequest) -> Result<
         "UPDATE tasks SET
                 description=?2, project=?3, priority=?4, urgency=?5,
                 due=?6, scheduled=?7, depends=?8, annotations=?9,
-                icon=?10, color=?11
+                icon=?10, color=?11, started_at=?12
              WHERE uuid=?1
         ",
         params![
@@ -270,6 +280,7 @@ pub fn update(conn: &Connection, uuid: &str, req: &UpdateTaskRequest) -> Result<
             annotations_json,
             icon,
             color,
+            started_at,
         ],
     )?;
 
@@ -293,12 +304,14 @@ pub fn set_depends(conn: &Connection, uuid: &str, depends: Vec<String>) -> Resul
             priority: None,
             due: None,
             scheduled: None,
+            started_at: None,
             tags: None,
             depends: Some(depends),
             clear_project: false,
             clear_priority: false,
             clear_due: false,
             clear_scheduled: false,
+            clear_started_at: false,
             annotation: None,
             clear_annotation: false,
             icon: None,
@@ -323,12 +336,14 @@ pub fn set_project(conn: &Connection, uuid: &str, project: Option<String>) -> Re
             priority: None,
             due: None,
             scheduled: None,
+            started_at: None,
             tags: None,
             depends: None,
             clear_project,
             clear_priority: false,
             clear_due: false,
             clear_scheduled: false,
+            clear_started_at: false,
             annotation: None,
             clear_annotation: false,
             icon: None,
@@ -336,6 +351,17 @@ pub fn set_project(conn: &Connection, uuid: &str, project: Option<String>) -> Re
             color: None,
             clear_color: false,
         },
+    )?;
+    Ok(())
+}
+
+/// 若任务还没有开始日期/时间，把它设成给定的时刻；已经手动填过的不覆盖。
+/// 由 db::time_entry::start_many 在首次为任务计时时调用，用那次计时的
+/// 开始时间顺带当作任务开始时间
+pub fn set_started_at_if_unset(conn: &Connection, uuid: &str, started_at: &str) -> Result<()> {
+    conn.execute(
+        "UPDATE tasks SET started_at = ?2 WHERE uuid = ?1 AND started_at IS NULL",
+        params![uuid, started_at],
     )?;
     Ok(())
 }
@@ -447,5 +473,6 @@ fn row_to_task(row: &rusqlite::Row) -> rusqlite::Result<Task> {
         color: row.get(14)?,
         is_recurring: recur_rule.is_some(),
         recur_rule,
+        started_at: row.get(16)?,
     })
 }

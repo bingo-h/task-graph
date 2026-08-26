@@ -150,6 +150,11 @@ const MIGRATIONS: &[&str] = &[
     // 版本号机制保证只补算一次（见 init() 里版本 15 的特殊分支）。
     r#"
     "#,
+    // 版本 16: 任务开始日期/时间，可选。留空时首次为该任务计时会自动补上那一刻
+    // （见 db::task::set_started_at_if_unset，由 db::time_entry::start_many 调用）
+    r#"
+    ALTER TABLE tasks ADD COLUMN started_at TEXT;
+    "#,
 ];
 
 /// 初始化数据库 schema ，自动执行尚未应用的迁移

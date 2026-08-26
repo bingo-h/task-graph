@@ -51,6 +51,14 @@ const dueTime = ref(""); // 格式: HH:MM，可选；留空则由后端用设置
 watch(due, (value) => {
     if (!value) dueTime.value = "";
 });
+
+// 任务开始日期/时间，可选；留空则首次为任务计时时自动补上那一刻
+const startedAt = ref(""); // 格式: YYYY-MM-DD
+const startedAtTime = ref(""); // 格式: HH:MM，可选；留空按当天 00:00 处理
+watch(startedAt, (value) => {
+    if (!value) startedAtTime.value = "";
+});
+
 const priority = ref(""); // H | M | L
 const tags = ref([]);
 const tagInput = ref(""); // 标签输入框临时值
@@ -180,6 +188,8 @@ watch(
             // 不然非 UTC+0 时区下日期选择器里显示的会跟用户原本设置的对不上
             due.value = isoToLocalDate(props.prefill.due);
             dueTime.value = isoToLocalTime(props.prefill.due);
+            startedAt.value = isoToLocalDate(props.prefill.started_at);
+            startedAtTime.value = isoToLocalTime(props.prefill.started_at);
             priority.value = props.prefill.priority || "";
             tags.value = [...(props.prefill.tags || [])]; // ...操作符代表把(数组内)的元素放入外部[新数组]内
             depends.value = [...(props.prefill.depends || [])];
@@ -208,6 +218,8 @@ watch(
 
             due.value = "";
             dueTime.value = "";
+            startedAt.value = "";
+            startedAtTime.value = "";
             priority.value = "";
             tags.value = [];
             depends.value = [];
@@ -397,6 +409,16 @@ function buildDueValue() {
     return dueTime.value ? localDateTimeToIso(due.value, dueTime.value) : due.value;
 }
 
+/**
+ * 拼出提交给后端的 started_at 值：只要选了日期就把本地日期+时刻（没选具体
+ * 时刻就按当天 00:00 处理）换算成正确的 UTC 时间戳直接传给后端，不像 due
+ * 那样支持传裸日期——开始时间没有"默认到期时间"这种设置项可以补时间。
+ */
+function buildStartedAtValue() {
+    if (!startedAt.value) return null;
+    return localDateTimeToIso(startedAt.value, startedAtTime.value);
+}
+
 function submit() {
     if (!description.value.trim()) return;
 
@@ -422,6 +444,12 @@ function submit() {
             fields.due = buildDueValue();
         } else if (props.prefill.due) {
             fields.clear_due = true;
+        }
+
+        if (startedAt.value) {
+            fields.started_at = buildStartedAtValue();
+        } else if (props.prefill.started_at) {
+            fields.clear_started_at = true;
         }
 
         if (priority.value) {
@@ -460,6 +488,7 @@ function submit() {
                 description: description.value,
                 project: project.value || null,
                 due: buildDueValue(),
+                started_at: buildStartedAtValue(),
                 priority: priority.value || null,
                 scheduled: null,
                 tags: tags.value,
@@ -558,6 +587,27 @@ function submit() {
                                 class="form-input due-time-input"
                                 :disabled="!due"
                                 :title="due ? '' : '先选日期再指定时间'"
+                            />
+                        </div>
+                    </div>
+
+                    <!-- 开始日期 -->
+                    <div class="form-row">
+                        <label class="form-label">
+                            <span>开始日期</span>
+                            <span class="form-hint">
+                                不填的话，首次为这个任务计时时会自动记为开始时间
+                            </span>
+                        </label>
+                        <div class="due-row">
+                            <DatePicker v-model="startedAt" />
+                            <input
+                                v-model="startedAtTime"
+                                type="time"
+                                step="60"
+                                class="form-input due-time-input"
+                                :disabled="!startedAt"
+                                :title="startedAt ? '' : '先选日期再指定时间'"
                             />
                         </div>
                     </div>

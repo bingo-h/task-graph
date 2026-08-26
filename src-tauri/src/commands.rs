@@ -51,6 +51,10 @@ pub struct AddTaskArgs {
     pub due: Option<String>,
     pub scheduled: Option<String>,
 
+    /// 任务开始日期/时间，可选；留空则首次为该任务计时时自动补上那一刻
+    #[serde(default)]
+    pub started_at: Option<String>,
+
     #[serde(default)]
     pub tags: Vec<String>,
 
@@ -93,6 +97,10 @@ pub struct ModifyTaskArgs {
     #[serde(default)]
     pub scheduled: Option<String>,
 
+    /// 任务开始日期/时间，可选；留空则首次为该任务计时时自动补上那一刻
+    #[serde(default)]
+    pub started_at: Option<String>,
+
     #[serde(default)]
     pub tags: Option<Vec<String>>,
 
@@ -110,6 +118,10 @@ pub struct ModifyTaskArgs {
 
     #[serde(default)]
     pub clear_scheduled: bool,
+
+    /// 显式清空开始日期/时间
+    #[serde(default)]
+    pub clear_started_at: bool,
 
     /// 备注：非空时整体替换原有的那一条 annotation；不提供则不改动
     #[serde(default)]
@@ -608,6 +620,7 @@ pub fn add_task(args: AddTaskArgs) -> Result<GraphResponse, String> {
             priority: args.priority,
             due: normalize_due(args.due)?,
             scheduled: args.scheduled,
+            started_at: args.started_at,
             tags: args.tags,
             depends: args.depends,
             annotation: args.annotation,
@@ -639,12 +652,14 @@ pub fn modify_task(args: ModifyTaskArgs) -> Result<GraphResponse, String> {
             priority: args.priority,
             due: normalize_due(args.due)?,
             scheduled: args.scheduled,
+            started_at: args.started_at,
             tags: args.tags,
             depends: args.depends,
             clear_project: args.clear_project,
             clear_priority: args.clear_priority,
             clear_due: args.clear_due,
             clear_scheduled: args.clear_scheduled,
+            clear_started_at: args.clear_started_at,
             annotation: args.annotation,
             clear_annotation: args.clear_annotation,
             icon: args.icon,

@@ -81,6 +81,11 @@ pub struct Task {
     pub due: Option<String>,
     pub scheduled: Option<String>,
 
+    /// 任务开始日期/时间，可选。留空时首次为该任务计时会自动补上那一刻
+    /// （见 db::task::set_started_at_if_unset）
+    #[serde(default)]
+    pub started_at: Option<String>,
+
     /// 创建日期
     pub created_at: String,
 

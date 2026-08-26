@@ -35,7 +35,9 @@ pub fn start(conn: &Connection, task_uuid: &str) -> Result<()> {
 }
 
 /// 同时为多个任务开始计时（同一段专注时间内一起处理的一批任务），
-/// 先结束其他正在进行的计时段，再为每个任务各插入一条共享同一开始时间的记录
+/// 先结束其他正在进行的计时段，再为每个任务各插入一条共享同一开始时间的记录。
+/// 顺带给还没有开始日期/时间的任务补上这一刻——"开始日期/时间"是可选字段，
+/// 留空时就用第一次真正开始计时的那一刻当作任务的开始时间。
 pub fn start_many(conn: &Connection, task_uuids: &[String]) -> Result<()> {
     stop_active(conn)?;
 
@@ -45,6 +47,7 @@ pub fn start_many(conn: &Connection, task_uuids: &[String]) -> Result<()> {
             "INSERT INTO time_entries (task_uuid, start, end) VALUES (?1, ?2, NULL)",
             params![task_uuid, start],
         )?;
+        crate::db::task::set_started_at_if_unset(conn, task_uuid, &start)?;
     }
 
     Ok(())

@@ -47,13 +47,14 @@
 
 - Rust 1.75+
 - Node.js 18+
-- Tauri CLI：`cargo install tauri-cli --version "^2"` 或用 `npm run tauri`（通过 devDependencies 中的 `@tauri-apps/cli`）
+- pnpm 9+
+- Tauri CLI：`cargo install tauri-cli --version "^2"` 或用 `pnpm tauri`（通过 devDependencies 中的 `@tauri-apps/cli`）
 
 ## 开发环境启动
 
 ```bash
 # 安装前端依赖（含 @tauri-apps/api、@tauri-apps/cli）
-cd frontend && npm install && cd ..
+cd frontend && pnpm install && cd ..
 
 # 启动开发模式（自动拉起 Vite + Tauri 窗口，支持热重载）
 cd src-tauri
@@ -61,7 +62,7 @@ cargo tauri dev
 ```
 
 `cargo tauri dev` 会根据 `tauri.conf.json` 里的 `beforeDevCommand` 自动启动
-`frontend` 目录下的 `npm run dev`，不需要手动开两个终端。
+`frontend` 目录下的 `pnpm run dev`，不需要手动开两个终端。
 
 ## 生产构建
 

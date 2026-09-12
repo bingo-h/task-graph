@@ -12,12 +12,12 @@
 
 ```bash
 # 安装前端依赖（首次 / 拉取到依赖变更后）
-cd frontend && npm install
+cd frontend && pnpm install
 
 # 开发模式：同时拉起 Vite 和 Tauri 窗口，支持热重载
 cd src-tauri && cargo tauri dev
 # （cargo tauri dev 会根据 tauri.conf.json 的 beforeDevCommand 自动执行
-#  `npm run dev --prefix frontend`，不需要单独再起一个 Vite）
+#  `pnpm --dir frontend run dev`，不需要单独再起一个 Vite）
 
 # 生产构建（产物在 src-tauri/target/release/bundle/ 下，按平台分类）
 cd src-tauri && cargo tauri build
@@ -30,10 +30,10 @@ cd src-tauri && cargo test
 cd src-tauri && cargo test <test_name>   # 只跑单个测试
 
 # 前端：只有生产构建，package.json 里没有配置专门的 lint/test 脚本
-cd frontend && npm run build
+cd frontend && pnpm run build
 ```
 
-前端没有测试套件，也没有配置 lint 命令——不要臆造 `npm test`/`npm run lint` 这类命令。验证前端改动用 `npm run build`（能捕获 Vue 模板/脚本错误），条件允许的话直接把应用跑起来验证。
+前端没有测试套件，也没有配置 lint 命令——不要臆造 `pnpm test`/`pnpm run lint` 这类命令。验证前端改动用 `pnpm run build`（能捕获 Vue 模板/脚本错误），条件允许的话直接把应用跑起来验证。
 
 注意：`frontend/vite.config.ts` 是脚手架遗留的杂物文件（引用了 `vite-plugin-vue-devtools`，但这个包根本不在依赖列表里；还配了一个指向已废弃 FastAPI 后端的 `/api` 代理）。真正生效的是 `frontend/vite.config.js`（两个同时存在时 Vite 优先用 `.js`）——要改配置改这个文件，不要改 `.ts` 那个。
 

@@ -6,7 +6,7 @@
 
 ```bash
 # 安装前端依赖
-cd frontend && npm install
+cd frontend && pnpm install
 
 # 开发模式（Vite + Tauri 窗口，支持热重载）
 cd src-tauri && cargo tauri dev
@@ -22,7 +22,7 @@ cd src-tauri && cargo tauri dev
 ## 提交 Pull Request
 
 1. Fork 本仓库，基于 `master` 新建分支。
-2. 改动前端后请至少跑一次 `cd frontend && npm run build` 确认无构建错误（前端未配置 lint/test）。
+2. 改动前端后请至少跑一次 `cd frontend && pnpm run build` 确认无构建错误（前端未配置 lint/test）。
 3. 改动 Rust 后端后请跑：
    ```bash
    cd src-tauri && cargo check

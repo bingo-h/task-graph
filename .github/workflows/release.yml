@@ -33,12 +33,17 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - name: 安装 pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          package_json_file: frontend/package.json
+
       - name: 安装 Node.js
         uses: actions/setup-node@v7
         with:
           node-version: '24'
-          cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
+          cache: 'pnpm'
+          cache-dependency-path: frontend/pnpm-lock.yaml
 
       - name: 安装 Rust 工具链
         uses: dtolnay/rust-toolchain@stable
@@ -74,7 +79,7 @@ jobs:
 
       - name: 安装前端依赖
         working-directory: frontend
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       # 用 tag 名（去掉 v 前缀）覆盖 tauri.conf.json 的 version 字段，
       # 确保打包产物文件名的版本号与 Release tag 一致，仅在本次 CI checkout 中生效
@@ -91,7 +96,7 @@ jobs:
           "
 
       # cargo tauri build 会根据 tauri.conf.json 的 beforeBuildCommand
-      # 自动执行 `npm run build --prefix frontend`，无需单独构建前端。
+      # 自动执行 `pnpm --dir frontend run build`，无需单独构建前端。
       # createUpdaterArtifacts（tauri.conf.json 里配置）+ 下面两个签名环境变量，
       # 会让 Tauri 额外生成 .sig 签名文件，供应用内自动更新校验用
       - name: 构建 Tauri 应用

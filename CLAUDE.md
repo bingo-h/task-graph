@@ -35,8 +35,6 @@ cd frontend && pnpm run build
 
 前端没有测试套件，也没有配置 lint 命令——不要臆造 `pnpm test`/`pnpm run lint` 这类命令。验证前端改动用 `pnpm run build`（能捕获 Vue 模板/脚本错误），条件允许的话直接把应用跑起来验证。
 
-注意：`frontend/vite.config.ts` 是脚手架遗留的杂物文件（引用了 `vite-plugin-vue-devtools`，但这个包根本不在依赖列表里；还配了一个指向已废弃 FastAPI 后端的 `/api` 代理）。真正生效的是 `frontend/vite.config.js`（两个同时存在时 Vite 优先用 `.js`）——要改配置改这个文件，不要改 `.ts` 那个。
-
 ## 数据存储与便携性
 
 `tasks.db` 和 `settings.json` 默认保存在可执行文件所在目录旁边（如果这个目录不可写，会回退到一个类似 XDG 规范的数据目录，见 `src-tauri/src/db/mod.rs`），不会写入 `~/.local/share` 等系统标准路径。这是有意为之：把程序文件夹拷到任意位置（包括 U 盘）、删除文件夹，就是完整的安装/卸载流程。开发/测试时可以用 `TASK_GRAPH_DATA` 环境变量覆盖数据库路径。

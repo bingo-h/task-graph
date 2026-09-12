@@ -151,6 +151,38 @@ const displayTotalSeconds = computed(() => {
     return snapshotSeconds.value + elapsedSinceSnapshot;
 });
 
+// ----------------------------------------
+// 耗时展示模式：总耗时 / 今日耗时
+// ----------------------------------------
+const timerDisplayMode = ref("total"); // "total" | "today"
+
+function startOfLocalDay(d) {
+    const r = new Date(d);
+    r.setHours(0, 0, 0, 0);
+    return r;
+}
+
+/** 一段 [startMs, endMs) 区间与本地"今天"的重叠秒数；跟 ChartsPage.vue 的
+ *  overlapWithTodaySeconds 保持一致的口径 */
+function overlapWithTodaySeconds(startMs, endMs) {
+    const todayStart = startOfLocalDay(new Date()).getTime();
+    const todayEnd = todayStart + 86400 * 1000;
+    const overlap = Math.min(endMs, todayEnd) - Math.max(startMs, todayStart);
+    return overlap > 0 ? overlap / 1000 : 0;
+}
+
+/** 当前任务今日耗时（秒）：各计时记录与本地"今天"重叠部分之和，
+ *  正在进行的记录用 nowTick 实时计算 */
+const displayTodaySeconds = computed(() => {
+    let total = 0;
+    for (const entry of timeEntries.value) {
+        const startMs = new Date(entry.start).getTime();
+        const endMs = entry.end ? new Date(entry.end).getTime() : nowTick.value;
+        total += overlapWithTodaySeconds(startMs, endMs);
+    }
+    return total;
+});
+
 /** 格式化时间为 HH:MM */
 function formatTime(iso) {
     if (!iso) return "";
@@ -498,16 +530,36 @@ function statusLabel(s) {
 
             <!-- 计时 -->
             <div class="detail-section">
+                <div class="timer-mode-group">
+                    <button
+                        class="timer-mode-btn"
+                        :class="{ active: timerDisplayMode === 'total' }"
+                        @click="timerDisplayMode = 'total'"
+                    >
+                        总耗时
+                    </button>
+                    <button
+                        class="timer-mode-btn"
+                        :class="{ active: timerDisplayMode === 'today' }"
+                        @click="timerDisplayMode = 'today'"
+                    >
+                        今日耗时
+                    </button>
+                </div>
+
                 <div class="timer-row">
-                    <div class="timer-total">
-                        <span class="detail-key">耗时</span>
-                        <span
-                            class="detail-val timer-duration"
-                            :class="{ 'timer-active': task.is_timing }"
-                        >
-                            {{ formatDuration(displayTotalSeconds) }}
-                        </span>
-                    </div>
+                    <span
+                        class="detail-val timer-duration"
+                        :class="{ 'timer-active': task.is_timing }"
+                    >
+                        {{
+                            formatDuration(
+                                timerDisplayMode === "total"
+                                    ? displayTotalSeconds
+                                    : displayTodaySeconds,
+                            )
+                        }}
+                    </span>
 
                     <button
                         v-if="task.is_timing"
@@ -899,15 +951,33 @@ function statusLabel(s) {
 }
 
 /* 计时 */
+.timer-mode-group {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 8px;
+}
+.timer-mode-btn {
+    padding: 2px 8px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    font-size: 0.8462rem;
+    color: var(--fg-dim);
+    transition: all 0.15s;
+}
+.timer-mode-btn:hover {
+    color: var(--fg);
+    border-color: var(--fg-dark);
+}
+.timer-mode-btn.active {
+    background: rgba(122, 162, 247, 0.15);
+    color: var(--blue);
+    border-color: var(--blue);
+    font-weight: 600;
+}
 .timer-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 10px;
-}
-.timer-total {
-    display: flex;
-    align-items: baseline;
     gap: 10px;
 }
 .timer-duration {

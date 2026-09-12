@@ -6,6 +6,11 @@
 
 ## [未发布]
 
+### 变更
+
+- **前端包管理器由 npm 换成 pnpm**：`frontend/package-lock.json` 删除，改为 `frontend/pnpm-lock.yaml`；`frontend/package.json` 新增 `packageManager` 字段固定 pnpm 版本；`src-tauri/tauri.conf.json` 的 `beforeDevCommand`/`beforeBuildCommand` 改成 `pnpm --dir frontend run dev`/`run build`；`.github/workflows/release.yml` 改用 `pnpm/action-setup` + `pnpm install --frozen-lockfile` 安装依赖，`setup-node` 的缓存类型也同步改成 `pnpm`；`README.md`/`CONTRIBUTING.md`/`CLAUDE.md` 里涉及的 `npm install`/`npm run build`/`npm run dev` 等命令示例全部改成 pnpm 对应写法。
+- **应用图标**：`src-tauri/icons/` 下全部图标（`icon.png`/`icon.icns`/`icon.ico`、`32x32.png`/`128x128.png`/`128x128@2x.png`、Windows Store 用的 `Square*Logo.png`/`StoreLogo.png`）替换为新的 DAG 节点连线风格图标，用 `@tauri-apps/cli icon` 从一张 440×440 源图重新生成；`tauri.conf.json` 里引用的文件名未变。
+
 ### 新增
 
 - 补齐开源相关内容：新增 `LICENSE`（GPL-3.0）、`CONTRIBUTING.md` 贡献指南；README 加入协议徽章、贡献/许可证章节；`Cargo.toml`、`frontend/package.json` 补上 `license`/`repository` 字段。

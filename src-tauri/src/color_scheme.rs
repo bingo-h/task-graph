@@ -114,6 +114,90 @@ impl ColorTokens {
     }
 }
 
+/// 数据目录下的自定义配色方案文件夹，跟 settings.json/tasks.db 同级
+fn themes_dir() -> std::path::PathBuf {
+    crate::db::db_path()
+        .parent()
+        .map(|p| p.to_path_buf())
+        .unwrap_or_default()
+        .join("themes")
+}
+
+fn builtin_content(name: &str) -> Option<&'static str> {
+    match name {
+        "b" => Some(include_str!("themes/b.toml")),
+        "c" => Some(include_str!("themes/c.toml")),
+        "d" => Some(include_str!("themes/d.toml")),
+        _ => None,
+    }
+}
+
+/// 列出所有可选配色方案：3 个内置 + 数据目录 themes/ 下发现的 .toml 文件，
+/// 每项带一个可直接显示的名字（自定义文件读它自己的 name 字段，没写就用文件名兜底）
+pub fn list_all() -> Vec<ColorSchemeInfo> {
+    let mut result = Vec::new();
+    for key in ["b", "c", "d"] {
+        if let Some(content) = builtin_content(key) {
+            if let Ok(scheme) = toml::from_str::<ColorScheme>(content) {
+                let name = scheme.name.unwrap_or_else(|| format!("内置方案 {}", key));
+                result.push(ColorSchemeInfo {
+                    id: format!("builtin:{}", key),
+                    name,
+                });
+            }
+        }
+    }
+    if let Ok(entries) = std::fs::read_dir(themes_dir()) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.extension().and_then(|e| e.to_str()) != Some("toml") {
+                continue;
+            }
+            let Some(stem) = path.file_stem().and_then(|s| s.to_str()) else {
+                continue;
+            };
+            let name = std::fs::read_to_string(&path)
+                .ok()
+                .and_then(|content| toml::from_str::<ColorScheme>(&content).ok())
+                .and_then(|scheme| scheme.name)
+                .unwrap_or_else(|| stem.to_string());
+            result.push(ColorSchemeInfo {
+                id: format!("custom:{}", stem),
+                name,
+            });
+        }
+    }
+    result
+}
+
+/// 按 id 加载一个配色方案（内置走 include_str! 嵌入内容，自定义走磁盘读取），
+/// 解析并校验后返回
+pub fn get(id: &str) -> Result<ColorScheme, String> {
+    let content = if let Some(key) = id.strip_prefix("builtin:") {
+        builtin_content(key)
+            .ok_or_else(|| format!("未知的内置配色方案：{}", key))?
+            .to_string()
+    } else if let Some(stem) = id.strip_prefix("custom:") {
+        if stem.is_empty() || stem.contains('/') || stem.contains('\\') || stem.contains("..") {
+            return Err("非法的自定义配色文件名".to_string());
+        }
+        let path = themes_dir().join(format!("{}.toml", stem));
+        std::fs::read_to_string(&path).map_err(|e| format!("读取自定义配色文件失败：{}", e))?
+    } else {
+        return Err(format!("未知的配色方案 id：{}", id));
+    };
+
+    let scheme: ColorScheme =
+        toml::from_str(&content).map_err(|e| format!("配色文件解析失败：{}", e))?;
+    if let Some(light) = &scheme.light {
+        light.validate()?;
+    }
+    if let Some(dark) = &scheme.dark {
+        dark.validate()?;
+    }
+    Ok(scheme)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -179,5 +263,35 @@ mod tests {
         assert_eq!(light.blue.as_deref(), Some("#4f6bff"));
         assert!(light.bg.is_none());
         assert!(scheme.dark.is_none());
+    }
+
+    #[test]
+    fn get_builtin_b_parses_and_validates() {
+        let scheme = get("builtin:b").expect("内置方案 b 应该能正常加载");
+        assert_eq!(scheme.name.as_deref(), Some("沉稳深色系统"));
+        assert!(scheme.light.is_some());
+        assert!(scheme.dark.is_some());
+    }
+
+    #[test]
+    fn get_builtin_c_and_d_parse() {
+        assert!(get("builtin:c").is_ok());
+        assert!(get("builtin:d").is_ok());
+    }
+
+    #[test]
+    fn get_unknown_builtin_fails() {
+        assert!(get("builtin:a").is_err());
+    }
+
+    #[test]
+    fn get_custom_rejects_path_traversal() {
+        assert!(get("custom:../../etc/passwd").is_err());
+        assert!(get("custom:sub/dir").is_err());
+    }
+
+    #[test]
+    fn get_unknown_prefix_fails() {
+        assert!(get("nonsense").is_err());
     }
 }

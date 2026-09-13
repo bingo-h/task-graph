@@ -14,7 +14,7 @@
 
 - 所有注释、commit message 用简体中文；代码本身的标识符（变量名/函数名/CSS 类名）用英文。
 - 新增依赖一律用命令行工具添加（`cargo add <crate>` / `pnpm add <pkg>`），不手动改 `Cargo.toml`/`package.json`；不自己指定版本号，让工具解析最新版本，只有装不上/编译报不兼容错误时才根据报错降级到具体版本。
-- 每个任务完成后同步在 `CHANGELOG.md`（没有就新建，含"未发布"章节）补一条记录，具体到文件/函数/设置项级别。
+- 整个功能落地后在 `CHANGELOG.md`（没有就新建，含"未发布"章节）统一补一次记录，具体到文件/函数/设置项级别——本仓库的习惯是把功能提交和变更日志提交分开（参考 `git log` 里 `db08615 chore: 更新变更日志` 这类独立的日志提交，而不是每个小提交都各自维护一条），这次统一放在 Task 18 做，Task 1-17 不用各自更新 CHANGELOG。
 - 新 Tauri 命令的 JS 调用参数用 camelCase（除非命令签名是单个 struct 参数，此时该 struct 内部字段保持 snake_case）。
 - `list_color_schemes`/`get_color_scheme` 这两个新命令不调用 `build_graph()`——纯展示层读取，套用 `get_settings`/`list_system_fonts` 的模式，不是"改数据"命令的 `Args → db:: → build_graph()` 模式。
 - 前端没有测试框架和 lint 配置，"测试"步骤统一是 `cd frontend && pnpm run build` 跑通；不要发明 `pnpm test`/`pnpm run lint`。
@@ -1400,6 +1400,8 @@ EOF
 
 - [ ] **Step 2: 加应用逻辑函数**
 
+`applyColorScheme` 加载失败时要给用户可见的提示，不能只是 `console.error`——`App.vue` 里已经有一个现成的悬浮错误通知机制：`const error = ref("");`（本文件已有定义，不用新建），配合一个 `watch(error, ...)` 在 `settings.value.notification_duration_seconds` 秒后自动清空。想触发一次错误提示，直接 `error.value = "<提示文案>"` 即可，不需要手动管理定时器。
+
 在 `applyNodeFontFamily` 函数之后加：
 
 ```js
@@ -1441,6 +1443,7 @@ async function applyColorScheme(colorScheme, effectiveMode) {
         scheme = await getColorScheme(colorScheme);
     } catch (e) {
         console.error("加载配色方案失败，回落到默认配色", e);
+        error.value = "配色方案加载失败，已回落到默认配色";
         return;
     }
     const tokens = scheme[effectiveMode] || {};

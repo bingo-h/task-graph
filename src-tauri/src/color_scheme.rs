@@ -286,8 +286,11 @@ mod tests {
 
     #[test]
     fn get_custom_rejects_path_traversal() {
-        assert!(get("custom:../../etc/passwd").is_err());
-        assert!(get("custom:sub/dir").is_err());
+        let err = get("custom:../../etc/passwd").unwrap_err();
+        assert!(err.contains("非法"), "应该被文件名合法性校验拦下，而不是因为文件不存在报错：{}", err);
+
+        let err = get("custom:sub/dir").unwrap_err();
+        assert!(err.contains("非法"), "同上：{}", err);
     }
 
     #[test]

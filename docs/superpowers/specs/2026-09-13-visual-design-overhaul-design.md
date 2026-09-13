@@ -1,4 +1,4 @@
-# 视觉设计体系重做：配色方案 / 深浅模式 / 圆角 / 全局打磨
+# 视觉设计体系重做：配色方案 / 深浅模式 / 圆角 / 界面风格 / 全局打磨
 
 日期：2026-09-13
 状态：待用户审阅
@@ -7,11 +7,12 @@
 
 当前前端只有一套写死在 `frontend/src/style.css` 的浅色配色（GitHub 经典配色路线），没有暗色模式，圆角/阴影/间距/动效散落在各个组件的 `<style scoped>` 里各写各的，没有统一体系。
 
-这次要做三件事：
+这次要做四件事：
 
 1. 让配色变得**可切换、可自定义**——用户能在内置的几套预设之间切换，也能自己写一个 TOML 文件放进数据目录来自定义配色，未设置的颜色项自动沿用默认值（可选合并，不要求用户写全）。
 2. 补上**深浅模式**（跟随系统 / 浅色 / 深色），和上面的配色方案是两个独立维度——选哪套配色、用浅色还是深色版本，可以分别选。
-3. 把圆角、间距、阴影、动效收敛成统一的设计 token 体系，参照 Apple Human Interface Guidelines 的专业规范打磨全局细节（间距网格、阴影分级、缓动曲线、语义色的一致性），但**不做字体规范迁移、不做玻璃/半透明材质**——这两项明确排除在外。
+3. 把圆角、间距、阴影、动效收敛成统一的设计 token 体系，参照 Apple Human Interface Guidelines 的专业规范打磨全局细节（间距网格、阴影分级、缓动曲线、语义色的一致性），但**不做字体规范迁移**——继续沿用现有 `font_family`/`font_size` 设置机制。
+4. 新增**界面风格**设置——扁平 / 液态玻璃 / 新拟态三选一，随时可切换，只影响顶栏/侧栏/弹窗/下拉菜单/统计卡片这类中性外壳，不影响 DAG 图任务节点等需要传达语义色的部分（详见第 6 节）。液态玻璃已经排除了有几何形变风险的真实折射，只保留模糊+高光+色调这套跨平台安全的实现。
 
 ## 2. 范围边界
 
@@ -21,9 +22,10 @@
 - 圆角设置（单一滑块，全局生效）
 - 间距 / 阴影分级 / 动效缓动曲线的 token 化和统一应用
 - 现有硬编码节点状态色（`.rect-done` 等）提取成可被配色方案覆盖的 CSS 变量
+- **界面风格设置**（扁平 / 液态玻璃 / 新拟态，只影响外壳，见第 6 节）
 
 **明确不做的事**：
-- 玻璃/半透明材质（Liquid Glass）——本次讨论过，先放弃
+- 液态玻璃的真实几何折射（`feDisplacementMap` 物理折射）——探索阶段做出来在宽高比极端的顶栏上出现内容错位，定位不出根因，已经拿掉；只保留模糊+高光+色调三层安全实现
 - 自定义字体 / 对齐 SF Pro 的字体规范——继续沿用现有 `font_family`/`font_size` 设置机制，字体不在这次改动范围内
 - 任何 Rust 业务逻辑、`build_graph()`、数据库 schema 的改动——这次改动完全在展示层，不涉及任务数据的读写或计算逻辑
 - 引入 UI 组件库或切换应用外壳（Tauri → Electron 之类）——评估过，不划算，维持现状
@@ -186,13 +188,18 @@ pub theme_mode: String,
 /// 全局圆角基准（像素），派生出 --radius-sm/md/lg 三档
 #[serde(default = "default_corner_radius")]
 pub corner_radius: u32,
+
+/// 界面风格（只影响外壳，见第 6 节）："flat" | "glass" | "neumorphism"
+#[serde(default = "default_ui_style")]
+pub ui_style: String,
 ```
 
-默认值：`default_theme_mode() = "light"`（不用 `"system"`——现有用户升级后如果系统本身开着深色模式，不应该让应用外观在没有明确操作的情况下突变，深浅模式是要用户自己选的）；`default_corner_radius() = 10`。
+默认值：`default_theme_mode() = "light"`（不用 `"system"`——现有用户升级后如果系统本身开着深色模式，不应该让应用外观在没有明确操作的情况下突变，深浅模式是要用户自己选的）；`default_corner_radius() = 10`；`default_ui_style() = "flat"`。
 
 `save_settings` 校验分支：
 - `theme_mode` 必须是 `"system"`/`"light"`/`"dark"` 三者之一
 - `corner_radius` 限制在合理范围（比如 0–24）
+- `ui_style` 必须是 `"flat"`/`"glass"`/`"neumorphism"` 三者之一
 - `color_scheme` 格式校验：允许空串，或 `builtin:b|c|d`，或 `custom:<不含路径分隔符的文件名>`；具体某个自定义文件是否存在/合法，交给 3.3 的 `get_color_scheme` 在实际应用时校验，这里只做格式层面的校验
 
 ## 4. 圆角 token 化
@@ -207,31 +214,90 @@ pub corner_radius: u32,
 
 逐个替换掉现在散落在各组件 `<style scoped>` 里的硬编码 `border-radius`（按视觉量级归到三档之一），以及 `TaskGraph.vue` D3 节点矩形的圆角（目前节点矩形没有显式设置 `rx`，属于要新增的一部分，让节点也跟随圆角设置）。
 
-## 5. 全局视觉打磨（Apple HIG 取向，不含字体/玻璃）
+## 5. 全局视觉打磨（Apple HIG 取向，扁平基线，不含字体）
 
 - **间距**：新增一套 4px 基准的间距 token（`--space-1: 4px` 到 `--space-8: 32px` 左右），组件里逐步替换随手写的 margin/padding 数值——这一项工作量大、优先级低，本次按"顺手改到的地方就用新 token，不强求一次性扫全部组件"处理，不阻塞其它项。
 - **阴影分级**：收敛成 2–3 级 `--elevation-1`/`--elevation-2`/`--elevation-3`（对应静止面板、悬浮态、弹出层/Modal），替换现在各处力度不一的 `box-shadow`/`filter: drop-shadow(...)`。
 - **动效**：定义 1–2 条标准缓动曲线（一条常规 `--ease-standard: cubic-bezier(0.4, 0, 0.2, 1)`，一条类 spring 的 `--ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1)` 用于弹窗/悬浮层出现），替换现在参差不齐的 `transition: opacity 0.25s`/`0.15s` 散值。
 - **语义色**：`node-done`/`node-today`/`node-overdue`/`node-locked`/`node-waiting` 在 A 方案 light/dark 下的具体取值，沿用第一版概念稿已经定的色值（浅色是不透明淡色块，深色是低不透明度的彩色叠加，参考 Artifact 里 `[data-style="a"]` 的定义）。
 
-## 6. 需要改动的文件（供后续实施计划参考）
+## 6. 界面风格切换：扁平 / 液态玻璃 / 新拟态
+
+探索阶段额外做了液态玻璃和新拟态两个方向的概念稿（对话记录里的 Artifact），确认要把三者都做成可随时切换的独立设置，而不是三选一定稿——新增 `Settings.ui_style: String`（`"flat"` / `"glass"` / `"neumorphism"`，默认 `"flat"`）。这是一个跟 `color_scheme`/`theme_mode` 平行、互相独立的第三个维度，三者可以任意组合（比如"玻璃 + 深色 + C 配色"）。
+
+### 6.1 只切换"外壳"，不切换全部界面
+
+玻璃和新拟态这两种材质，对 DAG 图里五颜六色的任务状态色（完成/超时/今日/锁定）天然不友好：玻璃质感要求背景本身有可模糊的内容衬托，新拟态要求元素颜色接近背景色，两者都会被高饱和度的语义色破坏视觉逻辑（这两点在各自的概念稿里已经作为已知代价写明过）。所以"界面风格"这个设置**只影响外壳**：
+
+- **受影响**：顶栏、侧边栏、弹窗/Modal、下拉菜单、右键菜单、首页统计卡片——这些是中性容器，不承载语义色
+- **永远走扁平语言，不受这个设置影响**：DAG 图任务节点状态色、优先级标签、任务列表行——这些必须清晰传达状态，不能被材质效果干扰
+
+### 6.2 实现方式：外壳 token 层，不是三份组件样式
+
+不给每个外壳组件写三份完整 CSS，而是抽一层"外壳 token"，三种风格各自重新定义这几个 token 的值，外壳组件的 CSS 只写一份、只认 token：
+
+```css
+/* 默认（扁平）：直接复用已有的 --bg-panel / --radius-lg / --elevation-1 */
+:root {
+  --shell-bg: var(--bg-panel);
+  --shell-backdrop: none;
+  --shell-shadow: var(--elevation-1);
+  --shell-shadow-pressed: var(--blue-soft);
+  --shell-radius: var(--radius-lg);
+}
+[data-ui-style="glass"] {
+  --shell-bg: rgba(255,255,255,.06);       /* 深浅模式各有一套，这里只示意浅色 */
+  --shell-backdrop: blur(14px) saturate(1.3);
+  --shell-shadow: var(--elevation-glass);   /* 外侧投影 + 内侧高光描边，来自玻璃概念稿的三层结构 */
+  --shell-shadow-pressed: rgba(255,255,255,.14);
+}
+[data-ui-style="neumorphism"] {
+  --shell-bg: var(--neu-bg);
+  --shell-backdrop: none;
+  --shell-shadow: var(--neu-raised);
+  --shell-shadow-pressed: var(--neu-pressed);
+  --shell-radius: var(--radius-lg);
+}
+```
+
+外壳组件统一写成消费 token 的形式：
+
+```css
+.topbar, .sidebar, .modal, .dropdown-menu, .stat-card {
+  background: var(--shell-bg);
+  backdrop-filter: var(--shell-backdrop);
+  box-shadow: var(--shell-shadow);
+  border-radius: var(--shell-radius);
+}
+.tab.active, .stat-card:active { box-shadow: var(--shell-shadow-pressed); }
+```
+
+切换风格只需要 `document.documentElement.setAttribute('data-ui-style', value)`，不需要改组件 CSS——跟 `data-theme-mode` 切换深浅色是同一套思路。`SettingsModal.vue` 的"外观"分区里新增一个"界面风格"分段控件（扁平/玻璃/新拟态），跟配色方案、深浅模式、圆角平级。
+
+### 6.3 已知代价
+
+- 比原计划（只做一套扁平体系）工作量明显更大——顶栏/侧栏/所有 Modal/下拉菜单/首页统计卡都要从"扁平专属写法"改造成"读外壳 token"的写法，这是新增的、原计划没有的重构面。
+- 三种风格各自的具体 token 取值（尤其玻璃的色调层、新拟态的双阴影强度）需要在实施阶段针对深浅色各定一遍，概念稿里的值是起点，不是最终值。
+- 玻璃风格已经去掉了有几何形变风险的真实折射，现在跟深浅模式一样是纯 CSS、三个 webview 引擎表现一致，不再有平台差异风险。
+
+## 7. 需要改动的文件（供后续实施计划参考）
 
 **后端**：
 - `src-tauri/Cargo.toml` —— 新增 `toml` 依赖
-- `src-tauri/src/settings.rs` —— 新增 `color_scheme`/`theme_mode`/`corner_radius` 三个字段、默认值函数、文档注释
+- `src-tauri/src/settings.rs` —— 新增 `color_scheme`/`theme_mode`/`corner_radius`/`ui_style` 四个字段、默认值函数、文档注释
 - `src-tauri/src/themes/b.toml`、`c.toml`、`d.toml` —— 新建，内置预设，`include_str!` 嵌入二进制
 - `src-tauri/src/commands.rs`（或新增一个 `src-tauri/src/color_scheme.rs` 模块，`ColorTokens`/`ColorScheme`/`ColorSchemeInfo` 结构体和校验逻辑放这里更合适，`commands.rs` 只放 `#[tauri::command]` 薄封装）—— 新增 `list_color_schemes`/`get_color_scheme` 命令；`save_settings` 加对应校验分支
 - Tauri 命令注册处（`invoke_handler![...]` 列表所在文件）—— 注册两个新命令
 
 **前端**：
-- `frontend/src/style.css` —— `:root` 换成 A 方案的浅色值；新增 `:root[data-theme-mode="dark"]` 暗色默认块；`.rect-*` 系列改成引用新的 `node-*` CSS 变量；新增 `--app-radius`/`--radius-*`/间距/`--elevation-*`/`--ease-*` 一系列 token；组件外的全局样式（D3 动态元素那节）里的圆角/阴影/动效改用新 token
+- `frontend/src/style.css` —— `:root` 换成 A 方案的浅色值；新增 `:root[data-theme-mode="dark"]` 暗色默认块；`.rect-*` 系列改成引用新的 `node-*` CSS 变量；新增 `--app-radius`/`--radius-*`/间距/`--elevation-*`/`--ease-*` 一系列 token；新增 `--shell-*` 外壳 token 及 `[data-ui-style="glass"]`/`[data-ui-style="neumorphism"]` 两组覆盖值（含玻璃的 `::before`/`::after` 三层结构、新拟态的浮起/凹陷双阴影）；组件外的全局样式（D3 动态元素那节）里的圆角/阴影/动效改用新 token
 - `frontend/src/composables/useApi.js` —— 新增 `listColorSchemes()`、`getColorScheme(id)` 封装（注意参数按 camelCase 传）
-- `frontend/src/App.vue` —— `settings` ref 新增三个字段；新增 `applyColorScheme`/`applyCornerRadius`/`computeEffectiveMode`；`matchMedia` 监听；`onMounted` 和保存设置后调用
-- `frontend/src/components/SettingsModal.vue` —— 新增"外观"分区：配色方案下拉、深浅模式选择、圆角滑块；打开弹窗时回填这三项 + 刷新自定义配色列表
-- 各组件 `<style scoped>` 里硬编码 border-radius/box-shadow/transition 的地方逐个换成新 token（`TaskFormModal.vue`、`ConfirmDialog.vue`、`TagManagerModal.vue`、`TimeEntryNoteModal.vue`、`IconPicker.vue`、`DatePicker.vue`、`ProjectTree.vue`、`ProjectTreeNode.vue`、`ProjectContextMenu.vue`、`Dashboard.vue`、`TaskDetail.vue`、`TaskListView.vue`、`ChartsPage.vue`、`CalendarPage.vue`、`ColorSwatchPicker.vue`）—— 这部分是"全局打磨"里工作量最大的一块
-- `frontend/src/components/TaskGraph.vue` —— D3 节点矩形新增 `rx` 绑定到 `--radius-md`
+- `frontend/src/App.vue` —— `settings` ref 新增四个字段；新增 `applyColorScheme`/`applyCornerRadius`/`applyUiStyle`/`computeEffectiveMode`；`matchMedia` 监听；`onMounted` 和保存设置后调用
+- `frontend/src/components/SettingsModal.vue` —— 新增"外观"分区：配色方案下拉、深浅模式选择、圆角滑块、界面风格分段控件（扁平/玻璃/新拟态）；打开弹窗时回填这四项 + 刷新自定义配色列表
+- 各组件 `<style scoped>` 里硬编码 border-radius/box-shadow/transition 的地方逐个换成新 token（`TaskFormModal.vue`、`ConfirmDialog.vue`、`TagManagerModal.vue`、`TimeEntryNoteModal.vue`、`IconPicker.vue`、`DatePicker.vue`、`ProjectTree.vue`、`ProjectTreeNode.vue`、`ProjectContextMenu.vue`、`Dashboard.vue`、`TaskDetail.vue`、`TaskListView.vue`、`ChartsPage.vue`、`CalendarPage.vue`、`ColorSwatchPicker.vue`）—— 这部分是"全局打磨"里工作量最大的一块；其中顶栏（`App.vue`）、侧栏（`ProjectTree.vue`）、各 Modal、下拉/右键菜单、`Dashboard.vue` 统计卡片这几处额外要改成消费 `--shell-*` token 的写法
+- `frontend/src/components/TaskGraph.vue` —— D3 节点矩形新增 `rx` 绑定到 `--radius-md`；节点本身不接入 `--shell-*` token（第 6.1 节的边界）
 
-## 7. 验证方式
+## 8. 验证方式
 
 - `cargo check`：后端类型检查
 - `cargo test`：确认没有意外影响到现有测试（这次改动不涉及被测的业务逻辑，预期全部照常通过）
@@ -242,7 +308,8 @@ pub corner_radius: u32,
   - 拖动圆角滑块，按钮/输入框/卡片/图节点的圆角同步变化
   - 把一个只写了部分 key 的自定义 TOML 放进 `themes/` 目录，设置弹窗能选到，未写的 key 正确回落默认值
   - 放一个包含未知 key 或非法颜色值的自定义文件，选中时报错清晰，不影响应用其它部分正常使用
+  - 界面风格三选一（扁平/玻璃/新拟态）切换立即生效，且能跟深浅模式、配色方案任意组合；确认 DAG 图任务节点在三种风格下都保持不变的扁平语言
 
-## 8. 需要同步的变更日志
+## 9. 需要同步的变更日志
 
-按项目约定，实施完成后在 `CHANGELOG.md`（如果还没有则新建）的"未发布"章节补充条目，具体到本文档第 6 节列出的文件/函数/设置项级别。
+按项目约定，实施完成后在 `CHANGELOG.md`（如果还没有则新建）的"未发布"章节补充条目，具体到本文档第 7 节列出的文件/函数/设置项级别。

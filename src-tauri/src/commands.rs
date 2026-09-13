@@ -561,6 +561,18 @@ pub fn save_settings(settings: Settings) -> Result<Settings, String> {
             ));
         }
     }
+    if !crate::settings::validate_theme_mode(&settings.theme_mode) {
+        return Err("深浅模式取值不合法".to_string());
+    }
+    if settings.corner_radius > 24 {
+        return Err("圆角数值超出范围（0-24）".to_string());
+    }
+    if !crate::settings::validate_ui_style(&settings.ui_style) {
+        return Err("界面风格取值不合法".to_string());
+    }
+    if !crate::settings::validate_color_scheme_id(&settings.color_scheme) {
+        return Err("配色方案 id 格式不合法".to_string());
+    }
 
     crate::settings::save(&settings).map_err(|e| e.to_string())?;
 

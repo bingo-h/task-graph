@@ -5,6 +5,7 @@
 //! 应用毫无意义）。
 
 mod commands;
+mod color_scheme;
 mod db;
 mod fonts;
 mod graph_utils;

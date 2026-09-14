@@ -74,10 +74,10 @@ function submit() {
                 </div>
 
                 <div class="modal-footer">
-                    <button class="btn-cancel" @click="emit('close')">
+                    <button class="btn btn-secondary" @click="emit('close')">
                         {{ isEditingExisting ? "取消" : "跳过" }}
                     </button>
-                    <button class="btn-submit" @click="submit">保存</button>
+                    <button class="btn btn-primary" @click="submit">保存</button>
                 </div>
             </div>
         </div>
@@ -174,29 +174,5 @@ function submit() {
     gap: 8px;
     padding: 14px 20px;
     border-top: 1px solid var(--border);
-}
-.btn-submit {
-    padding: 7px 20px;
-    border-radius: 6px;
-    background: var(--blue);
-    color: var(--bg);
-    font-weight: 700;
-    font-size: 1rem;
-    transition: opacity 0.15s;
-}
-.btn-submit:hover {
-    opacity: 0.85;
-}
-.btn-cancel {
-    padding: 7px 16px;
-    border-radius: 6px;
-    border: 1px solid var(--border);
-    color: var(--fg-dim);
-    font-size: 1rem;
-    transition: all 0.15s;
-}
-.btn-cancel:hover {
-    color: var(--fg);
-    border-color: var(--fg-dark);
 }
 </style>

@@ -46,14 +46,14 @@ watch(
                 <div class="confirm-footer">
                     <button
                         ref="cancelBtnRef"
-                        class="btn-cancel"
+                        class="btn btn-secondary"
                         @click="resolveConfirm(false)"
                     >
                         {{ confirmState.cancelText }}
                     </button>
                     <button
-                        class="btn-submit"
-                        :class="{ 'btn-submit-danger': confirmState.danger }"
+                        class="btn"
+                        :class="confirmState.danger ? 'btn-danger-solid' : 'btn-primary'"
                         @click="resolveConfirm(true)"
                     >
                         {{ confirmState.confirmText }}
@@ -125,31 +125,13 @@ watch(
     padding: 14px 20px;
     border-top: 1px solid var(--border);
 }
-.btn-submit {
-    padding: 7px 20px;
-    border-radius: 6px;
-    background: var(--blue);
-    color: var(--bg);
-    font-weight: 700;
-    font-size: 1rem;
-    transition: opacity 0.15s;
-}
-.btn-submit:hover {
-    opacity: 0.85;
-}
-.btn-submit-danger {
+/* 危险确认（如删除）用实心红底，跟一般确认的 .btn-primary 区分开，
+   保留原本高强调的视觉分量；此处只叠加语义色，不重复 .btn 已提供的 padding/transition */
+.btn-danger-solid {
     background: var(--red);
+    color: var(--bg-panel);
 }
-.btn-cancel {
-    padding: 7px 16px;
-    border-radius: 6px;
-    border: 1px solid var(--border);
-    color: var(--fg-dim);
-    font-size: 1rem;
-    transition: all 0.15s;
-}
-.btn-cancel:hover {
-    color: var(--fg);
-    border-color: var(--fg-dark);
+.btn-danger-solid:hover {
+    opacity: 0.85;
 }
 </style>

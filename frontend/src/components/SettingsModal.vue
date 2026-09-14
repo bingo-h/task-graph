@@ -271,7 +271,7 @@ function submit() {
         node_label_recur: nodeLabelRecur.value.trim() || NODE_LABELS.recur,
         color_scheme: colorScheme.value,
         theme_mode: themeMode.value,
-        corner_radius: Math.min(24, Math.max(0, Math.round(Number(cornerRadius.value) || 10))),
+        corner_radius: clampStepperInput(cornerRadius.value, 0, 24, 10),
         ui_style: uiStyle.value,
     });
 }

@@ -442,3 +442,83 @@ rect.rect-overdue {
     color: var(--fg);
     box-shadow: var(--elevation-1);
 }
+
+/* ── 外壳 token（界面风格：扁平 / 液态玻璃 / 新拟态） ──────────────────────── */
+/* 只影响外壳（顶栏/侧栏/弹窗/下拉菜单/统计卡片），不影响 DAG 图任务节点的
+   语义色——节点状态色（node-done 等）不读这套 token，永远走扁平语言。
+   切换风格只是给 <html> 换一个 data-ui-style 属性，组件样式只认 --shell-*，
+   不需要为每个风格单独写一份组件 CSS。 */
+
+:root {
+    --shell-bg: var(--bg-panel);
+    --shell-backdrop: none;
+    --shell-border: 1px solid var(--border);
+    --shell-shadow: var(--elevation-1);
+    --shell-shadow-pressed: var(--bg-select);
+    --shell-radius: var(--radius-lg);
+    --shell-fg: var(--fg);
+    --shell-fg-dim: var(--fg-dim);
+}
+
+html[data-ui-style="glass"] {
+    --shell-bg: rgba(255, 255, 255, 0.5);
+    --shell-tint: rgba(255, 255, 255, 0.06);
+    --shell-backdrop: blur(14px) saturate(1.3);
+    --shell-border: 1px solid rgba(255, 255, 255, 0.14);
+    --shell-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), 0 8px 24px rgba(16, 24, 40, 0.16);
+    --shell-shadow-pressed: rgba(255, 255, 255, 0.16);
+    --shell-radius: var(--radius-lg);
+}
+html[data-ui-style="glass"][data-theme-mode="dark"] {
+    --shell-bg: rgba(20, 20, 26, 0.5);
+    --shell-tint: rgba(255, 255, 255, 0.04);
+    --shell-border: 1px solid rgba(255, 255, 255, 0.08);
+    --shell-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 12px 32px rgba(0, 0, 0, 0.5);
+    --shell-shadow-pressed: rgba(255, 255, 255, 0.1);
+}
+
+html[data-ui-style="neumorphism"] {
+    --shell-bg: #e8ecf3;
+    --shell-backdrop: none;
+    --shell-border: none;
+    --neu-shadow-d: rgba(163, 177, 198, 0.55);
+    --neu-shadow-l: rgba(255, 255, 255, 0.9);
+    --shell-shadow: 6px 6px 12px var(--neu-shadow-d), -6px -6px 12px var(--neu-shadow-l);
+    --shell-shadow-pressed: inset 4px 4px 8px var(--neu-shadow-d), inset -4px -4px 8px var(--neu-shadow-l);
+    --shell-radius: 16px;
+    --shell-fg: #414a5e;
+    --shell-fg-dim: #7c8598;
+}
+html[data-ui-style="neumorphism"][data-theme-mode="dark"] {
+    --shell-bg: #2b2f3a;
+    --neu-shadow-d: rgba(0, 0, 0, 0.6);
+    --neu-shadow-l: rgba(255, 255, 255, 0.055);
+    --shell-fg: #d7dbe6;
+    --shell-fg-dim: #8a90a3;
+}
+
+/* 玻璃质感的三层结构（外侧投影+内侧高光+色调叠加），给外壳组件一个共享类，
+   避免每个外壳组件都重复写一遍 ::before/::after。只在 data-ui-style="glass"
+   时生效；扁平/新拟态下 ::before/::after 不产生内容，不影响布局。 */
+.shell-surface {
+    position: relative;
+    isolation: isolate;
+}
+html[data-ui-style="glass"] .shell-surface::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    border-radius: inherit;
+    background: var(--shell-tint);
+    pointer-events: none;
+}
+html[data-ui-style="glass"] .shell-surface::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    backdrop-filter: var(--shell-backdrop);
+    -webkit-backdrop-filter: var(--shell-backdrop);
+}

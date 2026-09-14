@@ -404,14 +404,14 @@ rect.rect-overdue {
     color: var(--fg);
 }
 
-.btn-danger-ghost {
-    background: transparent;
-    border-color: var(--border);
-    color: var(--red);
+/* 危险确认（如删除）用实心红底，跟一般确认的 .btn-primary 区分开，
+   保留原本高强调的视觉分量；此处只叠加语义色，不重复 .btn 已提供的 padding/transition */
+.btn-danger {
+    background: var(--red);
+    color: var(--bg-panel);
 }
-.btn-danger-ghost:hover:not(:disabled) {
-    background: rgba(209, 36, 47, 0.1);
-    border-color: var(--red);
+.btn-danger:hover:not(:disabled) {
+    opacity: 0.85;
 }
 
 .icon {

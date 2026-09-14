@@ -53,7 +53,7 @@ watch(
                     </button>
                     <button
                         class="btn"
-                        :class="confirmState.danger ? 'btn-danger-solid' : 'btn-primary'"
+                        :class="confirmState.danger ? 'btn-danger' : 'btn-primary'"
                         @click="resolveConfirm(true)"
                     >
                         {{ confirmState.confirmText }}
@@ -124,14 +124,5 @@ watch(
     gap: 8px;
     padding: 14px 20px;
     border-top: 1px solid var(--border);
-}
-/* 危险确认（如删除）用实心红底，跟一般确认的 .btn-primary 区分开，
-   保留原本高强调的视觉分量；此处只叠加语义色，不重复 .btn 已提供的 padding/transition */
-.btn-danger-solid {
-    background: var(--red);
-    color: var(--bg-panel);
-}
-.btn-danger-solid:hover {
-    opacity: 0.85;
 }
 </style>

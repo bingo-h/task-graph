@@ -132,6 +132,7 @@ input:focus {
 .node rect {
     stroke: var(--border);
     stroke-width: 1.5;
+    rx: var(--radius-sm);
     transition:
         opacity 0.25s var(--ease-standard),
         filter 0.25s var(--ease-standard),
@@ -259,10 +260,6 @@ rect.rect-overdue {
 
 .rect-waiting {
     fill: var(--node-waiting);
-}
-
-.node rect {
-    rx: var(--radius-sm);
 }
 
 /* 节点文字：加粗、字号比下面的详情行明显更大，一眼能分清标题和详情。

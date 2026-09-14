@@ -346,3 +346,99 @@ rect.rect-overdue {
     fill: var(--blue);
     stroke: var(--blue);
 }
+
+/* ── 共享控件样式（按钮 / 分段控件） ──────────────────────────────────────── */
+/* 这些是全局类，不是某个组件的 scoped 样式——之前 priority-btn/recur-kind-btn/
+   recur-weekday-btn/设置里的高亮模式各自实现了一遍几乎相同的"分段选中"样式，
+   选中态的透明度还互相不统一（0.1/0.2/0.08），这里统一成一份。 */
+
+.btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
+    border-radius: var(--radius-sm);
+    font-size: 0.9231rem;
+    font-weight: 600;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition:
+        background 0.15s var(--ease-standard),
+        border-color 0.15s var(--ease-standard),
+        color 0.15s var(--ease-standard),
+        transform 0.1s var(--ease-standard);
+}
+.btn:active {
+    transform: scale(0.97);
+}
+.btn:disabled {
+    opacity: 0.4;
+    cursor: default;
+    transform: none;
+}
+
+.btn-primary {
+    background: var(--blue);
+    color: var(--bg-panel);
+}
+.btn-primary:hover:not(:disabled) {
+    opacity: 0.88;
+}
+
+.btn-secondary {
+    background: transparent;
+    border-color: var(--border);
+    color: var(--fg);
+}
+.btn-secondary:hover:not(:disabled) {
+    border-color: var(--fg-dark);
+    background: var(--bg-dark);
+}
+
+.btn-ghost {
+    background: var(--bg-dark);
+    color: var(--fg-dim);
+}
+.btn-ghost:hover:not(:disabled) {
+    background: var(--bg-select);
+    color: var(--fg);
+}
+
+.btn-danger-ghost {
+    background: transparent;
+    border-color: var(--border);
+    color: var(--red);
+}
+.btn-danger-ghost:hover:not(:disabled) {
+    background: rgba(209, 36, 47, 0.1);
+    border-color: var(--red);
+}
+
+/* 分段控件：外层灰底托盘 + 内部按钮，选中项浮起（中性选择）或按语义色着色（如优先级） */
+.segmented {
+    display: inline-flex;
+    gap: 2px;
+    padding: 3px;
+    background: var(--bg-dark);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border);
+}
+.segmented button {
+    padding: 6px 14px;
+    border-radius: var(--radius-sm);
+    color: var(--fg-dim);
+    font-size: 0.8462rem;
+    font-weight: 600;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    transition: all 0.15s var(--ease-standard);
+}
+.segmented button:hover {
+    color: var(--fg);
+}
+.segmented button.active {
+    background: var(--bg-panel);
+    color: var(--fg);
+    box-shadow: var(--elevation-1);
+}

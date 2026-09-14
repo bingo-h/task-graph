@@ -21,6 +21,31 @@
     --node-overdue: #fdeceb;
     --node-locked: #eceef2;
     --node-waiting: #e9edf5;
+
+    /* 圆角：用户可调的基准值，派生三档 */
+    --app-radius: 10px;
+    --radius-sm: calc(var(--app-radius) * 0.6);
+    --radius-md: var(--app-radius);
+    --radius-lg: calc(var(--app-radius) * 1.4);
+
+    /* 间距：4px 基准网格 */
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 20px;
+    --space-6: 24px;
+    --space-7: 28px;
+    --space-8: 32px;
+
+    /* 阴影分级：静止面板 / 悬浮态 / 弹出层-Modal */
+    --elevation-1: 0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 3px rgba(16, 24, 40, 0.06);
+    --elevation-2: 0 4px 14px rgba(16, 24, 40, 0.1), 0 2px 4px rgba(16, 24, 40, 0.04);
+    --elevation-3: 0 24px 48px rgba(16, 24, 40, 0.18), 0 8px 20px rgba(16, 24, 40, 0.08);
+
+    /* 缓动曲线：常规交互 / 弹窗与悬浮层出现 */
+    --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+    --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 /* 同一份方案 A 的深色默认值。不用 @media (prefers-color-scheme) 是因为
@@ -48,6 +73,10 @@
     --node-overdue: rgba(242, 117, 122, 0.18);
     --node-locked: rgba(255, 255, 255, 0.07);
     --node-waiting: rgba(255, 255, 255, 0.05);
+
+    --elevation-1: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 2px 8px rgba(0, 0, 0, 0.4);
+    --elevation-2: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 10px 24px rgba(0, 0, 0, 0.5);
+    --elevation-3: 0 1px 0 rgba(255, 255, 255, 0.05) inset, 0 28px 60px rgba(0, 0, 0, 0.6);
 }
 
 /* Reset */
@@ -104,10 +133,10 @@ input:focus {
     stroke: var(--border);
     stroke-width: 1.5;
     transition:
-        opacity 0.25s,
-        filter 0.25s,
-        stroke 0.25s,
-        stroke-width 0.25s;
+        opacity 0.25s var(--ease-standard),
+        filter 0.25s var(--ease-standard),
+        stroke 0.25s var(--ease-standard),
+        stroke-width 0.25s var(--ease-standard);
 }
 
 .node.dimmed {
@@ -165,9 +194,9 @@ input:focus {
     pointer-events: none;
     cursor: crosshair;
     transition:
-        opacity 0.15s,
-        stroke 0.15s,
-        fill 0.15s;
+        opacity 0.15s var(--ease-standard),
+        stroke 0.15s var(--ease-standard),
+        fill 0.15s var(--ease-standard);
 }
 .node:hover .connect-dot {
     opacity: 1;
@@ -232,6 +261,10 @@ rect.rect-overdue {
     fill: var(--node-waiting);
 }
 
+.node rect {
+    rx: var(--radius-sm);
+}
+
 /* 节点文字：加粗、字号比下面的详情行明显更大，一眼能分清标题和详情。
    字体走 --app-node-font-family，这个变量由 App.vue 的 applyNodeFontFamily() 维护——
    设置里"节点字体"留空时它就是全局字体，不用在这里另外处理"留空跟随全局"的逻辑 */
@@ -260,8 +293,8 @@ rect.rect-overdue {
     stroke: var(--fg-dark);
     stroke-width: 1.5;
     transition:
-        opacity 0.25s,
-        stroke 0.25s;
+        opacity 0.25s var(--ease-standard),
+        stroke 0.25s var(--ease-standard);
 }
 
 /* "今日任务"视图下用户手动排的今日工作顺序边，颜色区别于真实依赖边 */
@@ -304,9 +337,9 @@ rect.rect-overdue {
     opacity: 0;
     pointer-events: none;
     transition:
-        opacity 0.15s,
-        stroke 0.15s,
-        fill 0.15s;
+        opacity 0.15s var(--ease-standard),
+        stroke 0.15s var(--ease-standard),
+        fill 0.15s var(--ease-standard);
 }
 .edge-handle:hover .edge-handle-dot {
     opacity: 1;

@@ -87,6 +87,16 @@ export async function listSystemFonts() {
   return call("list_system_fonts");
 }
 
+/** 列出所有可选配色方案：内置 3 套 + 数据目录 themes/ 下发现的自定义文件，每项 { id, name }。 */
+export async function listColorSchemes() {
+  return call("list_color_schemes");
+}
+
+/** 按 id 加载一个配色方案的完整内容：{ name?, light?, dark? }，id 形如 "builtin:b"/"custom:my-theme"。 */
+export async function getColorScheme(id) {
+  return call("get_color_scheme", { id });
+}
+
 /** 新建任务，传结构化字段：{description, project, priority, due, scheduled, tags, depends} */
 export async function addTask(fields) {
   return call("add_task", { args: fields });

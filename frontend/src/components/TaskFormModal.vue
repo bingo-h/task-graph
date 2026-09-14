@@ -11,6 +11,7 @@ import { computed, nextTick, ref, watch } from "vue";
 import DatePicker from "./DatePicker.vue";
 import ColorSwatchPicker from "./ColorSwatchPicker.vue";
 import IconPicker from "./IconPicker.vue";
+import SegmentedControl from "./SegmentedControl.vue";
 import { tagChipStyle } from "../composables/useTagColor";
 import { isoToLocalDate, isoToLocalTime, localDateTimeToIso } from "../composables/useLocalTime";
 
@@ -60,6 +61,11 @@ watch(startedAt, (value) => {
 });
 
 const priority = ref(""); // H | M | L
+const priorityOptions = [
+    { key: "H", label: "H", activeColor: "var(--red)", activeBg: "rgba(209, 36, 47, 0.14)" },
+    { key: "M", label: "M", activeColor: "var(--yellow)", activeBg: "rgba(154, 103, 0, 0.14)" },
+    { key: "L", label: "L", activeColor: "var(--blue)", activeBg: "rgba(79, 107, 255, 0.14)" },
+];
 const tags = ref([]);
 const tagInput = ref(""); // 标签输入框临时值
 const showTagDropdown = ref(false); // 是否显示标签下拉建议框
@@ -615,22 +621,10 @@ function submit() {
                     <!-- 优先级 -->
                     <div class="form-row">
                         <label class="form-label">优先级</label>
-                        <div class="segmented">
-                            <button
-                                v-for="p in ['H', 'M', 'L']"
-                                class="priority-btn"
-                                :key="p"
-                                @click="priority = p"
-                                :class="{
-                                    active: priority === p,
-                                    'priority-h': p === 'H',
-                                    'priority-m': p === 'M',
-                                    'priority-l': p === 'L',
-                                }"
-                            >
-                                {{ p }}
-                            </button>
-                        </div>
+                        <SegmentedControl
+                            :options="priorityOptions"
+                            v-model="priority"
+                        />
                     </div>
 
                     <!-- 图标 / 颜色：日历页打卡展示用 -->
@@ -1003,28 +997,6 @@ function submit() {
 }
 .form-textarea:focus {
     border-color: var(--blue);
-}
-
-/* 优先级：容器用共享 .segmented，这里只叠加语义色（中性选中态之外的着色） */
-.priority-btn.active.priority-h {
-    background: rgba(209, 36, 47, 0.14);
-    color: var(--red);
-    box-shadow: none;
-}
-.priority-btn.active.priority-m {
-    background: rgba(154, 103, 0, 0.14);
-    color: var(--yellow);
-    box-shadow: none;
-}
-.priority-btn.active.priority-l {
-    background: rgba(79, 107, 255, 0.14);
-    color: var(--blue);
-    box-shadow: none;
-}
-.priority-btn.active.priority-none {
-    background: var(--bg-select);
-    color: var(--fg);
-    box-shadow: none;
 }
 
 /* 图标 / 颜色 */

@@ -9,6 +9,7 @@
 
 <script setup>
 import { ref, computed, watch } from "vue";
+import SegmentedControl from "./SegmentedControl.vue";
 import { formatDuration, DEFAULT_DURATION_FORMAT } from "../composables/useDuration";
 import { getVersion } from "@tauri-apps/api/app";
 import { listSystemFonts, listColorSchemes } from "../composables/useApi";
@@ -317,24 +318,13 @@ function submit() {
                                         选中任务时，图谱中链路高亮的范围
                                     </span>
                                 </label>
-                                <div class="segmented">
-                                    <button
-                                        v-for="m in highlightModeOptions"
-                                        :key="m.key"
-                                        type="button"
-                                        :class="{
-                                            active: highlightMode === m.key,
-                                        }"
-                                        @click="
-                                            emit(
-                                                'update:highlight-mode',
-                                                m.key,
-                                            )
-                                        "
-                                    >
-                                        {{ m.label }}
-                                    </button>
-                                </div>
+                                <SegmentedControl
+                                    :options="highlightModeOptions"
+                                    :model-value="highlightMode"
+                                    @update:model-value="
+                                        emit('update:highlight-mode', $event)
+                                    "
+                                />
                             </div>
 
                             <div class="form-row">
@@ -513,17 +503,10 @@ function submit() {
                                 <label class="form-label">
                                     深浅模式
                                 </label>
-                                <div class="segmented">
-                                    <button
-                                        v-for="m in themeModeOptions"
-                                        :key="m.key"
-                                        type="button"
-                                        :class="{ active: themeMode === m.key }"
-                                        @click="themeMode = m.key"
-                                    >
-                                        {{ m.label }}
-                                    </button>
-                                </div>
+                                <SegmentedControl
+                                    :options="themeModeOptions"
+                                    v-model="themeMode"
+                                />
                             </div>
 
                             <div class="form-row">
@@ -549,17 +532,10 @@ function submit() {
                                         只影响顶栏/侧栏/右键菜单/弹窗/日期图标颜色选择器/统计卡片/按钮等控件，不影响图谱任务节点的状态色
                                     </span>
                                 </label>
-                                <div class="segmented">
-                                    <button
-                                        v-for="s in uiStyleOptions"
-                                        :key="s.key"
-                                        type="button"
-                                        :class="{ active: uiStyle === s.key }"
-                                        @click="uiStyle = s.key"
-                                    >
-                                        {{ s.label }}
-                                    </button>
-                                </div>
+                                <SegmentedControl
+                                    :options="uiStyleOptions"
+                                    v-model="uiStyle"
+                                />
                             </div>
                         </template>
 

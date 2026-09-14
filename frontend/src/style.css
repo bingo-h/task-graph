@@ -436,8 +436,11 @@ rect.rect-overdue {
     vertical-align: -2px;
 }
 
-/* 分段控件：外层灰底托盘 + 内部按钮，选中项浮起（中性选择）或按语义色着色（如优先级） */
+/* 分段控件：外层灰底托盘 + 内部按钮，选中态背景/阴影由 .segmented-indicator 滑块承载
+   并做位移过渡（中性选择）；按钮自身只管文字颜色，语义着色（如优先级）由 SegmentedControl
+   组件按 option 的 activeColor/activeBg 内联覆盖到按钮文字和指示器背景上 */
 .segmented {
+    position: relative;
     display: inline-flex;
     align-self: flex-start;
     gap: 2px;
@@ -446,7 +449,21 @@ rect.rect-overdue {
     border-radius: var(--radius-md);
     border: 1px solid var(--border);
 }
+.segmented-indicator {
+    position: absolute;
+    top: 3px;
+    bottom: 3px;
+    left: 0;
+    border-radius: var(--radius-sm);
+    background: var(--bg-panel);
+    box-shadow: var(--elevation-1);
+    transition: transform 0.2s var(--ease-standard), width 0.2s var(--ease-standard),
+        background 0.2s var(--ease-standard);
+    pointer-events: none;
+}
 .segmented button {
+    position: relative;
+    z-index: 1;
     padding: 6px 14px;
     border-radius: var(--radius-sm);
     color: var(--fg-dim);
@@ -455,28 +472,28 @@ rect.rect-overdue {
     border: none;
     background: transparent;
     cursor: pointer;
-    transition: all 0.15s var(--ease-standard);
+    transition: color 0.15s var(--ease-standard);
 }
 .segmented button:hover {
     color: var(--fg);
 }
 .segmented button.active {
-    background: var(--bg-panel);
     color: var(--fg);
-    box-shadow: var(--elevation-1);
 }
 html[data-ui-style="neumorphism"] .segmented {
     background: var(--shell-bg);
     border-color: transparent;
     box-shadow: var(--shell-shadow-pressed);
 }
+html[data-ui-style="neumorphism"] .segmented-indicator {
+    background: var(--shell-bg);
+    box-shadow: var(--shell-shadow);
+}
 html[data-ui-style="neumorphism"] .segmented button {
     color: var(--shell-fg-dim);
 }
 html[data-ui-style="neumorphism"] .segmented button.active {
-    background: var(--shell-bg);
     color: var(--shell-fg);
-    box-shadow: var(--shell-shadow);
 }
 
 /* 数字步进器：替代原生 <input type=number> 的浏览器默认上下箭头（无法定制

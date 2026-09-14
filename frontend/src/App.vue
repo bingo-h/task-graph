@@ -8,6 +8,7 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from "vue";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { useSlidingIndicator } from "./composables/useSlidingIndicator";
 
 import TaskFormModal from "./components/TaskFormModal.vue";
 import ProjectTree from "./components/ProjectTree.vue";
@@ -224,6 +225,11 @@ function applyUiStyle(uiStyle) {
 
 // 当前页面："home" 首页仪表盘 / "board" 任务看板（原有的三栏视图）/ "charts" 分析页 / "calendar" 日历页
 const currentPage = ref("home");
+
+// 顶部页面切换按钮的"滑块"：四个按钮文字长度不同、宽度不固定，
+// 不能用纯 CSS 百分比位移，要实测当前激活按钮的位置/宽度再用 transform 过渡过去
+const pageNavEl = ref(null);
+const pageNavIndicator = useSlidingIndicator(pageNavEl, ".page-nav-btn.active", currentPage);
 
 // 任务看板中间面板："graph" 导图（DAG）/ "list" 列表；只是本次会话内的显示偏好，不持久化
 const boardViewMode = ref("graph");
@@ -1162,7 +1168,11 @@ onUnmounted(() => clearInterval(autoRefreshTimer));
             <span class="app-title" data-tauri-drag-region>task-graph</span>
 
             <!-- 页面切换：首页仪表盘 / 任务看板 -->
-            <div class="page-nav">
+            <div class="page-nav" ref="pageNavEl">
+                <span
+                    class="page-nav-indicator"
+                    :style="{ transform: `translateX(${pageNavIndicator.left}px)`, width: `${pageNavIndicator.width}px` }"
+                ></span>
                 <button
                     class="page-nav-btn"
                     :class="{ active: currentPage === 'home' }"
@@ -1511,8 +1521,10 @@ onUnmounted(() => clearInterval(autoRefreshTimer));
     margin-right: 8px;
 }
 
-/* 页面切换 */
+/* 页面切换：选中态的背景/阴影由 .page-nav-indicator 这个滑块承载并做位移过渡，
+   按钮自身只负责文字颜色，这样切换页面时是"滑过去"而不是瞬间跳变 */
 .page-nav {
+    position: relative;
     display: flex;
     gap: 2px;
     background: var(--bg);
@@ -1520,21 +1532,48 @@ onUnmounted(() => clearInterval(autoRefreshTimer));
     border-radius: 7px;
     padding: 2px;
 }
+.page-nav-indicator {
+    position: absolute;
+    top: 2px;
+    bottom: 2px;
+    left: 0;
+    border-radius: 5px;
+    background: var(--bg-panel);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+    transition: transform 0.2s var(--ease-standard), width 0.2s var(--ease-standard);
+    pointer-events: none;
+}
 .page-nav-btn {
+    position: relative;
+    z-index: 1;
     padding: 4px 12px;
     border-radius: 5px;
     font-size: 0.8462rem;
     font-weight: 600;
     color: var(--fg-dim);
-    transition: all 0.15s;
+    background: transparent;
+    transition: color 0.15s var(--ease-standard);
 }
 .page-nav-btn:hover {
     color: var(--fg);
 }
 .page-nav-btn.active {
     color: var(--blue);
-    background: var(--bg-panel);
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+html[data-ui-style="neumorphism"] .page-nav {
+    background: var(--shell-bg);
+    border-color: transparent;
+    box-shadow: var(--shell-shadow-pressed);
+}
+html[data-ui-style="neumorphism"] .page-nav-indicator {
+    background: var(--shell-bg);
+    box-shadow: var(--shell-shadow);
+}
+html[data-ui-style="neumorphism"] .page-nav-btn {
+    color: var(--shell-fg-dim);
+}
+html[data-ui-style="neumorphism"] .page-nav-btn.active {
+    color: var(--shell-fg);
 }
 
 /* 标题栏悬浮秒表：当前活跃计时任务，悬浮在标题栏正中间，不占据两侧按钮的排列空间 */

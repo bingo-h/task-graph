@@ -11,7 +11,7 @@
 import { ref, computed, watch } from "vue";
 import { formatDuration, DEFAULT_DURATION_FORMAT } from "../composables/useDuration";
 import { getVersion } from "@tauri-apps/api/app";
-import { listSystemFonts } from "../composables/useApi";
+import { listSystemFonts, listColorSchemes } from "../composables/useApi";
 import constants from "../config/constants";
 import {
     updateStatus,
@@ -36,6 +36,7 @@ const emit = defineEmits(["close", "save", "update:highlight-mode"]);
 // ----------------------------------------
 const SECTIONS = [
     { key: "general", label: "通用" },
+    { key: "appearance", label: "外观" },
     { key: "duration", label: "时长格式" },
     { key: "graph", label: "图谱显示" },
     { key: "about", label: "关于" },
@@ -57,6 +58,39 @@ const durationFormat = ref(DEFAULT_DURATION_FORMAT);
 const defaultDueTime = ref("23:59");
 const inboxLabel = ref(constants.INBOX_PROJECT);
 const notificationDurationSeconds = ref(3);
+
+// ----------------------------------------
+// 外观：配色方案 / 深浅模式 / 圆角 / 界面风格
+// ----------------------------------------
+const colorScheme = ref("");
+const themeMode = ref("light");
+const cornerRadius = ref(10);
+const uiStyle = ref("flat");
+
+const colorSchemeOptions = ref([{ id: "", name: "默认（克制中性）" }]);
+async function loadColorSchemesOnce() {
+    try {
+        const list = await listColorSchemes();
+        colorSchemeOptions.value = [
+            { id: "", name: "默认（克制中性）" },
+            ...list,
+        ];
+    } catch {
+        colorSchemeOptions.value = [{ id: "", name: "默认（克制中性）" }];
+    }
+}
+
+const themeModeOptions = [
+    { key: "system", label: "跟随系统" },
+    { key: "light", label: "浅色" },
+    { key: "dark", label: "深色" },
+];
+
+const uiStyleOptions = [
+    { key: "flat", label: "扁平" },
+    { key: "glass", label: "液态玻璃" },
+    { key: "neumorphism", label: "新拟态" },
+];
 
 // ----------------------------------------
 // 字体：从系统已安装字体里选，边输入边模糊搜索筛选（子串匹配，不区分大小写）
@@ -163,6 +197,11 @@ watch(
         nodeLabelDue.value = props.settings.node_label_due || NODE_LABELS.due;
         nodeLabelPriority.value = props.settings.node_label_priority || NODE_LABELS.priority;
         nodeLabelRecur.value = props.settings.node_label_recur || NODE_LABELS.recur;
+        colorScheme.value = props.settings.color_scheme || "";
+        themeMode.value = props.settings.theme_mode || "light";
+        cornerRadius.value = props.settings.corner_radius ?? 10;
+        uiStyle.value = props.settings.ui_style || "flat";
+        loadColorSchemesOnce();
     },
 );
 
@@ -220,6 +259,10 @@ function submit() {
         node_label_due: nodeLabelDue.value.trim() || NODE_LABELS.due,
         node_label_priority: nodeLabelPriority.value.trim() || NODE_LABELS.priority,
         node_label_recur: nodeLabelRecur.value.trim() || NODE_LABELS.recur,
+        color_scheme: colorScheme.value,
+        theme_mode: themeMode.value,
+        corner_radius: Math.min(24, Math.max(0, Math.round(Number(cornerRadius.value) || 10))),
+        ui_style: uiStyle.value,
     });
 }
 </script>
@@ -259,11 +302,11 @@ function submit() {
                                         选中任务时，图谱中链路高亮的范围
                                     </span>
                                 </label>
-                                <div class="mode-group">
+                                <div class="segmented">
                                     <button
                                         v-for="m in highlightModeOptions"
                                         :key="m.key"
-                                        class="mode-btn"
+                                        type="button"
                                         :class="{
                                             active: highlightMode === m.key,
                                         }"
@@ -404,6 +447,80 @@ function submit() {
                                     max="30"
                                     class="form-input"
                                 />
+                            </div>
+                        </template>
+
+                        <!-- 外观 -->
+                        <template v-else-if="activeSection === 'appearance'">
+                            <div class="form-row">
+                                <label class="form-label">
+                                    配色方案
+                                    <span class="form-hint">
+                                        内置预设，或数据目录 themes/ 下你自己放的自定义文件
+                                    </span>
+                                </label>
+                                <select v-model="colorScheme" class="form-input">
+                                    <option
+                                        v-for="opt in colorSchemeOptions"
+                                        :key="opt.id"
+                                        :value="opt.id"
+                                    >
+                                        {{ opt.name }}
+                                    </option>
+                                </select>
+                            </div>
+
+                            <div class="form-row">
+                                <label class="form-label">
+                                    深浅模式
+                                </label>
+                                <div class="segmented">
+                                    <button
+                                        v-for="m in themeModeOptions"
+                                        :key="m.key"
+                                        type="button"
+                                        :class="{ active: themeMode === m.key }"
+                                        @click="themeMode = m.key"
+                                    >
+                                        {{ m.label }}
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="form-row">
+                                <label class="form-label">
+                                    圆角
+                                    <span class="form-hint">
+                                        影响按钮/输入框/卡片/图节点的圆角，0-24
+                                    </span>
+                                </label>
+                                <input
+                                    v-model.number="cornerRadius"
+                                    type="range"
+                                    min="0"
+                                    max="24"
+                                />
+                                <span class="form-hint">{{ cornerRadius }}px</span>
+                            </div>
+
+                            <div class="form-row">
+                                <label class="form-label">
+                                    界面风格
+                                    <span class="form-hint">
+                                        只影响顶栏/侧栏/弹窗/下拉菜单/统计卡片，不影响图谱任务节点的状态色
+                                    </span>
+                                </label>
+                                <div class="segmented">
+                                    <button
+                                        v-for="s in uiStyleOptions"
+                                        :key="s.key"
+                                        type="button"
+                                        :class="{ active: uiStyle === s.key }"
+                                        @click="uiStyle = s.key"
+                                    >
+                                        {{ s.label }}
+                                    </button>
+                                </div>
                             </div>
                         </template>
 
@@ -980,11 +1097,6 @@ function submit() {
     color: var(--fg-dim);
 }
 
-.mode-group {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-}
 .mode-btn {
     padding: 5px 12px;
     border-radius: 6px;

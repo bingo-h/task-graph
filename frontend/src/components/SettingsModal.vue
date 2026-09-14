@@ -231,6 +231,16 @@ const durationPreview = computed(() => {
     }
 });
 
+/**
+ * stepper 输入框失焦时的兜底：v-model.number 遇到非数字文本（如手动输入 "abc"）
+ * 会退化成字符串，导致 +/− 按钮算出 NaN 后永久卡死。这里在失焦时把当前值
+ * 夹到跟 +/− 按钮相同的上下界内，非法/空值则回退到 fallback。
+ */
+function clampStepperInput(value, min, max, fallback) {
+    const n = Number(value);
+    return Number.isFinite(n) ? Math.min(max, Math.max(min, Math.round(n))) : fallback;
+}
+
 function submit() {
     emit("save", {
         trash_retention_days: Math.max(
@@ -337,7 +347,11 @@ function submit() {
                                     >
                                         −
                                     </button>
-                                    <input v-model.number="trashRetentionDays" />
+                                    <input
+                                        v-model.number="trashRetentionDays"
+                                        inputmode="numeric"
+                                        @blur="trashRetentionDays = clampStepperInput(trashRetentionDays, 0, 3650, 0)"
+                                    />
                                     <button
                                         type="button"
                                         @click="trashRetentionDays = Math.min(3650, trashRetentionDays + 1)"
@@ -359,7 +373,11 @@ function submit() {
                                     >
                                         −
                                     </button>
-                                    <input v-model.number="fontSize" />
+                                    <input
+                                        v-model.number="fontSize"
+                                        inputmode="numeric"
+                                        @blur="fontSize = clampStepperInput(fontSize, 8, 32, 14)"
+                                    />
                                     <button
                                         type="button"
                                         @click="fontSize = Math.min(32, fontSize + 1)"

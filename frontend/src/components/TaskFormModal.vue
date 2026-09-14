@@ -615,7 +615,7 @@ function submit() {
                     <!-- 优先级 -->
                     <div class="form-row">
                         <label class="form-label">优先级</label>
-                        <div class="priority-group">
+                        <div class="segmented">
                             <button
                                 v-for="p in ['H', 'M', 'L']"
                                 class="priority-btn"
@@ -878,11 +878,11 @@ function submit() {
 
                 <!-- 底部按钮 -->
                 <div class="modal-footer">
-                    <button class="btn-submit" @click="emit('close')">
+                    <button class="btn btn-secondary" @click="emit('close')">
                         取消
                     </button>
                     <button
-                        class="btn-submit"
+                        class="btn btn-primary"
                         @click="submit"
                         :disabled="!description.trim()"
                     >
@@ -1005,43 +1005,26 @@ function submit() {
     border-color: var(--blue);
 }
 
-/* 优先级单选组 */
-.priority-group {
-    display: flex;
-    gap: 6px;
-}
-.priority-btn {
-    padding: 5px 16px;
-    border-radius: 6px;
-    border: 1px solid var(--border);
-    font-size: 0.9231rem;
-    font-weight: 600;
-    color: var(--fg-dim);
-    transition: all 0.15s;
-}
-.priority-btn:hover {
-    border-color: var(--fg-dark);
-    color: var(--fg);
-}
+/* 优先级：容器用共享 .segmented，这里只叠加语义色（中性选中态之外的着色） */
 .priority-btn.active.priority-h {
-    background: rgba(247, 118, 142, 0.2);
+    background: rgba(209, 36, 47, 0.14);
     color: var(--red);
-    border-color: var(--red);
+    box-shadow: none;
 }
 .priority-btn.active.priority-m {
-    background: rgba(224, 175, 104, 0.2);
+    background: rgba(154, 103, 0, 0.14);
     color: var(--yellow);
-    border-color: var(--yellow);
+    box-shadow: none;
 }
 .priority-btn.active.priority-l {
-    background: rgba(122, 162, 247, 0.2);
+    background: rgba(79, 107, 255, 0.14);
     color: var(--blue);
-    border-color: var(--blue);
+    box-shadow: none;
 }
 .priority-btn.active.priority-none {
-    background: rgba(0, 0, 0, 0.08);
+    background: var(--bg-select);
     color: var(--fg);
-    border-color: var(--fg-dark);
+    box-shadow: none;
 }
 
 /* 图标 / 颜色 */
@@ -1386,33 +1369,5 @@ function submit() {
     gap: 8px;
     padding: 14px 20px;
     border-top: 1px solid var(--border);
-}
-.btn-submit {
-    padding: 7px 20px;
-    border-radius: 6px;
-    background: var(--blue);
-    color: var(--bg);
-    font-weight: 700;
-    font-size: 1rem;
-    transition: opacity 0.15s;
-}
-.btn-submit:hover {
-    opacity: 0.85;
-}
-.btn-submit:disabled {
-    opacity: 0.35;
-    cursor: default;
-}
-.btn-cancel {
-    padding: 7px 16px;
-    border-radius: 6px;
-    border: 1px solid var(--border);
-    color: var(--fg-dim);
-    font-size: 1rem;
-    transition: all 0.15s;
-}
-.btn-cancel:hover {
-    color: var(--fg);
-    border-color: var(--fg-dark);
 }
 </style>

@@ -541,7 +541,7 @@ function submit() {
                                 <label class="form-label">
                                     界面风格
                                     <span class="form-hint">
-                                        只影响顶栏/侧栏/弹窗/下拉菜单/统计卡片，不影响图谱任务节点的状态色
+                                        只影响顶栏/侧栏/右键菜单/统计卡片，不影响图谱任务节点的状态色
                                     </span>
                                 </label>
                                 <div class="segmented">

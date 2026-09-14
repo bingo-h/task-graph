@@ -129,7 +129,7 @@ pub struct Settings {
     /// 全局圆角基准（像素），前端据此派生 --radius-sm/md/lg 三档
     #[serde(default = "default_corner_radius")]
     pub corner_radius: u32,
-    /// 界面风格（只影响顶栏/侧栏/弹窗/下拉菜单/统计卡片等外壳，不影响 DAG 图任务节点）：
+    /// 界面风格（只影响顶栏/侧栏/右键菜单/统计卡片等外壳，不影响 DAG 图任务节点）：
     /// "flat" | "glass" | "neumorphism"
     #[serde(default = "default_ui_style")]
     pub ui_style: String,

@@ -88,7 +88,7 @@ cargo tauri build
 
 ### 自定义配色文件
 
-在数据目录（跟 `tasks.db` 同级）下建一个 `themes/` 文件夹，放入任意 `.toml` 文件（如 `themes/ocean.toml`），保存设置后即可在配色方案下拉框里选中它（显示为"自定义：ocean"）。文件格式：
+在数据目录（跟 `tasks.db` 同级）下建一个 `themes/` 文件夹，放入任意 `.toml` 文件（如 `themes/ocean.toml`），保存设置后即可在配色方案下拉框里选中它——下拉框里显示的名字是文件内 `name` 字段的值，没写 `name` 就显示裸文件名（此例为 `ocean`）。文件格式：
 
 ```toml
 name = "我的配色"   # 可选，不填则用文件名代替

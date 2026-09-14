@@ -159,12 +159,12 @@ function pickMoveTarget(targetPath) {
     z-index: 2000;
 }
 
+/* 玻璃风格的模糊效果由 .shell-surface::after 统一提供（见 style.css），
+   这里（以及下面的 .submenu）不要再自己加 backdrop-filter。 */
 .context-menu {
     position: fixed;
     min-width: 150px;
     background: var(--shell-bg);
-    backdrop-filter: var(--shell-backdrop);
-    -webkit-backdrop-filter: var(--shell-backdrop);
     color: var(--shell-fg);
     border: 1px solid var(--border);
     border-radius: 8px;
@@ -209,8 +209,6 @@ function pickMoveTarget(targetPath) {
     max-height: 260px;
     overflow-y: auto;
     background: var(--shell-bg);
-    backdrop-filter: var(--shell-backdrop);
-    -webkit-backdrop-filter: var(--shell-backdrop);
     color: var(--shell-fg);
     border: 1px solid var(--border);
     border-radius: 8px;

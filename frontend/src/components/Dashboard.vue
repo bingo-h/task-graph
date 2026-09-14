@@ -689,14 +689,14 @@ const todayTasks = computed(() => activeNodes.value.filter((t) => t.is_today));
     grid-template-columns: repeat(4, 1fr);
     gap: 14px;
 }
+/* 玻璃风格的模糊效果由 .shell-surface::after 统一提供（见 style.css），
+   这里不要再自己加 backdrop-filter。 */
 .summary-card {
     display: flex;
     flex-direction: column;
     gap: 6px;
     padding: 16px 18px;
     background: var(--shell-bg);
-    backdrop-filter: var(--shell-backdrop);
-    -webkit-backdrop-filter: var(--shell-backdrop);
     box-shadow: var(--shell-shadow);
     border-radius: var(--shell-radius);
     transition: box-shadow 0.2s var(--ease-standard), transform 0.2s var(--ease-standard);

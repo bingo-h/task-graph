@@ -1490,6 +1490,9 @@ onUnmounted(() => clearInterval(autoRefreshTimer));
     height: 100vh;
 }
 
+/* 玻璃风格的模糊效果由 .shell-surface::after 统一提供（见 style.css），
+   这里不要再自己加 backdrop-filter——重复声明过一次，两层叠加导致模糊
+   强度翻倍，而且这里的写法此前顺序不对，生产构建会被压缩器丢掉标准属性。 */
 .topbar {
     position: relative;
     display: flex;
@@ -1498,8 +1501,6 @@ onUnmounted(() => clearInterval(autoRefreshTimer));
     padding: 0 16px;
     height: 44px;
     background: var(--shell-bg);
-    backdrop-filter: var(--shell-backdrop);
-    -webkit-backdrop-filter: var(--shell-backdrop);
     box-shadow: var(--shell-shadow);
     color: var(--shell-fg);
     border-bottom: 1px solid var(--border);

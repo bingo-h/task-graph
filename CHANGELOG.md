@@ -20,7 +20,7 @@
 - **设置弹窗新增"外观"分区**：设置弹窗新增"外观"分区；"高亮模式"从专属的 `mode-group`/`mode-btn` 迁移到共享 `.segmented`。
 - **优先级选择器迁移到共享分段控件**：`TaskFormModal.vue` 优先级选择器迁移到共享 `.segmented`，语义色底色改用 `--red`/`--yellow`/`--blue` 派生而非硬编码 rgba。
 - **弹窗按钮样式迁移到共享 `.btn-*` 类**：`ConfirmDialog.vue`/`TimeEntryNoteModal.vue` 按钮样式迁移到共享 `.btn-*` 类（`TagManagerModal.vue` 的重命名/删除/清除颜色按钮是固定尺寸的行内图标微交互，跟 `.btn` 家族的文字按钮排版模型不匹配，未纳入本次迁移）。
-- **界面风格材质范围扩大到按钮与弹窗**：`style.css` 里 `.btn-secondary`/`.btn-ghost`/`.segmented`/`.stepper` 新增 `data-ui-style="glass"`/`"neumorphism"` 材质规则（背景/边框/阴影改读 `--shell-*` token）；`.btn-primary`/`.btn-danger` 保留语义色背景，新拟态下叠加立体阴影；全部弹窗容器（`SettingsModal.vue`/`TaskFormModal.vue`/`TagManagerModal.vue`/`TimeEntryNoteModal.vue` 共用的 `.modal`，以及 `ConfirmDialog.vue` 的 `.confirm-modal`）同样接入 `--shell-bg`/`--shell-shadow`/`--shell-backdrop`。此前"界面风格"只覆盖顶栏/侧栏/右键菜单/统计卡片，按钮和弹窗维持扁平不变，切换新拟态/玻璃时视觉不统一；`src-tauri/src/settings.rs`、`SettingsModal.vue` 里说明这项设置作用范围的注释/提示文案同步更新为覆盖按钮与弹窗。
+- **界面风格材质范围扩大到按钮、弹窗与浮层选择器**：`style.css` 里 `.btn-secondary`/`.btn-ghost`/`.btn-primary`/`.btn-danger`/`.segmented`/`.stepper` 新增 `data-ui-style="glass"`/`"neumorphism"` 材质规则（背景/边框/阴影改读 `--shell-*` token，含 hover/选中态）；全部弹窗容器（`SettingsModal.vue`/`TaskFormModal.vue`/`TagManagerModal.vue`/`TimeEntryNoteModal.vue` 共用的 `.modal`、`ConfirmDialog.vue` 的 `.confirm-modal`）以及 `DatePicker.vue`/`IconPicker.vue`/`ColorSwatchPicker.vue` 三个浮层选择器（新增 `shell-surface` class）同样接入。此前"界面风格"只覆盖顶栏/侧栏/右键菜单/统计卡片，按钮、弹窗、浮层维持扁平不变，切换新拟态/玻璃时视觉不统一；`src-tauri/src/settings.rs`、`SettingsModal.vue`、`style.css` 里说明这项设置作用范围的注释/提示文案同步更新。
 - **README 补充"外观与自定义配色"说明**：新增独立章节，说明配色方案/深浅模式/圆角/界面风格四个设置项的作用范围，以及自定义 TOML 主题文件的存放位置（`themes/` 目录）、完整 21 个颜色 key 清单、未设置项自动回落默认值的机制；"功能特性"列表补充一条外观自定义的入口说明。
 
 ### 新增
@@ -48,8 +48,10 @@
   - 任务表单里设置/编辑截止日期的具体时间时，原来会把用户在本地时区输入的钟点直接当成 UTC 时刻存库（反过来，回显到表单里编辑时也是把存的 UTC 钟点直接当本地时区读出来），实际生效的截止时刻会和用户设置的对不上，偏移量正好等于本地时区跟 UTC 的时差。现在表单读写、任务详情/图谱悬浮提示/首页即将到期列表里显示的截止时间和完成时间，都统一按本地时区正确换算。
   - 另外任务看板原来没有任何定时刷新机制，即使跨天时刻已过，只要没做任何触发数据刷新的操作界面也不会更新；现在和首页/图表页一样加了 5 分钟定时兜底刷新。
 - `TaskFormModal.vue` 里"取消"按钮误用 `btn-submit` class 导致和"添加任务"按钮渲染成一样的样式，用户分不清主次操作。
-- **液态玻璃风格的模糊效果实际未生效**：`style.css` 的 `.shell-surface::after` 同时声明了 `backdrop-filter` 和 `-webkit-backdrop-filter`（都引用 `var(--shell-backdrop)`），原写法是标准属性在前、前缀属性在后；生产构建的 CSS 压缩器会把这种"值相同的标准属性+前缀属性"去重、只保留源码顺序里最后出现的一个，导致压缩后标准 `backdrop-filter` 声明丢失。玻璃风格下顶栏/统计卡片/弹窗等外壳组件因此只剩下半透明背景色和阴影，没有任何模糊效果，视觉上呈现为一片纯色块+边缘阴影，而不是磨砂玻璃质感。调整为前缀属性写在前、标准属性写在后，构建产物里两条声明都会保留。
+- **液态玻璃风格的模糊效果实际未生效**：根因分两层。(1) `style.css` 的 `.shell-surface::after` 同时声明 `backdrop-filter`/`-webkit-backdrop-filter`（都引用 `var(--shell-backdrop)`），原写法标准属性在前、前缀属性在后；生产构建的 CSS 压缩器会把这种"值相同的标准+前缀属性"去重、只保留源码顺序里最后出现的一个，导致压缩后标准 `backdrop-filter` 声明丢失——调整为前缀属性在前、标准属性在后，两条声明构建后都会保留。(2) 更主要的问题：`App.vue` 的 `.topbar`、`Dashboard.vue` 的 `.summary-card`、`ProjectContextMenu.vue` 的 `.context-menu`/`.submenu`、`ProjectTree.vue` 的 `.project-tree` 这五处组件当初各自又重复声明了一遍同样的 `backdrop-filter`/`-webkit-backdrop-filter`（写法同样是标准属性在前，同样会被构建工具丢弃标准声明），而这五处组件本身都带 `shell-surface` class，其模糊效果早就由 `.shell-surface::after` 统一提供——重复声明不仅本身会因为 (1) 描述的原因失效，即使不失效也会造成两层模糊叠加、效果发闷。这五处组件重复声明的 `backdrop-filter`/`-webkit-backdrop-filter` 两行已删除，模糊效果统一只由 `.shell-surface::after` 提供。
+- **新拟态/液态玻璃只有首页统计卡片有效果，按钮和弹窗维持扁平、风格不统一**：`.btn-secondary`/`.btn-ghost`/`.btn-primary`/`.btn-danger`/`.segmented`/`.stepper` 新增材质规则，`.modal`/`.confirm-modal` 弹窗容器、`DatePicker.vue`/`IconPicker.vue`/`ColorSwatchPicker.vue` 三个浮层选择器（新增 `shell-surface` class）同样接入 `--shell-*` token；另修了两处遗漏：`.btn-secondary`/`.btn-ghost` 在玻璃风格下的 `:hover` 态此前没有对应规则，特异性不够会被扁平风格的 hover 规则压制，鼠标悬浮瞬间材质会跳回不透明背景；`.segmented button.active`（分段控件选中项）在玻璃风格下同样缺规则，包括"界面风格"这个分段器自己切到"液态玻璃"时，选中项本身都不会变。`settings.rs`/`SettingsModal.vue`/`style.css` 里说明这项设置作用范围的文案同步更新为覆盖按钮、弹窗与浮层。
 - **"高亮模式"/"优先级"等分段控件外框撑满一整行、内部按钮却只占一小部分宽度**：共享的 `.segmented`/`.stepper` 组件是被外层 `.form-row`（`display: flex; flex-direction: column`，未设置 `align-items`）按 flex 交叉轴默认的 `stretch` 行为撑满整行宽度，组件内部的按钮/输入框本身按内容自适应宽度、不会跟着撑满，因此出现"外层灰底边框占满一整行、按钮挤在左侧"的观感。给 `.segmented`/`.stepper` 加 `align-self: flex-start`，改回按内容自身宽度显示。
+- README「外观与自定义配色」一节里"保存后下拉框显示为'自定义：ocean'"的举例文案与实际不符（下拉框实际显示的是 TOML 内 `name` 字段值，缺省则显示裸文件名，没有"自定义："前缀），改成准确描述。
 
 ## [1.2.4] - 2026-08-17
 

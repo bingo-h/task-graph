@@ -539,12 +539,12 @@ function selectToday() {
 
 <style scoped>
 /* 面板容器 */
+/* 玻璃风格的模糊效果由 .shell-surface::after 统一提供（见 style.css），
+   这里不要再自己加 backdrop-filter。 */
 .project-tree {
     position: relative;
     flex-shrink: 0;
     background: var(--shell-bg);
-    backdrop-filter: var(--shell-backdrop);
-    -webkit-backdrop-filter: var(--shell-backdrop);
     color: var(--shell-fg);
     border-right: 1px solid var(--border);
     display: flex;

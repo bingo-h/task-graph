@@ -41,6 +41,7 @@ import {
     renameProject,
     getSettings,
     saveSettings,
+    getColorScheme,
     addTask,
     modifyTask,
     reconnectDependency,
@@ -109,6 +110,10 @@ const settings = ref({
     node_label_due: constants.DEFAULT_NODE_LABELS.due,
     node_label_priority: constants.DEFAULT_NODE_LABELS.priority,
     node_label_recur: constants.DEFAULT_NODE_LABELS.recur,
+    color_scheme: "",
+    theme_mode: "light",
+    corner_radius: 10,
+    ui_style: "flat",
 });
 const showSettings = ref(false);
 
@@ -157,6 +162,64 @@ function applyNodeFontFamily(nodeFamily, appFamily) {
         ? `${nodePrimary}, ${appPrimary}, sans-serif`
         : `${appPrimary}, sans-serif`;
     document.documentElement.style.setProperty("--app-node-font-family", value);
+}
+
+const COLOR_TOKEN_KEYS = [
+    "bg", "bg-dark", "bg-panel", "bg-select", "bg-popup",
+    "fg", "fg-dim", "fg-dark",
+    "blue", "magenta", "cyan", "green", "yellow", "orange", "red",
+    "border",
+    "node-done", "node-today", "node-overdue", "node-locked", "node-waiting",
+];
+
+/** 根据 theme_mode 算出当前实际该用浅色还是深色 */
+function computeEffectiveMode(themeMode) {
+    if (themeMode === "light" || themeMode === "dark") return themeMode;
+    return window.matchMedia("(prefers-color-scheme: dark)").matches
+        ? "dark"
+        : "light";
+}
+
+/** 把 data-theme-mode 属性写到 <html> 上，style.css 里两套默认值靠这个属性切换；返回算出的 effectiveMode 供 applyColorScheme 使用 */
+function applyThemeMode(themeMode) {
+    const effectiveMode = computeEffectiveMode(themeMode);
+    document.documentElement.setAttribute("data-theme-mode", effectiveMode);
+    return effectiveMode;
+}
+
+/**
+ * 应用配色方案：先清空全部 21 个 token 的内联覆盖（否则从"方案 B"切到"方案 D"，
+ * B 设置过、D 没设置的 key 会保留 B 的值，不会正确回落到 style.css 默认值），
+ * 再按需要设置有值的 key。colorScheme 为空字符串表示用默认方案 A，什么都不用做。
+ */
+async function applyColorScheme(colorScheme, effectiveMode) {
+    for (const key of COLOR_TOKEN_KEYS) {
+        document.documentElement.style.removeProperty(`--${key}`);
+    }
+    if (!colorScheme) return;
+    let scheme;
+    try {
+        scheme = await getColorScheme(colorScheme);
+    } catch (e) {
+        console.error("加载配色方案失败，回落到默认配色", e);
+        error.value = "配色方案加载失败，已回落到默认配色";
+        return;
+    }
+    const tokens = scheme[effectiveMode] || {};
+    for (const [key, value] of Object.entries(tokens)) {
+        if (value == null) continue;
+        document.documentElement.style.setProperty(`--${key}`, value);
+    }
+}
+
+/** 应用圆角设置：--app-radius 一个变量，--radius-sm/md/lg 在 CSS 里用 calc() 派生 */
+function applyCornerRadius(px) {
+    document.documentElement.style.setProperty("--app-radius", `${px}px`);
+}
+
+/** 应用界面风格：data-ui-style 属性驱动 style.css 里的 --shell-* token 切换 */
+function applyUiStyle(uiStyle) {
+    document.documentElement.setAttribute("data-ui-style", uiStyle);
 }
 
 // 当前页面："home" 首页仪表盘 / "board" 任务看板（原有的三栏视图）/ "charts" 分析页 / "calendar" 日历页
@@ -314,6 +377,17 @@ async function loadSettings() {
         applyFontSize(settings.value.font_size);
         applyFontFamily(settings.value.font_family);
         applyNodeFontFamily(settings.value.node_font_family, settings.value.font_family);
+        const effectiveMode = applyThemeMode(settings.value.theme_mode);
+        await applyColorScheme(settings.value.color_scheme, effectiveMode);
+        applyCornerRadius(settings.value.corner_radius);
+        applyUiStyle(settings.value.ui_style);
+        window
+            .matchMedia("(prefers-color-scheme: dark)")
+            .addEventListener("change", async () => {
+                if (settings.value.theme_mode !== "system") return;
+                const mode = applyThemeMode(settings.value.theme_mode);
+                await applyColorScheme(settings.value.color_scheme, mode);
+            });
         setDurationFormat(settings.value.duration_format);
     } catch (e) {
         error.value = e.message;
@@ -509,6 +583,10 @@ async function onSaveSettings(newSettings) {
         applyFontSize(settings.value.font_size);
         applyFontFamily(settings.value.font_family);
         applyNodeFontFamily(settings.value.node_font_family, settings.value.font_family);
+        const effectiveMode = applyThemeMode(settings.value.theme_mode);
+        await applyColorScheme(settings.value.color_scheme, effectiveMode);
+        applyCornerRadius(settings.value.corner_radius);
+        applyUiStyle(settings.value.ui_style);
         setDurationFormat(settings.value.duration_format);
         showSettings.value = false;
     } catch (e) {

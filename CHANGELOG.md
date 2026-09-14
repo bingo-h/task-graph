@@ -52,6 +52,7 @@
 - `TaskFormModal.vue` 里"取消"按钮误用 `btn-submit` class 导致和"添加任务"按钮渲染成一样的样式，用户分不清主次操作。
 - **"高亮模式"/"优先级"等分段控件外框撑满一整行、内部按钮却只占一小部分宽度**：共享的 `.segmented`/`.stepper` 组件是被外层 `.form-row`（`display: flex; flex-direction: column`，未设置 `align-items`）按 flex 交叉轴默认的 `stretch` 行为撑满整行宽度，组件内部的按钮/输入框本身按内容自适应宽度、不会跟着撑满，因此出现"外层灰底边框占满一整行、按钮挤在左侧"的观感。给 `.segmented`/`.stepper` 加 `align-self: flex-start`，改回按内容自身宽度显示。
 - README「外观与自定义配色」一节里"保存后下拉框显示为'自定义：ocean'"的举例文案与实际不符（下拉框实际显示的是 TOML 内 `name` 字段值，缺省则显示裸文件名，没有"自定义："前缀），改成准确描述。
+- **移除"液态玻璃"选项后，存量 `ui_style: "glass"` 的旧设置会让整个设置弹窗保存不了**：`SettingsModal.vue` 打开弹窗回填数据时，`uiStyle.value = props.settings.ui_style || "flat"` 只处理假值，不在当前合法选项里的陈旧字符串值（如 "glass"）会原样保留——"界面风格"分段控件因此两项都不高亮，且哪怕用户只是想改别的设置，点保存时这个陈旧字段也会原样提交给后端，被 `validate_ui_style` 拒绝、连累整个表单报错"界面风格取值不合法"、弹窗关不掉。改成校验 `uiStyle.value` 是否在 `uiStyleOptions` 里，不在则回退 `"flat"`。
 
 ## [1.2.4] - 2026-08-17
 

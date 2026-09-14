@@ -199,7 +199,13 @@ watch(
         colorScheme.value = props.settings.color_scheme || "";
         themeMode.value = props.settings.theme_mode || "light";
         cornerRadius.value = props.settings.corner_radius ?? 10;
-        uiStyle.value = props.settings.ui_style || "flat";
+        // 校验而非单纯 || 兜底：合法取值集合会随版本变化（如液态玻璃被移除），
+        // 旧 settings.json 里存的值可能已不在当前选项里，不归一化的话分段控件
+        // 不会高亮任何一项，且原样提交会被后端 validate_ui_style 拒绝、连累整个
+        // 表单保存不了。
+        uiStyle.value = uiStyleOptions.some((o) => o.key === props.settings.ui_style)
+            ? props.settings.ui_style
+            : "flat";
         loadColorSchemesOnce();
     },
 );

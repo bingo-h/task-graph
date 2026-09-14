@@ -16,6 +16,10 @@
 - **前端包管理器由 npm 换成 pnpm**：`frontend/package-lock.json` 删除，改为 `frontend/pnpm-lock.yaml`；`frontend/package.json` 新增 `packageManager` 字段固定 pnpm 版本；`src-tauri/tauri.conf.json` 的 `beforeDevCommand`/`beforeBuildCommand` 改成 `pnpm --dir frontend run dev`/`run build`；`.github/workflows/release.yml` 改用 `pnpm/action-setup` + `pnpm install --frozen-lockfile` 安装依赖，`setup-node` 的缓存类型也同步改成 `pnpm`；`README.md`/`CONTRIBUTING.md`/`CLAUDE.md` 里涉及的 `npm install`/`npm run build`/`npm run dev` 等命令示例全部改成 pnpm 对应写法。
 - **应用图标**：`src-tauri/icons/` 下全部图标（`icon.png`/`icon.icns`/`icon.ico`、`32x32.png`/`128x128.png`/`128x128@2x.png`、Windows Store 用的 `Square*Logo.png`/`StoreLogo.png`）替换为新的 DAG 节点连线风格图标，用 `@tauri-apps/cli icon` 从一张 440×440 源图重新生成；`tauri.conf.json` 里引用的文件名未变。
 - **剩余组件圆角/阴影/动效统一 token 化**：`TaskGraph.vue` D3 节点矩形圆角接入 `--radius-sm`；`TaskDetail.vue`/`TaskListView.vue`/`ChartsPage.vue`/`CalendarPage.vue`/`ColorSwatchPicker.vue`/`IconPicker.vue`/`DatePicker.vue` 里硬编码的 `border-radius`/`box-shadow`/`transition` 值换成 `--radius-*`/`--elevation-*`/`--ease-standard`。
+- `style.css` 默认配色改为新的"克制中性"方案（原 GitHub 经典配色），`.rect-done`/`.rect-today`/`.rect-overdue`/`.rect-locked`/`.rect-waiting` 的硬编码颜色提取成 `--node-*` CSS 变量
+- 设置弹窗新增"外观"分区；"高亮模式"从专属的 `mode-group`/`mode-btn` 迁移到共享 `.segmented`
+- `TaskFormModal.vue` 优先级选择器迁移到共享 `.segmented`，语义色底色改用 `--red`/`--yellow`/`--blue` 派生而非硬编码 rgba
+- `ConfirmDialog`/`TimeEntryNoteModal` 按钮样式迁移到共享 `.btn-*` 类（`TagManagerModal.vue` 的重命名/删除/清除颜色按钮是固定尺寸的行内图标微交互，跟 `.btn` 家族的文字按钮排版模型不匹配，未纳入本次迁移）
 
 ### 新增
 
@@ -26,6 +30,12 @@
 - **任务开始日期/时间**：任务表单新增一个可选的"开始日期"（日期 + 时刻），不填的话，第一次为这个任务开始计时时会自动把那一刻记为开始时间；已经手动填过的不会被计时覆盖。任务详情面板新增"开始于"一行展示。
 - **任务看板列表视图**：项目栏标题栏（"新建项目"按钮旁）新增导图/列表切换（线框图标），列表模式把当前筛选出的任务按紧迫度平铺成一行行（状态勾选、优先级、描述、项目、标签、截止日期），点一行选中效果和导图点节点一致，跟导图共用同一套项目/标签筛选。框选多选、拖拽依赖这些导图特有的操作列表模式不支持，需要切回导图模式。这个切换只是当前会话内的显示偏好，不跨次启动保存。
 - **错误提示改成悬浮通知**：原来的错误提示是一条挤占布局空间的通栏（需要手动点掉），现在改成从标题栏下方滑出的悬浮通知，不遮罩其它内容，过一段时间自动收回（点一下也能立即收起）。设置的"通用"分区新增"通知自动消失时间"（单位秒，1-30，默认 3 秒）控制自动收回前停留多久。
+- 配色方案设置：内置默认（克制中性）+ 三套内置预设（沉稳深色系统/柔和明快/极简黑白灰）+ 自定义 TOML 文件（放进数据目录 `themes/` 下，未设置的颜色项自动回落默认值），新增 `Settings.color_scheme` 字段、`list_color_schemes`/`get_color_scheme` 命令、`src-tauri/src/color_scheme.rs` 模块
+- 深浅模式设置（跟随系统/浅色/深色），新增 `Settings.theme_mode` 字段，`style.css` 新增 `:root[data-theme-mode="dark"]` 默认深色配色块
+- 圆角设置（0-24px 滑块），新增 `Settings.corner_radius` 字段和 `--app-radius`/`--radius-sm/md/lg` CSS token
+- 界面风格设置（扁平/液态玻璃/新拟态三选一，只影响顶栏/侧栏/弹窗/下拉菜单/统计卡片，不影响 DAG 图任务节点状态色），新增 `Settings.ui_style` 字段和 `--shell-*` CSS token
+- 共享按钮样式（`.btn-primary/secondary/ghost/danger-ghost`）、共享分段控件样式（`.segmented`），替代此前多处重复实现的按钮/分段选中样式
+- 间距（`--space-1`~`--space-8`）、阴影分级（`--elevation-1/2/3`）、缓动曲线（`--ease-standard`/`--ease-spring`）CSS token
 
 ### 修复
 
@@ -35,6 +45,7 @@
   - "今日任务"标记、重复任务的每日/每周/每月周期截止时间，过了当地时间 0 点后不会自动翻篇——时区偏移较大的用户会在本地已经跨天后还要再等几个小时（等 UTC 也跨天）才会翻篇，比如重复任务前一天下午完成后，第二天本地已经是新的一天，但任务仍显示"已完成"而不是重置回待办。现在这两处都改用本地日期计算；数据库里已经按旧逻辑存下的重复任务周期截止时间也会在下次打开应用时自动修正一遍，不用等一个用旧逻辑算出来的周期过去才生效。
   - 任务表单里设置/编辑截止日期的具体时间时，原来会把用户在本地时区输入的钟点直接当成 UTC 时刻存库（反过来，回显到表单里编辑时也是把存的 UTC 钟点直接当本地时区读出来），实际生效的截止时刻会和用户设置的对不上，偏移量正好等于本地时区跟 UTC 的时差。现在表单读写、任务详情/图谱悬浮提示/首页即将到期列表里显示的截止时间和完成时间，都统一按本地时区正确换算。
   - 另外任务看板原来没有任何定时刷新机制，即使跨天时刻已过，只要没做任何触发数据刷新的操作界面也不会更新；现在和首页/图表页一样加了 5 分钟定时兜底刷新。
+- `TaskFormModal.vue` 里"取消"按钮误用 `btn-submit` class 导致和"添加任务"按钮渲染成一样的样式，用户分不清主次操作
 
 ## [1.2.4] - 2026-08-17
 

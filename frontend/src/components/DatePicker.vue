@@ -205,7 +205,7 @@ onBeforeUnmount(() => {
     color: var(--fg);
     background: var(--bg-dark);
     border: 1px solid var(--border);
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     padding: 6px 10px;
     outline: none;
     text-align: left;
@@ -228,8 +228,8 @@ onBeforeUnmount(() => {
     width: 240px;
     background: var(--bg-popup);
     border: 1px solid var(--border);
-    border-radius: 8px;
-    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
+    border-radius: var(--radius-md);
+    box-shadow: var(--elevation-3);
     padding: 10px;
 }
 
@@ -250,7 +250,7 @@ onBeforeUnmount(() => {
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     color: var(--fg-dim);
     font-size: 1.0769rem;
 }
@@ -280,10 +280,10 @@ onBeforeUnmount(() => {
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 5px;
+    border-radius: var(--radius-sm);
     font-size: 0.9231rem;
     color: var(--fg);
-    transition: background 0.12s;
+    transition: background 0.12s var(--ease-standard);
 }
 .day-cell:not(.empty):hover {
     background: rgba(0, 0, 0, 0.06);
@@ -312,10 +312,10 @@ onBeforeUnmount(() => {
 .footer-btn {
     flex: 1;
     padding: 4px 0;
-    border-radius: 5px;
+    border-radius: var(--radius-sm);
     font-size: 0.8462rem;
     color: var(--fg-dim);
-    transition: all 0.12s;
+    transition: all 0.12s var(--ease-standard);
 }
 .footer-btn:hover {
     background: rgba(0, 0, 0, 0.06);

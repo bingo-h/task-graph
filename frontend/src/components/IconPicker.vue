@@ -137,13 +137,13 @@ onBeforeUnmount(() => {
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 8px;
+    border-radius: var(--radius-md);
     font-size: 1.1rem;
     line-height: 1;
     background: var(--bg-dark);
     box-shadow: inset 0 0 0 1px var(--border);
     cursor: pointer;
-    transition: box-shadow 0.12s;
+    transition: box-shadow 0.12s var(--ease-standard);
 }
 .icon-btn.empty {
     color: var(--fg-dim);
@@ -163,8 +163,8 @@ onBeforeUnmount(() => {
     gap: 8px;
     background: var(--bg-popup);
     border: 1px solid var(--border);
-    border-radius: 8px;
-    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+    border-radius: var(--radius-md);
+    box-shadow: var(--elevation-3);
 }
 
 .icon-grid {
@@ -179,10 +179,10 @@ onBeforeUnmount(() => {
     justify-content: center;
     width: 28px;
     height: 28px;
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     font-size: 1.1rem;
     line-height: 1;
-    transition: background 0.12s;
+    transition: background 0.12s var(--ease-standard);
 }
 .icon-cell:hover {
     background: var(--bg-select);
@@ -194,7 +194,7 @@ onBeforeUnmount(() => {
 
 .icon-clear-btn {
     padding: 5px 0;
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     font-size: 0.8rem;
     color: var(--fg-dim);
     background: var(--bg-dark);

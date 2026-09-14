@@ -738,7 +738,7 @@ function statusLabel(s) {
 }
 .task-detail::-webkit-scrollbar-thumb {
     background: var(--fg-dark);
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
 }
 
 /* 拖拽调整宽度的把手 */
@@ -801,7 +801,7 @@ function statusLabel(s) {
     font-size: 1rem;
     color: var(--fg-dark);
     opacity: 0.5;
-    transition: all 0.15s;
+    transition: all 0.15s var(--ease-standard);
 }
 .btn-today-icon:hover {
     opacity: 0.85;
@@ -823,7 +823,7 @@ function statusLabel(s) {
 .badge-status {
     font-size: 0.8462rem;
     padding: 2px 8px;
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     font-weight: 600;
 }
 .status-pending {
@@ -847,7 +847,7 @@ function statusLabel(s) {
 .badge-priority {
     font-size: 0.8462rem;
     padding: 2px 8px;
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     font-weight: 700;
 }
 .priority-h {
@@ -937,14 +937,14 @@ function statusLabel(s) {
     font-size: 0.8462rem;
     padding: 1px 6px;
     border: none;
-    border-radius: 3px;
+    border-radius: var(--radius-sm);
     background: rgba(187, 154, 247, 0.15);
     color: var(--magenta);
 }
 
 .tag-chip-clickable {
     cursor: pointer;
-    transition: filter 0.12s;
+    transition: filter 0.12s var(--ease-standard);
 }
 .tag-chip-clickable:hover {
     filter: brightness(0.92);
@@ -958,11 +958,11 @@ function statusLabel(s) {
 }
 .timer-mode-btn {
     padding: 2px 8px;
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     border: 1px solid var(--border);
     font-size: 0.8462rem;
     color: var(--fg-dim);
-    transition: all 0.15s;
+    transition: all 0.15s var(--ease-standard);
 }
 .timer-mode-btn:hover {
     color: var(--fg);
@@ -989,10 +989,10 @@ function statusLabel(s) {
 }
 .btn-timer {
     padding: 5px 12px;
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     font-size: 0.9231rem;
     font-weight: 600;
-    transition: background 0.15s;
+    transition: background 0.15s var(--ease-standard);
     flex-shrink: 0;
 }
 .btn-timer-start {
@@ -1030,11 +1030,11 @@ function statusLabel(s) {
 }
 .time-filter-btn {
     padding: 2px 8px;
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     border: 1px solid var(--border);
     font-size: 0.8462rem;
     color: var(--fg-dim);
-    transition: all 0.15s;
+    transition: all 0.15s var(--ease-standard);
 }
 .time-filter-btn:hover {
     color: var(--fg);
@@ -1086,9 +1086,9 @@ function statusLabel(s) {
     font-size: 0.7692rem;
     line-height: 1;
     padding: 2px;
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     opacity: 0.25;
-    transition: all 0.15s;
+    transition: all 0.15s var(--ease-standard);
 }
 .time-entry-note-icon:hover {
     opacity: 1;
@@ -1104,10 +1104,10 @@ function statusLabel(s) {
     font-size: 0.6923rem;
     line-height: 1;
     padding: 2px 3px;
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     color: var(--fg-dark);
     opacity: 0;
-    transition: all 0.15s;
+    transition: all 0.15s var(--ease-standard);
 }
 .time-entry-row:hover .time-entry-delete {
     opacity: 1;
@@ -1123,7 +1123,7 @@ function statusLabel(s) {
     color: var(--yellow);
     background: rgba(224, 175, 104, 0.1);
     padding: 8px;
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     border-color: rgba(224, 175, 104, 0.3) !important;
 }
 
@@ -1133,10 +1133,10 @@ function statusLabel(s) {
     align-items: center;
     gap: 6px;
     padding: 5px 8px;
-    border-radius: 5px;
+    border-radius: var(--radius-sm);
     cursor: pointer;
     font-size: 0.9231rem;
-    transition: background 0.12s;
+    transition: background 0.12s var(--ease-standard);
 }
 .dep-item:hover {
     background: rgba(0, 0, 0, 0.05);
@@ -1166,7 +1166,7 @@ function statusLabel(s) {
     color: var(--fg);
     background: var(--bg-dark);
     border: 1px solid var(--border);
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     padding: 8px 10px;
     outline: none;
     line-height: 1.5;
@@ -1189,13 +1189,13 @@ function statusLabel(s) {
 .btn-done {
     flex: 1;
     padding: 6px;
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     background: rgba(158, 206, 106, 0.2);
     color: var(--green);
     font-size: 0.9231rem;
     font-weight: 600;
     border: 1px solid rgba(158, 206, 106, 0.3);
-    transition: background 0.15s;
+    transition: background 0.15s var(--ease-standard);
 }
 .btn-done:hover {
     background: rgba(158, 206, 106, 0.35);
@@ -1212,13 +1212,13 @@ function statusLabel(s) {
 .btn-undone {
     flex: 1;
     padding: 6px;
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     background: rgba(224, 175, 104, 0.2);
     color: var(--orange, #e0af68);
     font-size: 0.9231rem;
     font-weight: 600;
     border: 1px solid rgba(224, 175, 104, 0.3);
-    transition: background 0.15s;
+    transition: background 0.15s var(--ease-standard);
 }
 .btn-undone:hover {
     background: rgba(224, 175, 104, 0.35);
@@ -1227,13 +1227,13 @@ function statusLabel(s) {
 .btn-modify {
     flex: 1;
     padding: 6px;
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     background: rgba(122, 162, 247, 0.15);
     color: var(--blue);
     font-size: 0.9231rem;
     font-weight: 600;
     border: 1px solid rgba(122, 162, 247, 0.3);
-    transition: background 0.15s;
+    transition: background 0.15s var(--ease-standard);
 }
 .btn-modify:hover {
     background: rgba(122, 162, 247, 0.3);
@@ -1241,12 +1241,12 @@ function statusLabel(s) {
 
 .btn-delete {
     padding: 6px 12px;
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     background: rgba(247, 118, 142, 0.1);
     color: var(--red);
     font-size: 0.9231rem;
     border: 1px solid rgba(247, 118, 142, 0.2);
-    transition: background 0.15s;
+    transition: background 0.15s var(--ease-standard);
 }
 .btn-delete:hover {
     background: rgba(247, 118, 142, 0.25);

@@ -402,11 +402,11 @@ function backToMonth() {
 }
 .back-btn {
     padding: 5px 14px;
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     border: 1px solid var(--border);
     font-size: 0.8462rem;
     color: var(--fg-dim);
-    transition: all 0.15s;
+    transition: all 0.15s var(--ease-standard);
 }
 .back-btn:hover {
     color: var(--fg);
@@ -415,7 +415,7 @@ function backToMonth() {
 
 .calendar-error {
     padding: 8px 16px;
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     background: rgba(209, 36, 47, 0.1);
     color: var(--red);
     font-size: 0.9231rem;
@@ -440,7 +440,7 @@ function backToMonth() {
 .streak-panel {
     background: var(--bg-panel);
     border: 1px solid var(--border);
-    border-radius: 10px;
+    border-radius: var(--radius-md);
     padding: 16px 18px;
     display: flex;
     flex-direction: column;
@@ -465,8 +465,8 @@ function backToMonth() {
     align-items: center;
     gap: 8px;
     padding: 7px 8px;
-    border-radius: 7px;
-    transition: background 0.12s;
+    border-radius: var(--radius-md);
+    transition: background 0.12s var(--ease-standard);
 }
 .streak-row:hover {
     background: var(--bg-select);
@@ -502,7 +502,7 @@ function backToMonth() {
 .month-grid-card {
     background: var(--bg-panel);
     border: 1px solid var(--border);
-    border-radius: 10px;
+    border-radius: var(--radius-md);
     padding: 16px 18px;
     display: flex;
     flex-direction: column;
@@ -518,11 +518,11 @@ function backToMonth() {
 .month-nav-btn {
     width: 26px;
     height: 26px;
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     border: 1px solid var(--border);
     color: var(--fg-dim);
     font-size: 1.0769rem;
-    transition: all 0.15s;
+    transition: all 0.15s var(--ease-standard);
 }
 .month-nav-btn:hover {
     color: var(--fg);
@@ -537,11 +537,11 @@ function backToMonth() {
 .month-today-btn {
     margin-left: auto;
     padding: 4px 12px;
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     border: 1px solid var(--border);
     font-size: 0.8462rem;
     color: var(--fg-dim);
-    transition: all 0.15s;
+    transition: all 0.15s var(--ease-standard);
 }
 .month-today-btn:hover {
     color: var(--blue);
@@ -566,7 +566,7 @@ function backToMonth() {
     flex: 1;
 }
 .day-cell {
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     padding: 5px 6px;
     background: var(--bg);
     display: flex;
@@ -576,7 +576,7 @@ function backToMonth() {
 }
 .day-cell.clickable {
     cursor: pointer;
-    transition: background 0.12s;
+    transition: background 0.12s var(--ease-standard);
 }
 .day-cell.clickable:hover {
     background: var(--bg-select);
@@ -628,7 +628,7 @@ function backToMonth() {
 .day-view-card {
     background: var(--bg-panel);
     border: 1px solid var(--border);
-    border-radius: 10px;
+    border-radius: var(--radius-md);
     padding: 18px 20px;
     display: flex;
     flex-direction: column;
@@ -679,7 +679,7 @@ function backToMonth() {
     position: absolute;
     left: 6px;
     right: 6px;
-    border-radius: 5px;
+    border-radius: var(--radius-sm);
     padding: 2px 8px;
     overflow: hidden;
     opacity: 0.85;

@@ -464,16 +464,16 @@ const trendAreaPath = computed(() => {
     gap: 2px;
     background: var(--bg);
     border: 1px solid var(--border);
-    border-radius: 7px;
+    border-radius: var(--radius-md);
     padding: 2px;
 }
 .view-nav-btn {
     padding: 5px 14px;
-    border-radius: 5px;
+    border-radius: var(--radius-sm);
     font-size: 0.8462rem;
     font-weight: 600;
     color: var(--fg-dim);
-    transition: all 0.15s;
+    transition: all 0.15s var(--ease-standard);
 }
 .view-nav-btn:hover {
     color: var(--fg);
@@ -486,7 +486,7 @@ const trendAreaPath = computed(() => {
 
 .charts-error {
     padding: 8px 16px;
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     background: rgba(209, 36, 47, 0.1);
     color: var(--red);
     font-size: 0.9231rem;
@@ -503,7 +503,7 @@ const trendAreaPath = computed(() => {
 .chart-card {
     background: var(--bg-panel);
     border: 1px solid var(--border);
-    border-radius: 10px;
+    border-radius: var(--radius-md);
     padding: 18px 20px 14px;
     display: flex;
     flex-direction: column;
@@ -544,11 +544,11 @@ const trendAreaPath = computed(() => {
 .group-by-btn,
 .range-btn {
     padding: 5px 12px;
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     border: 1px solid var(--border);
     font-size: 0.8462rem;
     color: var(--fg-dim);
-    transition: all 0.15s;
+    transition: all 0.15s var(--ease-standard);
 }
 .group-by-btn:hover,
 .range-btn:hover {
@@ -567,7 +567,7 @@ const trendAreaPath = computed(() => {
     gap: 2px;
     background: var(--bg);
     border: 1px solid var(--border);
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     padding: 2px;
 }
 .chart-type-btn {
@@ -576,10 +576,10 @@ const trendAreaPath = computed(() => {
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     font-size: 0.7692rem;
     opacity: 0.5;
-    transition: all 0.15s;
+    transition: all 0.15s var(--ease-standard);
 }
 .chart-type-btn:hover {
     opacity: 0.8;
@@ -622,16 +622,16 @@ const trendAreaPath = computed(() => {
     flex: 1;
     height: 18px;
     background: var(--bg);
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     overflow: hidden;
 }
 .hbar-fill {
     height: 100%;
     background: var(--blue);
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     transition:
-        width 0.2s,
-        background 0.15s;
+        width 0.2s var(--ease-standard),
+        background 0.15s var(--ease-standard);
 }
 .hbar-row.clickable:hover .hbar-fill {
     background: var(--cyan);
@@ -718,10 +718,10 @@ const trendAreaPath = computed(() => {
     width: 55%;
     min-width: 3px;
     background: var(--blue);
-    border-radius: 4px 4px 0 0;
+    border-radius: var(--radius-sm) var(--radius-sm) 0 0;
     transition:
-        opacity 0.15s,
-        background 0.15s;
+        opacity 0.15s var(--ease-standard),
+        background 0.15s var(--ease-standard);
 }
 .bar.hovered {
     background: var(--cyan);
@@ -735,7 +735,7 @@ const trendAreaPath = computed(() => {
     background: var(--blue);
     border: 2px solid var(--bg-panel);
     transform: translate(-50%, 50%);
-    transition: background 0.15s;
+    transition: background 0.15s var(--ease-standard);
     z-index: 2;
 }
 .line-marker.hovered {
@@ -759,9 +759,9 @@ const trendAreaPath = computed(() => {
     z-index: 5;
     background: var(--bg-popup);
     border: 1px solid var(--border);
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     padding: 8px 10px;
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+    box-shadow: var(--elevation-2);
     white-space: nowrap;
     pointer-events: none;
 }

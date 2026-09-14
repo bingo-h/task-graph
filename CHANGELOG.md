@@ -15,6 +15,7 @@
 - **清理前端脚手架遗留的多余文件**：删除从未生效的 `frontend/vite.config.ts`（Vite 两个配置文件同时存在时只认 `.js`，`.ts` 那份引用的 `vite-plugin-vue-devtools` 根本不在依赖列表里，还配了个指向已废弃 FastAPI 后端的 `/api` 代理）；删除标准 Vite TS 脚手架残留的 `frontend/env.d.ts`（项目里没有任何 `.ts`/`lang="ts"` 文件，也没有 `tsconfig.json`，纯属没用上）；`frontend/package.json` 的 `devDependencies` 移除随之失去意义的 `typescript`/`vue-tsc`/`@vue/typescript-plugin`，并同步更新 `frontend/pnpm-lock.yaml`；`CLAUDE.md` 里对应描述 `vite.config.ts` 的过时提示段落一并删除。
 - **前端包管理器由 npm 换成 pnpm**：`frontend/package-lock.json` 删除，改为 `frontend/pnpm-lock.yaml`；`frontend/package.json` 新增 `packageManager` 字段固定 pnpm 版本；`src-tauri/tauri.conf.json` 的 `beforeDevCommand`/`beforeBuildCommand` 改成 `pnpm --dir frontend run dev`/`run build`；`.github/workflows/release.yml` 改用 `pnpm/action-setup` + `pnpm install --frozen-lockfile` 安装依赖，`setup-node` 的缓存类型也同步改成 `pnpm`；`README.md`/`CONTRIBUTING.md`/`CLAUDE.md` 里涉及的 `npm install`/`npm run build`/`npm run dev` 等命令示例全部改成 pnpm 对应写法。
 - **应用图标**：`src-tauri/icons/` 下全部图标（`icon.png`/`icon.icns`/`icon.ico`、`32x32.png`/`128x128.png`/`128x128@2x.png`、Windows Store 用的 `Square*Logo.png`/`StoreLogo.png`）替换为新的 DAG 节点连线风格图标，用 `@tauri-apps/cli icon` 从一张 440×440 源图重新生成；`tauri.conf.json` 里引用的文件名未变。
+- **剩余组件圆角/阴影/动效统一 token 化**：`TaskGraph.vue` D3 节点矩形圆角接入 `--radius-sm`；`TaskDetail.vue`/`TaskListView.vue`/`ChartsPage.vue`/`CalendarPage.vue`/`ColorSwatchPicker.vue`/`IconPicker.vue`/`DatePicker.vue` 里硬编码的 `border-radius`/`box-shadow`/`transition` 值换成 `--radius-*`/`--elevation-*`/`--ease-standard`。
 
 ### 新增
 

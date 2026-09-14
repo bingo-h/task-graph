@@ -350,8 +350,8 @@ onBeforeUnmount(() => {
     gap: 10px;
     background: var(--bg-popup);
     border: 1px solid var(--border);
-    border-radius: 8px;
-    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+    border-radius: var(--radius-md);
+    box-shadow: var(--elevation-3);
 }
 
 .swatch-presets {
@@ -366,7 +366,7 @@ onBeforeUnmount(() => {
     border-radius: 50%;
     cursor: pointer;
     box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.15);
-    transition: transform 0.1s;
+    transition: transform 0.1s var(--ease-standard);
 }
 .preset-dot:hover {
     transform: scale(1.1);
@@ -382,7 +382,7 @@ onBeforeUnmount(() => {
     position: relative;
     width: 100%;
     height: 110px;
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     cursor: crosshair;
     touch-action: none;
     background-image:
@@ -448,7 +448,7 @@ onBeforeUnmount(() => {
     flex-shrink: 0;
     width: 18px;
     height: 18px;
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.15);
 }
 
@@ -460,7 +460,7 @@ onBeforeUnmount(() => {
     font-size: 0.85rem;
     background: var(--bg-dark);
     border: 1px solid var(--border);
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     color: var(--fg);
     outline: none;
 }

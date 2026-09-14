@@ -190,13 +190,13 @@ function projectLabel(task) {
     gap: 10px;
     padding: 7px 10px;
     margin-bottom: 3px;
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     border-left: 3px solid transparent;
     background: var(--bg-panel);
     cursor: pointer;
     transition:
-        background 0.12s,
-        border-color 0.12s;
+        background 0.12s var(--ease-standard),
+        border-color 0.12s var(--ease-standard);
 }
 .task-row:hover {
     background: var(--bg-select);
@@ -230,7 +230,7 @@ function projectLabel(task) {
     border: 1px solid var(--border);
     font-size: 0.8462rem;
     color: var(--fg-dim);
-    transition: all 0.15s;
+    transition: all 0.15s var(--ease-standard);
 }
 .row-status-btn:hover:not(:disabled) {
     border-color: var(--blue);
@@ -256,7 +256,7 @@ function projectLabel(task) {
     text-align: center;
     font-size: 0.8462rem;
     font-weight: 700;
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
 }
 .row-priority.priority-h {
     color: var(--red);
@@ -345,7 +345,7 @@ function projectLabel(task) {
     border: 1px solid;
     font-size: 0.8462rem;
     font-weight: 600;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+    box-shadow: var(--elevation-2);
 }
 .tag-filter-clear {
     width: 16px;

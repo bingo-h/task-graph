@@ -20,6 +20,8 @@
 - **设置弹窗新增"外观"分区**：设置弹窗新增"外观"分区；"高亮模式"从专属的 `mode-group`/`mode-btn` 迁移到共享 `.segmented`。
 - **优先级选择器迁移到共享分段控件**：`TaskFormModal.vue` 优先级选择器迁移到共享 `.segmented`，语义色底色改用 `--red`/`--yellow`/`--blue` 派生而非硬编码 rgba。
 - **弹窗按钮样式迁移到共享 `.btn-*` 类**：`ConfirmDialog.vue`/`TimeEntryNoteModal.vue` 按钮样式迁移到共享 `.btn-*` 类（`TagManagerModal.vue` 的重命名/删除/清除颜色按钮是固定尺寸的行内图标微交互，跟 `.btn` 家族的文字按钮排版模型不匹配，未纳入本次迁移）。
+- **界面风格材质范围扩大到按钮与弹窗**：`style.css` 里 `.btn-secondary`/`.btn-ghost`/`.segmented`/`.stepper` 新增 `data-ui-style="glass"`/`"neumorphism"` 材质规则（背景/边框/阴影改读 `--shell-*` token）；`.btn-primary`/`.btn-danger` 保留语义色背景，新拟态下叠加立体阴影；全部弹窗容器（`SettingsModal.vue`/`TaskFormModal.vue`/`TagManagerModal.vue`/`TimeEntryNoteModal.vue` 共用的 `.modal`，以及 `ConfirmDialog.vue` 的 `.confirm-modal`）同样接入 `--shell-bg`/`--shell-shadow`/`--shell-backdrop`。此前"界面风格"只覆盖顶栏/侧栏/右键菜单/统计卡片，按钮和弹窗维持扁平不变，切换新拟态/玻璃时视觉不统一；`src-tauri/src/settings.rs`、`SettingsModal.vue` 里说明这项设置作用范围的注释/提示文案同步更新为覆盖按钮与弹窗。
+- **README 补充"外观与自定义配色"说明**：新增独立章节，说明配色方案/深浅模式/圆角/界面风格四个设置项的作用范围，以及自定义 TOML 主题文件的存放位置（`themes/` 目录）、完整 21 个颜色 key 清单、未设置项自动回落默认值的机制；"功能特性"列表补充一条外观自定义的入口说明。
 
 ### 新增
 
@@ -46,6 +48,8 @@
   - 任务表单里设置/编辑截止日期的具体时间时，原来会把用户在本地时区输入的钟点直接当成 UTC 时刻存库（反过来，回显到表单里编辑时也是把存的 UTC 钟点直接当本地时区读出来），实际生效的截止时刻会和用户设置的对不上，偏移量正好等于本地时区跟 UTC 的时差。现在表单读写、任务详情/图谱悬浮提示/首页即将到期列表里显示的截止时间和完成时间，都统一按本地时区正确换算。
   - 另外任务看板原来没有任何定时刷新机制，即使跨天时刻已过，只要没做任何触发数据刷新的操作界面也不会更新；现在和首页/图表页一样加了 5 分钟定时兜底刷新。
 - `TaskFormModal.vue` 里"取消"按钮误用 `btn-submit` class 导致和"添加任务"按钮渲染成一样的样式，用户分不清主次操作。
+- **液态玻璃风格的模糊效果实际未生效**：`style.css` 的 `.shell-surface::after` 同时声明了 `backdrop-filter` 和 `-webkit-backdrop-filter`（都引用 `var(--shell-backdrop)`），原写法是标准属性在前、前缀属性在后；生产构建的 CSS 压缩器会把这种"值相同的标准属性+前缀属性"去重、只保留源码顺序里最后出现的一个，导致压缩后标准 `backdrop-filter` 声明丢失。玻璃风格下顶栏/统计卡片/弹窗等外壳组件因此只剩下半透明背景色和阴影，没有任何模糊效果，视觉上呈现为一片纯色块+边缘阴影，而不是磨砂玻璃质感。调整为前缀属性写在前、标准属性写在后，构建产物里两条声明都会保留。
+- **"高亮模式"/"优先级"等分段控件外框撑满一整行、内部按钮却只占一小部分宽度**：共享的 `.segmented`/`.stepper` 组件是被外层 `.form-row`（`display: flex; flex-direction: column`，未设置 `align-items`）按 flex 交叉轴默认的 `stretch` 行为撑满整行宽度，组件内部的按钮/输入框本身按内容自适应宽度、不会跟着撑满，因此出现"外层灰底边框占满一整行、按钮挤在左侧"的观感。给 `.segmented`/`.stepper` 加 `align-self: flex-start`，改回按内容自身宽度显示。
 
 ## [1.2.4] - 2026-08-17
 

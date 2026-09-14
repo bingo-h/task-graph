@@ -421,6 +421,7 @@ rect.rect-overdue {
 /* 分段控件：外层灰底托盘 + 内部按钮，选中项浮起（中性选择）或按语义色着色（如优先级） */
 .segmented {
     display: inline-flex;
+    align-self: flex-start;
     gap: 2px;
     padding: 3px;
     background: var(--bg-dark);
@@ -446,12 +447,32 @@ rect.rect-overdue {
     color: var(--fg);
     box-shadow: var(--elevation-1);
 }
+html[data-ui-style="glass"] .segmented {
+    background: var(--shell-bg);
+    -webkit-backdrop-filter: var(--shell-backdrop);
+    backdrop-filter: var(--shell-backdrop);
+    border-color: rgba(255, 255, 255, 0.14);
+}
+html[data-ui-style="neumorphism"] .segmented {
+    background: var(--shell-bg);
+    border-color: transparent;
+    box-shadow: var(--shell-shadow-pressed);
+}
+html[data-ui-style="neumorphism"] .segmented button {
+    color: var(--shell-fg-dim);
+}
+html[data-ui-style="neumorphism"] .segmented button.active {
+    background: var(--shell-bg);
+    color: var(--shell-fg);
+    box-shadow: var(--shell-shadow);
+}
 
 /* 数字步进器：替代原生 <input type=number> 的浏览器默认上下箭头（无法定制
    样式、跟整体扁平风格不一致），−/输入框/+ 三段拼接成一个胶囊控件。 */
 .stepper {
     display: inline-flex;
     align-items: stretch;
+    align-self: flex-start;
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
     overflow: hidden;
@@ -483,9 +504,29 @@ rect.rect-overdue {
 .stepper input:focus {
     outline: none;
 }
+html[data-ui-style="glass"] .stepper {
+    border-color: rgba(255, 255, 255, 0.14);
+}
+html[data-ui-style="glass"] .stepper button,
+html[data-ui-style="glass"] .stepper input {
+    background: var(--shell-bg);
+    -webkit-backdrop-filter: var(--shell-backdrop);
+    backdrop-filter: var(--shell-backdrop);
+    color: var(--shell-fg);
+}
+html[data-ui-style="neumorphism"] .stepper {
+    border-color: transparent;
+    box-shadow: var(--shell-shadow-pressed);
+}
+html[data-ui-style="neumorphism"] .stepper button,
+html[data-ui-style="neumorphism"] .stepper input {
+    background: var(--shell-bg);
+    color: var(--shell-fg);
+    border-color: rgba(0, 0, 0, 0.08);
+}
 
 /* ── 外壳 token（界面风格：扁平 / 液态玻璃 / 新拟态） ──────────────────────── */
-/* 只影响外壳（顶栏/侧栏/右键菜单/统计卡片），不影响 DAG 图任务节点的
+/* 只影响外壳（顶栏/侧栏/右键菜单/弹窗/统计卡片/按钮等控件），不影响 DAG 图任务节点的
    语义色——节点状态色（node-done 等）不读这套 token，永远走扁平语言。
    切换风格只是给 <html> 换一个 data-ui-style 属性，组件样式只认 --shell-*，
    不需要为每个风格单独写一份组件 CSS。 */
@@ -560,6 +601,62 @@ html[data-ui-style="glass"] .shell-surface::after {
     inset: 0;
     z-index: -1;
     border-radius: inherit;
-    backdrop-filter: var(--shell-backdrop);
     -webkit-backdrop-filter: var(--shell-backdrop);
+    backdrop-filter: var(--shell-backdrop);
+}
+
+/* 界面风格：中性外观的共享控件（次要/幽灵按钮、分段控件、步进器）也接入外壳材质，
+   跟外壳容器视觉统一；强调色按钮（primary/danger）保留语义色背景，只叠加阴影质感，
+   避免材质背景盖掉语义色。 */
+html[data-ui-style="glass"] .btn-secondary,
+html[data-ui-style="glass"] .btn-ghost {
+    background: var(--shell-bg);
+    -webkit-backdrop-filter: var(--shell-backdrop);
+    backdrop-filter: var(--shell-backdrop);
+    border-color: rgba(255, 255, 255, 0.14);
+    color: var(--shell-fg);
+}
+html[data-ui-style="neumorphism"] .btn-secondary,
+html[data-ui-style="neumorphism"] .btn-ghost {
+    background: var(--shell-bg);
+    border-color: transparent;
+    box-shadow: var(--shell-shadow);
+    color: var(--shell-fg);
+}
+html[data-ui-style="neumorphism"] .btn-secondary:hover:not(:disabled),
+html[data-ui-style="neumorphism"] .btn-ghost:hover:not(:disabled) {
+    background: var(--shell-bg);
+    box-shadow: var(--shell-shadow-pressed);
+}
+
+html[data-ui-style="neumorphism"] .btn-primary,
+html[data-ui-style="neumorphism"] .btn-danger {
+    box-shadow: 3px 3px 6px var(--neu-shadow-d), -3px -3px 6px var(--neu-shadow-l);
+}
+html[data-ui-style="neumorphism"] .btn-primary:active:not(:disabled),
+html[data-ui-style="neumorphism"] .btn-danger:active:not(:disabled) {
+    box-shadow: inset 2px 2px 4px rgba(0, 0, 0, 0.25);
+}
+
+/* 弹窗容器也接入外壳材质，跟顶栏/侧栏/统计卡片视觉统一；玻璃风格下弹窗背后
+   始终有半透明黑色遮罩（各弹窗自带的 .modal-overlay/.confirm-overlay）兜底可读性。 */
+html[data-ui-style="glass"] .modal,
+html[data-ui-style="glass"] .confirm-modal,
+html[data-ui-style="neumorphism"] .modal,
+html[data-ui-style="neumorphism"] .confirm-modal {
+    background: var(--shell-bg);
+    border-color: transparent;
+    box-shadow: var(--shell-shadow);
+}
+html[data-ui-style="glass"] .modal,
+html[data-ui-style="glass"] .confirm-modal {
+    -webkit-backdrop-filter: var(--shell-backdrop);
+    backdrop-filter: var(--shell-backdrop);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+}
+html[data-ui-style="neumorphism"] .modal-header,
+html[data-ui-style="neumorphism"] .confirm-header,
+html[data-ui-style="neumorphism"] .modal-footer,
+html[data-ui-style="neumorphism"] .confirm-footer {
+    border-color: rgba(0, 0, 0, 0.06);
 }

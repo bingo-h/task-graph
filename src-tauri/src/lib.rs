@@ -49,6 +49,8 @@ pub fn run() {
             commands::get_settings,
             commands::save_settings,
             commands::list_system_fonts,
+            commands::list_color_schemes,
+            commands::get_color_scheme,
             commands::add_task,
             commands::modify_task,
             commands::reconnect_dependency,

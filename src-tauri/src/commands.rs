@@ -517,6 +517,18 @@ pub fn list_system_fonts() -> Vec<String> {
     crate::fonts::list_families()
 }
 
+/// 列出所有可选配色方案（内置 3 套 + 数据目录 themes/ 下发现的自定义文件）
+#[tauri::command]
+pub fn list_color_schemes() -> Vec<crate::color_scheme::ColorSchemeInfo> {
+    crate::color_scheme::list_all()
+}
+
+/// 按 id 加载一个配色方案，校验后返回
+#[tauri::command]
+pub fn get_color_scheme(id: String) -> Result<crate::color_scheme::ColorScheme, String> {
+    crate::color_scheme::get(&id)
+}
+
 /// 保存应用设置
 #[tauri::command]
 pub fn save_settings(settings: Settings) -> Result<Settings, String> {

@@ -1,21 +1,53 @@
-/* 亮色配色 */
+/* 默认配色方案 A（克制中性 + 单一强调色），浅色 */
 :root {
-    --bg: #f5f6f8;
+    --bg: #fbfbfd;
     --bg-dark: #ffffff;
     --bg-panel: #ffffff;
-    --bg-select: #e3ecfb;
+    --bg-select: #e8ecff;
     --bg-popup: #ffffff;
-    --fg: #24292f;
-    --fg-dim: #6e7781;
-    --fg-dark: #afb6c0;
-    --blue: #1a73e8;
+    --fg: #1c1f26;
+    --fg-dim: #6b7280;
+    --fg-dark: #9aa1ad;
+    --blue: #4f6bff;
     --magenta: #8250df;
     --cyan: #0598bc;
     --green: #1a7f37;
     --yellow: #9a6700;
     --orange: #bc4c00;
     --red: #d1242f;
-    --border: #d0d7de;
+    --border: #e4e4ea;
+    --node-done: #e6f5ec;
+    --node-today: #fdf1dc;
+    --node-overdue: #fdeceb;
+    --node-locked: #eceef2;
+    --node-waiting: #e9edf5;
+}
+
+/* 同一份方案 A 的深色默认值。不用 @media (prefers-color-scheme) 是因为
+   "该用浅色还是深色"由 App.vue 的 theme_mode 设置解析后写成这个属性，
+   不依赖操作系统主题查询——这样"跟随系统"和"手动选浅/深"能走同一套 CSS。 */
+:root[data-theme-mode="dark"] {
+    --bg: #0d0f14;
+    --bg-dark: #14161d;
+    --bg-panel: #14161d;
+    --bg-select: rgba(124, 143, 255, 0.18);
+    --bg-popup: #14161d;
+    --fg: #e6e8ef;
+    --fg-dim: #8b8fa3;
+    --fg-dark: #4b5165;
+    --blue: #7c8fff;
+    --magenta: #b48eea;
+    --cyan: #4dc3e0;
+    --green: #3fae6a;
+    --yellow: #d9a72e;
+    --orange: #e0904f;
+    --red: #f2757a;
+    --border: #262933;
+    --node-done: rgba(63, 174, 106, 0.18);
+    --node-today: rgba(217, 167, 46, 0.18);
+    --node-overdue: rgba(242, 117, 122, 0.18);
+    --node-locked: rgba(255, 255, 255, 0.07);
+    --node-waiting: rgba(255, 255, 255, 0.05);
 }
 
 /* Reset */
@@ -176,11 +208,11 @@ input:focus {
 }
 
 .rect-done {
-    fill: #e6f4ea;
+    fill: var(--node-done);
 }
 
 .rect-overdue {
-    fill: rgba(247, 118, 142, 0.18);
+    fill: var(--node-overdue);
 }
 /* 超时任务需要在图中一眼可见，单靠浅色填充不够醒目，加一圈醒目的红色描边 */
 rect.rect-overdue {
@@ -189,15 +221,15 @@ rect.rect-overdue {
 }
 
 .rect-today {
-    fill: #fdf0dd;
+    fill: var(--node-today);
 }
 
 .rect-locked {
-    fill: #eceef1;
+    fill: var(--node-locked);
 }
 
 .rect-waiting {
-    fill: #e9edf5;
+    fill: var(--node-waiting);
 }
 
 /* 节点文字：加粗、字号比下面的详情行明显更大，一眼能分清标题和详情。

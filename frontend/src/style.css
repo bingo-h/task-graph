@@ -414,6 +414,13 @@ rect.rect-overdue {
     border-color: var(--red);
 }
 
+.icon {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+    vertical-align: -2px;
+}
+
 /* 分段控件：外层灰底托盘 + 内部按钮，选中项浮起（中性选择）或按语义色着色（如优先级） */
 .segmented {
     display: inline-flex;

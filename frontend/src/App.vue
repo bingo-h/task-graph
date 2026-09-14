@@ -1139,8 +1139,26 @@ onUnmounted(() => clearInterval(autoRefreshTimer));
 
 <template>
     <div class="app">
+        <!-- 图标 sprite：刷新/标签/设置共用的手绘线性图标，供下面 <use> 引用 -->
+        <svg style="position: absolute; width: 0; height: 0" aria-hidden="true">
+            <defs>
+                <g id="i-refresh" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 11a7 7 0 0 1 12.1-4.9M17 3v4h-4" />
+                    <path d="M17 9a7 7 0 0 1-12.1 4.9M3 17v-4h4" />
+                </g>
+                <g id="i-tag" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round">
+                    <path d="M10.5 3H16a1 1 0 0 1 1 1v5.5a1 1 0 0 1-.3.7l-7 7a1 1 0 0 1-1.4 0l-5.5-5.5a1 1 0 0 1 0-1.4l7-7a1 1 0 0 1 .7-.3z" />
+                    <circle cx="13.2" cy="6.8" r="1" fill="currentColor" stroke="none" />
+                </g>
+                <g id="i-settings" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+                    <line x1="3" y1="6" x2="8" y2="6" /><circle cx="10.5" cy="6" r="2" /><line x1="13" y1="6" x2="17" y2="6" />
+                    <line x1="3" y1="14" x2="4" y2="14" /><circle cx="6.5" cy="14" r="2" /><line x1="9" y1="14" x2="17" y2="14" />
+                </g>
+            </defs>
+        </svg>
+
         <!-- 顶部导航栏（兼具自定义标题栏，可拖拽） -->
-        <header class="topbar" data-tauri-drag-region>
+        <header class="topbar shell-surface" data-tauri-drag-region>
             <span class="app-title" data-tauri-drag-region>task-graph</span>
 
             <!-- 页面切换：首页仪表盘 / 任务看板 -->
@@ -1234,29 +1252,32 @@ onUnmounted(() => clearInterval(autoRefreshTimer));
             </div>
 
             <!-- 添加任务按钮 -->
-            <button class="btn-add-toggle" @click="openAdd">+ 添加任务</button>
+            <button class="btn btn-primary" @click="openAdd">+ 添加任务</button>
 
             <!-- 刷新按钮 -->
-            <button class="btn-refresh" @click="load" :disabled="loading">
-                {{ loading ? "加载中…" : "↺ 刷新" }}
+            <button class="btn btn-ghost" @click="load" :disabled="loading">
+                <svg class="icon" viewBox="0 0 20 20"><use href="#i-refresh" /></svg>
+                {{ loading ? "加载中…" : "刷新" }}
             </button>
 
             <!-- 标签管理按钮 -->
             <button
-                class="btn-refresh"
+                class="btn btn-ghost"
                 title="标签管理"
                 @click="showTagManager = true"
             >
-                🏷 标签
+                <svg class="icon" viewBox="0 0 20 20"><use href="#i-tag" /></svg>
+                标签
             </button>
 
             <!-- 设置按钮 -->
             <button
-                class="btn-refresh"
+                class="btn btn-ghost"
                 title="设置"
                 @click="showSettings = true"
             >
-                ⚙ 设置
+                <svg class="icon" viewBox="0 0 20 20"><use href="#i-settings" /></svg>
+                设置
             </button>
 
             <!-- 窗口控制按钮（无边框窗口自绘） -->
@@ -1476,7 +1497,11 @@ onUnmounted(() => clearInterval(autoRefreshTimer));
     gap: 12px;
     padding: 0 16px;
     height: 44px;
-    background: var(--bg-dark);
+    background: var(--shell-bg);
+    backdrop-filter: var(--shell-backdrop);
+    -webkit-backdrop-filter: var(--shell-backdrop);
+    box-shadow: var(--shell-shadow);
+    color: var(--shell-fg);
     border-bottom: 1px solid var(--border);
     flex-shrink: 0;
 }
@@ -1618,39 +1643,12 @@ onUnmounted(() => clearInterval(autoRefreshTimer));
     opacity: 1;
 }
 
-.btn-add-toggle {
-    /* 把自己和右边的刷新/设置按钮一起推到标题栏最右侧，紧挨窗口控制按钮左边 */
+/* 添加任务按钮的视觉样式已改用共享的 .btn/.btn-primary（style.css），这里只保留
+   一条布局规则：把自己和右边的刷新/标签/设置按钮一起推到标题栏最右侧，紧挨窗口
+   控制按钮左边——这条 margin-left: auto 是原 .btn-add-toggle 规则里唯一跟按钮
+   视觉样式无关、不能被共享类替代的部分。 */
+.topbar .btn-primary {
     margin-left: auto;
-    padding: 4px 14px;
-    border-radius: 6px;
-    background: var(--blue);
-    color: var(--bg);
-    font-weight: 600;
-    font-size: 0.9231rem;
-    transition: opacity 0.15s;
-}
-
-.btn-add-toggle:hover {
-    opacity: 0.85;
-}
-
-.btn-refresh {
-    padding: 4px 12px;
-    border-radius: 6px;
-    border: 1px solid var(--border);
-    color: var(--fg-dim);
-    font-size: 0.9231rem;
-    transition: all 0.15s;
-}
-
-.btn-refresh:hover {
-    color: var(--fg);
-    border-color: var(--fg-dark);
-}
-
-.btn-refresh:disabled {
-    opacity: 0.4;
-    cursor: default;
 }
 
 /* 无边框窗口的自绘控制按钮 */

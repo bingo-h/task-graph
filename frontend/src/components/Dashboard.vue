@@ -358,19 +358,19 @@ const todayTasks = computed(() => activeNodes.value.filter((t) => t.is_today));
 
         <!-- 数据汇总 -->
         <div class="summary-grid">
-            <div class="summary-card shell-surface">
+            <div class="summary-card">
                 <span class="summary-label">总专注时长</span>
                 <span class="summary-value">{{
                     formatDuration(summary.totalFocus)
                 }}</span>
             </div>
-            <div class="summary-card shell-surface">
+            <div class="summary-card">
                 <span class="summary-label">日均专注</span>
                 <span class="summary-value">{{
                     formatCompact(summary.avgFocus)
                 }}</span>
             </div>
-            <div class="summary-card shell-surface">
+            <div class="summary-card">
                 <span class="summary-label">完成任务</span>
                 <span class="summary-value"
                     >{{ taskCompletionStats.completed }}/{{
@@ -378,7 +378,7 @@ const todayTasks = computed(() => activeNodes.value.filter((t) => t.is_today));
                     }}</span
                 >
             </div>
-            <div class="summary-card shell-surface">
+            <div class="summary-card">
                 <span class="summary-label">专注时间占比</span>
                 <span class="summary-value"
                     >{{ summary.occupancyPct.toFixed(1) }}<span
@@ -689,8 +689,6 @@ const todayTasks = computed(() => activeNodes.value.filter((t) => t.is_today));
     grid-template-columns: repeat(4, 1fr);
     gap: 14px;
 }
-/* 玻璃风格的模糊效果由 .shell-surface::after 统一提供（见 style.css），
-   这里不要再自己加 backdrop-filter。 */
 .summary-card {
     display: flex;
     flex-direction: column;

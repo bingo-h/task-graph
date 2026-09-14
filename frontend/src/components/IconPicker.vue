@@ -98,7 +98,7 @@ onBeforeUnmount(() => {
             <div
                 v-if="open"
                 ref="popoverRef"
-                class="icon-popover shell-surface"
+                class="icon-popover"
                 :style="popoverStyle"
             >
                 <div class="icon-grid">

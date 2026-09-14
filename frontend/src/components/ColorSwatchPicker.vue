@@ -258,7 +258,7 @@ onBeforeUnmount(() => {
             <div
                 v-if="open"
                 ref="popoverRef"
-                class="swatch-popover shell-surface"
+                class="swatch-popover"
                 :style="popoverStyle"
             >
                 <div class="swatch-presets">

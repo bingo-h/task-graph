@@ -130,7 +130,7 @@ pub struct Settings {
     #[serde(default = "default_corner_radius")]
     pub corner_radius: u32,
     /// 界面风格（只影响顶栏/侧栏/右键菜单/弹窗/日期与图标与颜色选择器/统计卡片/按钮等外壳与控件，不影响 DAG 图任务节点）：
-    /// "flat" | "glass" | "neumorphism"
+    /// "flat" | "neumorphism"
     #[serde(default = "default_ui_style")]
     pub ui_style: String,
 }
@@ -180,7 +180,7 @@ pub fn validate_theme_mode(value: &str) -> bool {
 
 /// 校验界面风格取值
 pub fn validate_ui_style(value: &str) -> bool {
-    matches!(value, "flat" | "glass" | "neumorphism")
+    matches!(value, "flat" | "neumorphism")
 }
 
 /// 校验配色方案 id 的格式（不校验方案本身是否存在/合法，那是 color_scheme::get 的职责）：
@@ -253,8 +253,8 @@ mod tests {
     #[test]
     fn ui_style_accepts_known_values() {
         assert!(validate_ui_style("flat"));
-        assert!(validate_ui_style("glass"));
         assert!(validate_ui_style("neumorphism"));
+        assert!(!validate_ui_style("glass"));
         assert!(!validate_ui_style("skeuomorphic"));
     }
 

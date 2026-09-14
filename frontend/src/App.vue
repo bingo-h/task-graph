@@ -1158,7 +1158,7 @@ onUnmounted(() => clearInterval(autoRefreshTimer));
         </svg>
 
         <!-- 顶部导航栏（兼具自定义标题栏，可拖拽） -->
-        <header class="topbar shell-surface" data-tauri-drag-region>
+        <header class="topbar" data-tauri-drag-region>
             <span class="app-title" data-tauri-drag-region>task-graph</span>
 
             <!-- 页面切换：首页仪表盘 / 任务看板 -->
@@ -1490,9 +1490,6 @@ onUnmounted(() => clearInterval(autoRefreshTimer));
     height: 100vh;
 }
 
-/* 玻璃风格的模糊效果由 .shell-surface::after 统一提供（见 style.css），
-   这里不要再自己加 backdrop-filter——重复声明过一次，两层叠加导致模糊
-   强度翻倍，而且这里的写法此前顺序不对，生产构建会被压缩器丢掉标准属性。 */
 .topbar {
     position: relative;
     display: flex;

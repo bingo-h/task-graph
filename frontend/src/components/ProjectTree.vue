@@ -328,7 +328,7 @@ function selectToday() {
 
 <template>
     <aside
-        class="project-tree shell-surface"
+        class="project-tree"
         :style="{ width: `${panelWidth}px` }"
         :class="{ resizing: resizing || !!dragState.path }"
     >
@@ -539,8 +539,6 @@ function selectToday() {
 
 <style scoped>
 /* 面板容器 */
-/* 玻璃风格的模糊效果由 .shell-surface::after 统一提供（见 style.css），
-   这里不要再自己加 backdrop-filter。 */
 .project-tree {
     position: relative;
     flex-shrink: 0;

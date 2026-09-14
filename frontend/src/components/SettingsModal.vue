@@ -88,7 +88,6 @@ const themeModeOptions = [
 
 const uiStyleOptions = [
     { key: "flat", label: "扁平" },
-    { key: "glass", label: "液态玻璃" },
     { key: "neumorphism", label: "新拟态" },
 ];
 

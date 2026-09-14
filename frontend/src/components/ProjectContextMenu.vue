@@ -46,7 +46,7 @@ function pickMoveTarget(targetPath) {
     <Teleport to="body">
         <div v-if="visible" class="menu-overlay" @click="close" @contextmenu.prevent="close">
             <div
-                class="context-menu shell-surface"
+                class="context-menu"
                 :style="{ left: `${x}px`, top: `${y}px` }"
                 @click.stop
             >
@@ -99,7 +99,7 @@ function pickMoveTarget(targetPath) {
                         <span>→ 移动到...</span>
                         <span class="submenu-arrow">▸</span>
 
-                        <div v-if="showMoveSubmenu" class="submenu shell-surface" @click.stop>
+                        <div v-if="showMoveSubmenu" class="submenu" @click.stop>
                             <!-- 项目本身已经在顶层时，"移到顶层"等于移到自己，不显示 -->
                             <button
                                 v-if="node?.depth !== 0"
@@ -159,8 +159,6 @@ function pickMoveTarget(targetPath) {
     z-index: 2000;
 }
 
-/* 玻璃风格的模糊效果由 .shell-surface::after 统一提供（见 style.css），
-   这里（以及下面的 .submenu）不要再自己加 backdrop-filter。 */
 .context-menu {
     position: fixed;
     min-width: 150px;

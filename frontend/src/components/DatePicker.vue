@@ -140,7 +140,7 @@ onBeforeUnmount(() => {
             <span class="date-icon">📅</span>
         </button>
 
-        <div v-if="open" class="date-panel shell-surface" @keydown.esc="close">
+        <div v-if="open" class="date-panel" @keydown.esc="close">
             <div class="date-panel-header">
                 <button type="button" class="nav-btn" @click="prevMonth">
                     ‹

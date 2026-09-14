@@ -450,6 +450,43 @@ rect.rect-overdue {
     box-shadow: var(--elevation-1);
 }
 
+/* 数字步进器：替代原生 <input type=number> 的浏览器默认上下箭头（无法定制
+   样式、跟整体扁平风格不一致），−/输入框/+ 三段拼接成一个胶囊控件。 */
+.stepper {
+    display: inline-flex;
+    align-items: stretch;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+}
+.stepper button {
+    width: 28px;
+    border: none;
+    background: var(--bg-dark);
+    color: var(--fg-dim);
+    font-size: 14px;
+    cursor: pointer;
+    transition: background 0.15s var(--ease-standard), color 0.15s var(--ease-standard);
+}
+.stepper button:hover {
+    background: var(--border);
+    color: var(--fg);
+}
+.stepper input {
+    width: 52px;
+    border: none;
+    border-left: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+    text-align: center;
+    background: var(--bg-panel);
+    color: var(--fg);
+    font: inherit;
+    padding: 6px 0;
+}
+.stepper input:focus {
+    outline: none;
+}
+
 /* ── 外壳 token（界面风格：扁平 / 液态玻璃 / 新拟态） ──────────────────────── */
 /* 只影响外壳（顶栏/侧栏/弹窗/下拉菜单/统计卡片），不影响 DAG 图任务节点的
    语义色——节点状态色（node-done 等）不读这套 token，永远走扁平语言。

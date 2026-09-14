@@ -358,19 +358,19 @@ const todayTasks = computed(() => activeNodes.value.filter((t) => t.is_today));
 
         <!-- 数据汇总 -->
         <div class="summary-grid">
-            <div class="summary-card">
+            <div class="summary-card shell-surface">
                 <span class="summary-label">总专注时长</span>
                 <span class="summary-value">{{
                     formatDuration(summary.totalFocus)
                 }}</span>
             </div>
-            <div class="summary-card">
+            <div class="summary-card shell-surface">
                 <span class="summary-label">日均专注</span>
                 <span class="summary-value">{{
                     formatCompact(summary.avgFocus)
                 }}</span>
             </div>
-            <div class="summary-card">
+            <div class="summary-card shell-surface">
                 <span class="summary-label">完成任务</span>
                 <span class="summary-value"
                     >{{ taskCompletionStats.completed }}/{{
@@ -378,7 +378,7 @@ const todayTasks = computed(() => activeNodes.value.filter((t) => t.is_today));
                     }}</span
                 >
             </div>
-            <div class="summary-card">
+            <div class="summary-card shell-surface">
                 <span class="summary-label">专注时间占比</span>
                 <span class="summary-value"
                     >{{ summary.occupancyPct.toFixed(1) }}<span
@@ -694,9 +694,21 @@ const todayTasks = computed(() => activeNodes.value.filter((t) => t.is_today));
     flex-direction: column;
     gap: 6px;
     padding: 16px 18px;
-    background: var(--bg-panel);
-    border: 1px solid var(--border);
-    border-radius: 10px;
+    background: var(--shell-bg);
+    backdrop-filter: var(--shell-backdrop);
+    -webkit-backdrop-filter: var(--shell-backdrop);
+    box-shadow: var(--shell-shadow);
+    border-radius: var(--shell-radius);
+    transition: box-shadow 0.2s var(--ease-standard), transform 0.2s var(--ease-standard);
+    color: var(--shell-fg);
+}
+.summary-card:hover {
+    box-shadow: var(--elevation-2);
+    transform: translateY(-1px);
+}
+html[data-ui-style="neumorphism"] .summary-card:hover {
+    box-shadow: var(--shell-shadow-pressed);
+    transform: none;
 }
 .summary-label {
     font-size: 0.8462rem;

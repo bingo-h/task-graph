@@ -330,13 +330,21 @@ function submit() {
                                         表示永不自动删除
                                     </span>
                                 </label>
-                                <input
-                                    v-model.number="trashRetentionDays"
-                                    type="number"
-                                    min="0"
-                                    max="3650"
-                                    class="form-input"
-                                />
+                                <div class="stepper">
+                                    <button
+                                        type="button"
+                                        @click="trashRetentionDays = Math.max(0, trashRetentionDays - 1)"
+                                    >
+                                        −
+                                    </button>
+                                    <input v-model.number="trashRetentionDays" />
+                                    <button
+                                        type="button"
+                                        @click="trashRetentionDays = Math.min(3650, trashRetentionDays + 1)"
+                                    >
+                                        +
+                                    </button>
+                                </div>
                             </div>
 
                             <div class="form-row">
@@ -344,13 +352,21 @@ function submit() {
                                     字体大小
                                     <span class="form-hint">单位像素，8-32</span>
                                 </label>
-                                <input
-                                    v-model.number="fontSize"
-                                    type="number"
-                                    min="8"
-                                    max="32"
-                                    class="form-input"
-                                />
+                                <div class="stepper">
+                                    <button
+                                        type="button"
+                                        @click="fontSize = Math.max(8, fontSize - 1)"
+                                    >
+                                        −
+                                    </button>
+                                    <input v-model.number="fontSize" />
+                                    <button
+                                        type="button"
+                                        @click="fontSize = Math.min(32, fontSize + 1)"
+                                    >
+                                        +
+                                    </button>
+                                </div>
                             </div>
 
                             <div class="form-row font-field-row">

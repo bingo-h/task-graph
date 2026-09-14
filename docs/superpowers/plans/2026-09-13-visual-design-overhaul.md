@@ -14,7 +14,7 @@
 
 - 所有注释、commit message 用简体中文；代码本身的标识符（变量名/函数名/CSS 类名）用英文。
 - 新增依赖一律用命令行工具添加（`cargo add <crate>` / `pnpm add <pkg>`），不手动改 `Cargo.toml`/`package.json`；不自己指定版本号，让工具解析最新版本，只有装不上/编译报不兼容错误时才根据报错降级到具体版本。
-- 整个功能落地后在 `CHANGELOG.md`（没有就新建，含"未发布"章节）统一补一次记录，具体到文件/函数/设置项级别——本仓库的习惯是把功能提交和变更日志提交分开（参考 `git log` 里 `db08615 chore: 更新变更日志` 这类独立的日志提交，而不是每个小提交都各自维护一条），这次统一放在 Task 18 做，Task 1-17 不用各自更新 CHANGELOG。
+- **（2026-09-14 修正）每个任务落地后都在 `CHANGELOG.md`（没有就新建，含"未发布"章节）补一条自己的记录，具体到文件/函数/设置项级别，不要等到 Task 18 才补。** 这是用户全局 CLAUDE.md 明确要求的"每次代码改动完成后都要主动同步补一条记录，不要等用户提醒"——Task 14 执行时已经按这条规则正确地补了自己的条目，这时候才发现 `CHANGELOG.md` 里其实早就有跟这个计划无关的"未发布"内容（前端脚手架清理、npm 换 pnpm 等，属于这个计划开始之前的其它改动），说明这个仓库的实际习惯就是"随时补"而不是"计划结束时统一补一条"，此前写的"统一放 Task 18"是判断错误，现予撤销。Task 18 的职责改为：只需要给 Task 1-13（当时还没补）补一次回填记录，Task 15-17 各自在自己的 Commit 步骤前补自己的条目（参考 Task 14 已经补上的那条的写法和详细程度）。
 - 新 Tauri 命令的 JS 调用参数用 camelCase（除非命令签名是单个 struct 参数，此时该 struct 内部字段保持 snake_case）。
 - `list_color_schemes`/`get_color_scheme` 这两个新命令不调用 `build_graph()`——纯展示层读取，套用 `get_settings`/`list_system_fonts` 的模式，不是"改数据"命令的 `Args → db:: → build_graph()` 模式。
 - 前端没有测试框架和 lint 配置，"测试"步骤统一是 `cd frontend && pnpm run build` 跑通；不要发明 `pnpm test`/`pnpm run lint`。
@@ -2189,10 +2189,18 @@ Expected: 构建成功
 
 在"任务看板"页面，确认左侧项目树侧边栏、右键菜单在切换界面风格（扁平/玻璃/新拟态）时外观相应变化，项目树节点本身的间距/圆角看起来比之前更规整。
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 6: 补 CHANGELOG.md**
+
+打开 `CHANGELOG.md`，在"未发布" > "变更"（没有就新建这个三级标题）下加一条，参考 Task 14 已经补过的那条的详细程度：
+
+```markdown
+- **侧边栏项目树和右键菜单接入外壳 token**：`ProjectTree.vue` 最外层容器、`ProjectContextMenu.vue` 菜单容器的 `background`/`backdrop-filter`/`box-shadow`/`color` 改成读取 `--shell-*` token（跟顶栏一样，跟随"界面风格"设置变化）；`ProjectTreeNode.vue` 里硬编码的圆角/间距值换成 `--radius-sm`/`--space-*` token。
+```
+
+- [ ] **Step 7: Commit**
 
 ```bash
-git add frontend/src/components/ProjectTree.vue frontend/src/components/ProjectTreeNode.vue frontend/src/components/ProjectContextMenu.vue && git commit -m "$(cat <<'EOF'
+git add frontend/src/components/ProjectTree.vue frontend/src/components/ProjectTreeNode.vue frontend/src/components/ProjectContextMenu.vue CHANGELOG.md && git commit -m "$(cat <<'EOF'
 feat: 侧边栏项目树和右键菜单接入外壳 token 与间距/圆角 token
 EOF
 )"
@@ -2356,10 +2364,18 @@ Expected: 构建成功
 
 首页统计卡片在切换界面风格时外观相应变化（玻璃=半透明模糊，新拟态=浮起阴影，鼠标悬浮有反馈）；设置弹窗里"废纸篓保留天数"和"字体大小"变成 −/输入框/+ 的步进器样式，点击 +/− 能正确加减，直接在输入框里打字修改也仍然生效。
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 6: 补 CHANGELOG.md**
+
+打开 `CHANGELOG.md`，在"未发布" > "变更"下加一条：
+
+```markdown
+- **统计卡片接入外壳 token，数字输入改用自定义步进器**：首页统计卡片的 `background`/`box-shadow`/`border-radius` 改成读取 `--shell-*` token，随"界面风格"设置变化，悬浮时阴影加深、轻微上浮（新拟态下悬浮改成凹陷提示）；新增共享 `.stepper` 组件（`style.css`），替代原生 `<input type=number>` 的浏览器默认上下箭头，应用在设置弹窗"废纸篓保留天数"和"字体大小"两处。
+```
+
+- [ ] **Step 7: Commit**
 
 ```bash
-git add frontend/src/components/Dashboard.vue frontend/src/components/SettingsModal.vue frontend/src/style.css && git commit -m "$(cat <<'EOF'
+git add frontend/src/components/Dashboard.vue frontend/src/components/SettingsModal.vue frontend/src/style.css CHANGELOG.md && git commit -m "$(cat <<'EOF'
 feat: 统计卡片接入外壳 token，数字输入改用自定义步进器
 
 统计卡片支持三种界面风格切换、加悬浮反馈；新增共享 .stepper 组件
@@ -2412,10 +2428,18 @@ Expected: 构建成功
 
 Expected: 以上全部符合
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 5: 补 CHANGELOG.md**
+
+打开 `CHANGELOG.md`，在"未发布" > "变更"下加一条：
+
+```markdown
+- **剩余组件圆角/阴影/动效统一 token 化**：`TaskGraph.vue` D3 节点矩形圆角接入 `--radius-sm`；`TaskDetail.vue`/`TaskListView.vue`/`ChartsPage.vue`/`CalendarPage.vue`/`ColorSwatchPicker.vue`/`IconPicker.vue`/`DatePicker.vue` 里硬编码的 `border-radius`/`box-shadow`/`transition` 值换成 `--radius-*`/`--elevation-*`/`--ease-standard`。
+```
+
+- [ ] **Step 6: Commit**
 
 ```bash
-git add frontend/src/components/TaskDetail.vue frontend/src/components/TaskListView.vue frontend/src/components/ChartsPage.vue frontend/src/components/CalendarPage.vue frontend/src/components/ColorSwatchPicker.vue frontend/src/components/IconPicker.vue frontend/src/components/DatePicker.vue && git commit -m "$(cat <<'EOF'
+git add frontend/src/components/TaskDetail.vue frontend/src/components/TaskListView.vue frontend/src/components/ChartsPage.vue frontend/src/components/CalendarPage.vue frontend/src/components/ColorSwatchPicker.vue frontend/src/components/IconPicker.vue frontend/src/components/DatePicker.vue CHANGELOG.md && git commit -m "$(cat <<'EOF'
 refactor: 剩余组件的圆角/阴影/动效改用统一 token
 
 TaskDetail/TaskListView/ChartsPage/CalendarPage/ColorSwatchPicker/
@@ -2444,9 +2468,11 @@ Run: `ls CHANGELOG.md 2>/dev/null || echo "不存在"`
 ## 未发布
 ```
 
-- [ ] **Step 2: 补一条完整的变更记录**
+- [ ] **Step 2: 给 Task 1-13 回填变更记录**
 
-在"未发布"章节下加（贴合本文档 Task 1-17 的实际改动范围，具体到文件/函数/设置项级别；如果文件里已有其它未发布条目，追加在下面，不要覆盖）：
+**背景（2026-09-14 更新）**：这个 Step 原计划是给 Task 1-17 全部内容统一写一条记录，但 Task 14 执行时已经按用户全局 CLAUDE.md"每次改动完成后主动补一条，不等提醒"的规则自己补了一条（顶栏图标统一、外壳 token 接入那条），Task 15-17 的 brief 里也各自加了"补 CHANGELOG"的步骤（见各任务 Commit 步骤前）。所以这一步**只需要覆盖 Task 1-13 的内容**（这几个任务当时还没有各自补），不要重复 Task 14-17 已经写过的条目——执行前先打开 `CHANGELOG.md` 看一眼"未发布"章节里已经有哪些条目，只追加缺的部分。
+
+在"未发布"章节下加（贴合 Task 1-13 的实际改动范围，具体到文件/函数/设置项级别；文件里已有其它未发布条目——包括 Task 14 那条和 Task 15-17 各自补的——追加在下面，不要覆盖或重复）：
 
 ```markdown
 ### 新增
@@ -2459,7 +2485,6 @@ Run: `ls CHANGELOG.md 2>/dev/null || echo "不存在"`
 
 ### 变更
 - `style.css` 默认配色改为新的"克制中性"方案（原 GitHub 经典配色），`.rect-done`/`.rect-today`/`.rect-overdue`/`.rect-locked`/`.rect-waiting` 的硬编码颜色提取成 `--node-*` CSS 变量
-- 顶栏刷新/标签/设置图标从 emoji/Unicode 符号混用统一为同一套线性 SVG 图标
 - 设置弹窗新增"外观"分区；"高亮模式"从专属的 `mode-group`/`mode-btn` 迁移到共享 `.segmented`
 - `TaskFormModal.vue` 优先级选择器迁移到共享 `.segmented`，语义色底色改用 `--red`/`--yellow`/`--blue` 派生而非硬编码 rgba
 - `ConfirmDialog`/`TagManagerModal`/`TimeEntryNoteModal` 按钮样式迁移到共享 `.btn-*` 类
@@ -2467,6 +2492,8 @@ Run: `ls CHANGELOG.md 2>/dev/null || echo "不存在"`
 ### 修复
 - `TaskFormModal.vue` 里"取消"按钮误用 `btn-submit` class 导致和"添加任务"按钮渲染成一样的样式，用户分不清主次操作
 ```
+
+（"顶栏刷新/标签/设置图标统一为线性 SVG"这条不用再加——Task 14 已经补过了，加了会重复。）
 
 - [ ] **Step 3: 最终全量验证**
 

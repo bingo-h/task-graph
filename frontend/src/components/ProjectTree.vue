@@ -328,7 +328,7 @@ function selectToday() {
 
 <template>
     <aside
-        class="project-tree"
+        class="project-tree shell-surface"
         :style="{ width: `${panelWidth}px` }"
         :class="{ resizing: resizing || !!dragState.path }"
     >
@@ -542,7 +542,10 @@ function selectToday() {
 .project-tree {
     position: relative;
     flex-shrink: 0;
-    background: var(--bg-panel);
+    background: var(--shell-bg);
+    backdrop-filter: var(--shell-backdrop);
+    -webkit-backdrop-filter: var(--shell-backdrop);
+    color: var(--shell-fg);
     border-right: 1px solid var(--border);
     display: flex;
     flex-direction: column;

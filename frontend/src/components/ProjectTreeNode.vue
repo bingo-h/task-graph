@@ -90,9 +90,10 @@ const ratio = computed(() => {
     return total === 0 ? 0 : n.completed_count / total;
 });
 
-// 根据项目路径动态计算间距
+// 根据项目路径动态计算间距（16px/12px 对应 --space-4/--space-3，用 calc()
+// 在内联样式里引用全局 token，深度变化时的缩放关系跟原来保持一致）
 const indentStyle = computed(() => ({
-    paddingLeft: `${(node.value?.depth || 0) * 16 + 12}px`,
+    paddingLeft: `calc(var(--space-4) * ${node.value?.depth || 0} + var(--space-3))`,
 }));
 
 // ----------------------------------------
@@ -277,10 +278,10 @@ function onMouseDown(e) {
     display: flex;
     align-items: center;
     gap: 4px;
-    padding: 5px 12px 5px 0;
+    padding: 5px var(--space-3) 5px 0;
     cursor: pointer;
-    border-radius: 4px;
-    margin: 1px 4px;
+    border-radius: var(--radius-sm);
+    margin: 1px var(--space-1);
     transition: background 0.12s;
     min-height: 28px;
 }
@@ -342,7 +343,7 @@ function onMouseDown(e) {
     padding: 1px 5px;
     font-size: 0.9231rem;
     border: 1px solid var(--blue);
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     background: var(--bg-dark);
     color: var(--fg);
 }
@@ -356,8 +357,8 @@ function onMouseDown(e) {
 
 .badge {
     font-size: 0.7692rem;
-    padding: 0 4px;
-    border-radius: 3px;
+    padding: 0 var(--space-1);
+    border-radius: var(--radius-sm);
     font-weight: 600;
 }
 .badge.pending {
@@ -378,14 +379,14 @@ function onMouseDown(e) {
     width: 48px;
     height: 3px;
     background: var(--fg-dark);
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
     flex-shrink: 0;
 }
 
 .mini-progress-fill {
     height: 100%;
     background: var(--green);
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
     transition: width 0.3s;
 }
 
@@ -399,7 +400,7 @@ function onMouseDown(e) {
     align-items: center;
     gap: 2px;
     padding: 2px 3px;
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     background: var(--bg-panel);
     box-shadow: -10px 0 8px -2px var(--bg-panel);
     opacity: 0;
@@ -416,7 +417,7 @@ function onMouseDown(e) {
     height: 18px;
     line-height: 1;
     font-size: 0.7692rem;
-    border-radius: 3px;
+    border-radius: var(--radius-sm);
     color: var(--fg-dim);
     transition: all 0.15s;
 }

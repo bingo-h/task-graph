@@ -46,7 +46,7 @@ function pickMoveTarget(targetPath) {
     <Teleport to="body">
         <div v-if="visible" class="menu-overlay" @click="close" @contextmenu.prevent="close">
             <div
-                class="context-menu"
+                class="context-menu shell-surface"
                 :style="{ left: `${x}px`, top: `${y}px` }"
                 @click.stop
             >
@@ -99,7 +99,7 @@ function pickMoveTarget(targetPath) {
                         <span>→ 移动到...</span>
                         <span class="submenu-arrow">▸</span>
 
-                        <div v-if="showMoveSubmenu" class="submenu" @click.stop>
+                        <div v-if="showMoveSubmenu" class="submenu shell-surface" @click.stop>
                             <!-- 项目本身已经在顶层时，"移到顶层"等于移到自己，不显示 -->
                             <button
                                 v-if="node?.depth !== 0"
@@ -162,10 +162,13 @@ function pickMoveTarget(targetPath) {
 .context-menu {
     position: fixed;
     min-width: 150px;
-    background: var(--bg-popup);
+    background: var(--shell-bg);
+    backdrop-filter: var(--shell-backdrop);
+    -webkit-backdrop-filter: var(--shell-backdrop);
+    color: var(--shell-fg);
     border: 1px solid var(--border);
     border-radius: 8px;
-    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+    box-shadow: var(--shell-shadow);
     padding: 4px;
     display: flex;
     flex-direction: column;
@@ -205,10 +208,13 @@ function pickMoveTarget(targetPath) {
     min-width: 160px;
     max-height: 260px;
     overflow-y: auto;
-    background: var(--bg-popup);
+    background: var(--shell-bg);
+    backdrop-filter: var(--shell-backdrop);
+    -webkit-backdrop-filter: var(--shell-backdrop);
+    color: var(--shell-fg);
     border: 1px solid var(--border);
     border-radius: 8px;
-    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+    box-shadow: var(--shell-shadow);
     padding: 4px;
     display: flex;
     flex-direction: column;

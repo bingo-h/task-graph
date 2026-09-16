@@ -6,6 +6,8 @@
 
 ## [未发布]
 
+## [1.3.0] - 2026-09-16
+
 ### 变更
 
 - **顶部页面切换按钮接入外壳 token，切换按钮全线新增滑动指示器动画**：`App.vue` 里"首页/分析/日历/任务看板"四个页面切换按钮（`.page-nav`/`.page-nav-btn`）此前一直硬编码扁平配色，是"界面风格"设置唯一还没适配新拟态的控件；仿照 `.segmented` 的写法新增 `html[data-ui-style="neumorphism"]` 覆盖规则（容器凹槽阴影 `--shell-shadow-pressed`、选中态凸起阴影 `--shell-shadow`）。同时把原来"选中态瞬间切换背景色"的交互，改成一个绝对定位的滑块：按钮本身只负责文字颜色，滑块的位置/宽度由 JS 实测当前激活按钮的 `offsetLeft`/`offsetWidth` 算出（按钮文字长度不同，宽度不固定），通过 `transform`/`width` 的 CSS transition（复用 `--ease-standard` 缓动）过渡到新按钮的位置，切换时是"滑过去"而不是瞬间跳变。这套测量逻辑抽成共享 composable `composables/useSlidingIndicator.js`（实测激活项位置 + `ResizeObserver` 兜底应对字号变化），并进一步抽出共享组件 `components/SegmentedControl.vue` 包装现有的 `.segmented` 分段控件，替换掉 `SettingsModal.vue` 里"高亮模式"/"深浅模式"/"界面风格"三处、`TaskFormModal.vue`"优先级"选择器这四处原本手写的 `v-for` 按钮组，让所有切换类按钮统一享有同一套滑动动画和新拟态适配；`style.css` 的 `.segmented`/`.segmented button.active` 规则同步重构为"新增 `.segmented-indicator` 承载背景阴影，按钮只变文字色"。优先级选择器的语义色（H 红/M 黄/L 蓝）原来是靠专属的 `.priority-btn.active.priority-h/-m/-l` 覆盖实现，现在改成通过 `SegmentedControl` 的 `options` 传 `activeColor`/`activeBg`，随滑块一起过渡（语义色始终覆盖新拟态的凸起阴影，跟原有行为一致），`TaskFormModal.vue` 里那几条专属 CSS（含从未被触发过的 `.priority-none` 规则）一并删除。

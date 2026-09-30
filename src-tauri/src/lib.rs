@@ -11,6 +11,7 @@ mod fonts;
 mod graph_utils;
 mod models;
 mod settings;
+mod undo;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {

@@ -9,7 +9,7 @@
 -->
 
 <script setup>
-import { ref, watch } from "vue";
+import { nextTick, ref, watch } from "vue";
 
 const props = defineProps({
     visible: { type: Boolean, required: true },
@@ -26,13 +26,21 @@ const body = ref("");
 // 是否是"事后修改"已有内容（而非刚结束计时的空白填写），影响取消按钮的文案
 const isEditingExisting = ref(false);
 
+// Teleport 出去的遮罩层不是弹窗打开前焦点所在元素的祖先，@keydown.esc 挂在遮罩层上
+// 只有遮罩层内部有元素持有焦点时才收得到，做法跟 ConfirmDialog.vue 一致。这里用
+// "标题"输入框作为自然的默认聚焦目标。
+const titleInputRef = ref(null);
+
 watch(
     () => props.visible,
-    (visible) => {
+    async (visible) => {
         if (!visible) return;
         title.value = props.initialTitle || "";
         body.value = props.initialBody || "";
         isEditingExisting.value = !!(props.initialTitle || props.initialBody);
+
+        await nextTick();
+        titleInputRef.value?.focus();
     },
 );
 
@@ -43,7 +51,12 @@ function submit() {
 
 <template>
     <Teleport to="body">
-        <div v-if="visible" class="modal-overlay" @click.self="emit('close')">
+        <div
+            v-if="visible"
+            class="modal-overlay"
+            @click.self="emit('close')"
+            @keydown.esc="emit('close')"
+        >
             <div class="modal">
                 <div class="modal-header">
                     <span class="modal-title">{{ heading }}</span>
@@ -56,6 +69,7 @@ function submit() {
                     <div class="form-row">
                         <label class="form-label">标题</label>
                         <input
+                            ref="titleInputRef"
                             v-model="title"
                             class="form-input"
                             placeholder="这段专注做了什么？"

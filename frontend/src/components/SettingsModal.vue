@@ -8,7 +8,7 @@
 -->
 
 <script setup>
-import { ref, computed, watch, onBeforeUnmount } from "vue";
+import { ref, computed, watch, onBeforeUnmount, nextTick } from "vue";
 import SegmentedControl from "./SegmentedControl.vue";
 import { formatDuration, DEFAULT_DURATION_FORMAT } from "../composables/useDuration";
 import { getVersion } from "@tauri-apps/api/app";
@@ -75,6 +75,12 @@ const colorScheme = ref("");
 const themeMode = ref("light");
 const cornerRadius = ref(10);
 const uiStyle = ref("flat");
+
+// Teleport 出去的遮罩层不是弹窗打开前焦点所在元素的祖先，@keydown.esc 挂在遮罩层上
+// 只有遮罩层内部有元素持有焦点时才会收到事件——所以弹窗打开时要主动把焦点塞进来，
+// 具体做法跟 ConfirmDialog.vue 一致。这个弹窗内容随分区切换、没有一个总是存在的
+// 自然聚焦目标（分区不同、控件也不同），因此直接聚焦遮罩层自身（配合 tabindex="-1"）。
+const overlayRef = ref(null);
 
 // ----------------------------------------
 // 快捷键：改绑 / 冲突检测 / 恢复默认
@@ -280,7 +286,7 @@ const nodeLabelRecur = ref(NODE_LABELS.recur);
 
 watch(
     () => props.visible,
-    (visible) => {
+    async (visible) => {
         if (!visible) {
             stopRecording();
             return;
@@ -318,6 +324,9 @@ watch(
         shortcutOverrides.value = { ...(props.settings.shortcuts || {}) };
         recordingActionId.value = null;
         shortcutConflict.value = null;
+
+        await nextTick();
+        overlayRef.value?.focus();
     },
 );
 
@@ -396,7 +405,14 @@ function submit() {
 
 <template>
     <Teleport to="body">
-        <div v-if="visible" class="modal-overlay" @click.self="emit('close')">
+        <div
+            v-if="visible"
+            ref="overlayRef"
+            class="modal-overlay"
+            tabindex="-1"
+            @click.self="emit('close')"
+            @keydown.esc="emit('close')"
+        >
             <div class="modal">
                 <div class="modal-header">
                     <span class="modal-title">设置</span>

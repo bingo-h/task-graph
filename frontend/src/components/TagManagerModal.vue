@@ -24,6 +24,19 @@ const emit = defineEmits([
     "filter-by-tag", // (name)
 ]);
 
+// Teleport 出去的遮罩层不是弹窗打开前焦点所在元素的祖先，@keydown.esc 挂在遮罩层上
+// 只有遮罩层内部有元素持有焦点时才收得到，做法跟 ConfirmDialog.vue 一致。这个弹窗
+// 没有一个总是存在的默认输入框可聚焦，直接聚焦遮罩层自身（配合 tabindex="-1"）。
+const overlayRef = ref(null);
+watch(
+    () => props.visible,
+    async (visible) => {
+        if (!visible) return;
+        await nextTick();
+        overlayRef.value?.focus();
+    },
+);
+
 // 按名字排序展示
 const sortedTags = ref([]);
 watch(
@@ -87,7 +100,14 @@ function confirmDelete(name) {
 
 <template>
     <Teleport to="body">
-        <div v-if="visible" class="modal-overlay" @click.self="emit('close')">
+        <div
+            v-if="visible"
+            ref="overlayRef"
+            class="modal-overlay"
+            tabindex="-1"
+            @click.self="emit('close')"
+            @keydown.esc="emit('close')"
+        >
             <div class="modal">
                 <div class="modal-header">
                     <span class="modal-title">标签管理</span>
@@ -130,7 +150,7 @@ function confirmDelete(name) {
                                 v-model="renameInput"
                                 class="tag-rename-input"
                                 @keydown.enter.prevent="confirmRename"
-                                @keydown.esc.prevent="cancelRename"
+                                @keydown.esc.prevent.stop="cancelRename"
                                 @blur="cancelRename"
                             />
                             <button

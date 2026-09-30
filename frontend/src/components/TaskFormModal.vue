@@ -71,6 +71,10 @@ const tagInput = ref(""); // 标签输入框临时值
 const showTagDropdown = ref(false); // 是否显示标签下拉建议框
 const showProjectDropdown = ref(false); // 是否显示项目下拉建议框
 const depends = ref([]); // 任务的uuid
+// 任务描述输入框：弹窗打开时的默认聚焦目标（见下面 props.visible 的 watch）——
+// Teleport 出去的遮罩层不是打开前焦点所在元素的祖先，@keydown.esc 只有遮罩层
+// 内部有元素持有焦点时才收得到，做法跟 ConfirmDialog.vue 一致。
+const inputRef = ref(null);
 const annotationInput = ref(""); // 备注输入框：只保留一条，修改时会整体替换原有内容
 const icon = ref(""); // 单个 emoji，日历页打卡展示用
 const color = ref(""); // 十六进制颜色，日历页打卡展示用，空字符串表示未设置
@@ -184,7 +188,7 @@ const dependsOptions = computed(() =>
 // 预填写 (如果是修改任务的话)
 watch(
     () => props.visible,
-    (newVisible) => {
+    async (newVisible) => {
         if (!newVisible) return;
         if (props.prefill) {
             // 修改模式，填写原有的值
@@ -242,6 +246,9 @@ watch(
         }
 
         tagInput.value = "";
+
+        await nextTick();
+        inputRef.value?.focus();
     },
 );
 
@@ -512,7 +519,12 @@ function submit() {
 <template>
     <!-- 遮罩层，点击遮罩关闭弹窗 -->
     <Teleport to="body">
-        <div v-if="visible" class="modal-overlay" @click.self="emit('close')">
+        <div
+            v-if="visible"
+            class="modal-overlay"
+            @click.self="emit('close')"
+            @keydown.esc="emit('close')"
+        >
             <div class="modal">
                 <!-- 标题栏 -->
                 <div class="modal-header">
@@ -786,7 +798,7 @@ function submit() {
                                     v-model="renameTagInput"
                                     class="tag-rename-input"
                                     @keydown.enter.prevent="confirmRenameTag"
-                                    @keydown.esc.prevent="cancelRenameTag"
+                                    @keydown.esc.prevent.stop="cancelRenameTag"
                                     @blur="cancelRenameTag"
                                 />
                                 <template v-else>

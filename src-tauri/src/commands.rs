@@ -585,6 +585,11 @@ pub fn save_settings(settings: Settings) -> Result<Settings, String> {
     if !crate::settings::validate_color_scheme_id(&settings.color_scheme) {
         return Err("配色方案 id 格式不合法".to_string());
     }
+    for binding in settings.shortcuts.values() {
+        if !crate::settings::validate_shortcut_binding(binding) {
+            return Err(format!("快捷键绑定格式不合法：{binding}"));
+        }
+    }
 
     crate::settings::save(&settings).map_err(|e| e.to_string())?;
 

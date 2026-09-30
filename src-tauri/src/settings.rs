@@ -133,6 +133,12 @@ pub struct Settings {
     /// "flat" | "neumorphism"
     #[serde(default = "default_ui_style")]
     pub ui_style: String,
+    /// 用户自定义的快捷键绑定：action id -> 按键组合字符串（"mod+n" 这种归一化写法，
+    /// 定义见前端 useShortcuts.js）。只存跟内置默认值不同的项；action 不在这个 map 里
+    /// 时前端用内置默认键位；value 为空字符串表示这个 action 被显式设为"无绑定"
+    /// （区别于"不在 map 里"）。
+    #[serde(default)]
+    pub shortcuts: std::collections::HashMap<String, String>,
 }
 
 impl Default for Settings {
@@ -158,6 +164,7 @@ impl Default for Settings {
             theme_mode: default_theme_mode(),
             corner_radius: default_corner_radius(),
             ui_style: default_ui_style(),
+            shortcuts: std::collections::HashMap::new(),
         }
     }
 }
@@ -199,6 +206,46 @@ pub fn validate_color_scheme_id(value: &str) -> bool {
             && !name.contains("..");
     }
     false
+}
+
+/// 校验快捷键绑定字符串的格式：空字符串表示"该 action 显式无绑定"（合法，
+/// 用于改绑冲突时清空旧占用者，跟"没在 map 里、回落默认值"是两种不同状态）。
+/// 非空时必须是 0-3 个修饰键（固定 mod/shift/alt 顺序，不重复）+ 一个主键，
+/// 用 "+" 连接。不校验这个绑定有没有跟别的 action 冲突——冲突检测是前端改绑时
+/// 做的事，后端只管格式对不对。
+pub fn validate_shortcut_binding(value: &str) -> bool {
+    if value.is_empty() {
+        return true;
+    }
+
+    let parts: Vec<&str> = value.split('+').collect();
+    let Some((main_key, modifiers)) = parts.split_last() else {
+        return false;
+    };
+    if main_key.is_empty() {
+        return false;
+    }
+    if !main_key.chars().all(|c| {
+        c.is_ascii_lowercase()
+            || c.is_ascii_digit()
+            || matches!(c, ',' | '?' | '.' | '/' | '-' | '=' | '[' | ']' | ';' | '\'' | '`' | '\\')
+    }) {
+        return false;
+    }
+
+    let expected_order = ["mod", "shift", "alt"];
+    let mut expected_idx = 0;
+    for m in modifiers {
+        let Some(pos) = expected_order.iter().position(|e| e == m) else {
+            return false;
+        };
+        if pos < expected_idx {
+            return false;
+        }
+        expected_idx = pos + 1;
+    }
+
+    true
 }
 
 fn settings_path() -> std::path::PathBuf {
@@ -274,5 +321,25 @@ mod tests {
         assert!(!validate_color_scheme_id("custom:../../etc/passwd"));
         assert!(!validate_color_scheme_id("custom:sub/dir"));
         assert!(!validate_color_scheme_id("random"));
+    }
+
+    #[test]
+    fn shortcut_binding_accepts_valid_forms() {
+        assert!(validate_shortcut_binding(""));
+        assert!(validate_shortcut_binding("mod+n"));
+        assert!(validate_shortcut_binding("mod+shift+z"));
+        assert!(validate_shortcut_binding("mod+shift+alt+z"));
+        assert!(validate_shortcut_binding("1"));
+        assert!(validate_shortcut_binding("?"));
+        assert!(validate_shortcut_binding("mod+,"));
+        assert!(validate_shortcut_binding("f1"));
+    }
+
+    #[test]
+    fn shortcut_binding_rejects_bad_forms() {
+        assert!(!validate_shortcut_binding("+n")); // 空主键
+        assert!(!validate_shortcut_binding("shift+mod+n")); // 修饰键顺序错误
+        assert!(!validate_shortcut_binding("mod+mod+n")); // 修饰键重复
+        assert!(!validate_shortcut_binding("ctrl+n")); // 不是 mod 占位符
     }
 }

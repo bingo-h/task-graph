@@ -124,7 +124,7 @@ export function useShortcuts(refs) {
         helpOpen.value = false;
         return;
       }
-      if (!anyModalOpen.value) {
+      if (!anyModalOpen.value && !isTypingTarget(e.target)) {
         selectedUUID.value = null;
       }
       return;

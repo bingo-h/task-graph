@@ -13,6 +13,10 @@ mod models;
 mod settings;
 mod undo;
 
+/// 撤销/重做栈的 app 级托管状态——仓库第一次用到 Tauri 的 `.manage()`，
+/// 之前所有 Tauri 命令都是无状态的（每次都是 db::open() -> 委托 db:: 层 -> 返回）。
+pub struct UndoState(pub std::sync::Mutex<undo::UndoStack>);
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // 启动时确保数据库可用（建表、迁移）
@@ -37,6 +41,7 @@ pub fn run() {
                 }
             }
         })
+        .manage(UndoState(Default::default()))
         .invoke_handler(tauri::generate_handler![
             commands::get_tasks,
             commands::create_project,
@@ -79,6 +84,8 @@ pub fn run() {
             commands::add_today_order_edge,
             commands::remove_today_order_edge,
             commands::reorder_siblings,
+            commands::undo,
+            commands::redo,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -1069,3 +1069,31 @@ pub fn delete_tasks(uuids: Vec<String>) -> Result<GraphResponse, String> {
 
     build_graph().map_err(|e| e.to_string())
 }
+
+/// 撤销最近一步操作；撤销栈为空时不报错，直接返回当前图（等同空操作）
+#[tauri::command]
+pub fn undo(undo_state: tauri::State<crate::UndoState>) -> Result<GraphResponse, String> {
+    let action = undo_state.0.lock().unwrap().pop_undo();
+
+    if let Some(action) = action {
+        let conn = db::open().map_err(|e| e.to_string())?;
+        crate::undo::apply_reverse(&conn, &action).map_err(|e| e.to_string())?;
+        undo_state.0.lock().unwrap().push_redo(action);
+    }
+
+    build_graph().map_err(|e| e.to_string())
+}
+
+/// 重做最近一步被撤销的操作；重做栈为空时不报错，直接返回当前图（等同空操作）
+#[tauri::command]
+pub fn redo(undo_state: tauri::State<crate::UndoState>) -> Result<GraphResponse, String> {
+    let action = undo_state.0.lock().unwrap().pop_redo();
+
+    if let Some(action) = action {
+        let conn = db::open().map_err(|e| e.to_string())?;
+        crate::undo::apply_forward(&conn, &action).map_err(|e| e.to_string())?;
+        undo_state.0.lock().unwrap().push_undo(action);
+    }
+
+    build_graph().map_err(|e| e.to_string())
+}

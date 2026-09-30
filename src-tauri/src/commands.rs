@@ -634,7 +634,10 @@ fn normalize_due(due: Option<String>) -> Result<Option<String>, String> {
 
 /// 新建任务
 #[tauri::command]
-pub fn add_task(args: AddTaskArgs) -> Result<GraphResponse, String> {
+pub fn add_task(
+    args: AddTaskArgs,
+    undo_state: tauri::State<crate::UndoState>,
+) -> Result<GraphResponse, String> {
     if args.description.trim().is_empty() {
         return Err("任务描述不能为空".to_string());
     }
@@ -644,7 +647,7 @@ pub fn add_task(args: AddTaskArgs) -> Result<GraphResponse, String> {
 
     let conn = db::open().map_err(|e| e.to_string())?;
 
-    db::task::create(
+    let task = db::task::create(
         &conn,
         &CreateTaskRequest {
             description: args.description,
@@ -663,17 +666,28 @@ pub fn add_task(args: AddTaskArgs) -> Result<GraphResponse, String> {
     )
     .map_err(|e| e.to_string())?;
 
+    let after = crate::undo::capture_task_row(&conn, &task.uuid).map_err(|e| e.to_string())?;
+    undo_state.0.lock().unwrap().push(crate::undo::UndoAction::TaskRow {
+        label: "新建任务".into(),
+        rows: vec![(task.uuid.clone(), None, after)],
+    });
+
     build_graph().map_err(|e| e.to_string())
 }
 
 /// 修改任务
 #[tauri::command]
-pub fn modify_task(args: ModifyTaskArgs) -> Result<GraphResponse, String> {
+pub fn modify_task(
+    args: ModifyTaskArgs,
+    undo_state: tauri::State<crate::UndoState>,
+) -> Result<GraphResponse, String> {
     if let Some(icon) = &args.icon {
         validate_icon(icon)?;
     }
 
     let conn = db::open().map_err(|e| e.to_string())?;
+
+    let before = crate::undo::capture_task_row(&conn, &args.uuid).map_err(|e| e.to_string())?;
 
     db::task::update(
         &conn,
@@ -702,6 +716,12 @@ pub fn modify_task(args: ModifyTaskArgs) -> Result<GraphResponse, String> {
     )
     .map_err(|e| e.to_string())?;
 
+    let after = crate::undo::capture_task_row(&conn, &args.uuid).map_err(|e| e.to_string())?;
+    undo_state.0.lock().unwrap().push(crate::undo::UndoAction::TaskRow {
+        label: "编辑任务".into(),
+        rows: vec![(args.uuid.clone(), before, after)],
+    });
+
     build_graph().map_err(|e| e.to_string())
 }
 
@@ -717,16 +737,26 @@ pub struct ReconnectDependencyArgs {
 /// 把"source_uuid 是 old_target_uuid 的前置任务"这条依赖关系，改成指向 new_target_uuid
 /// （new_target_uuid 为空表示直接删除这条依赖），对应拖拽图谱里已有连线终点的交互
 #[tauri::command]
-pub fn reconnect_dependency(args: ReconnectDependencyArgs) -> Result<GraphResponse, String> {
+pub fn reconnect_dependency(
+    args: ReconnectDependencyArgs,
+    undo_state: tauri::State<crate::UndoState>,
+) -> Result<GraphResponse, String> {
     let conn = db::open().map_err(|e| e.to_string())?;
 
     let old_target = db::task::get_by_uuid(&conn, &args.old_target_uuid)
         .map_err(|e| e.to_string())?
         .ok_or_else(|| "旧的依赖任务不存在".to_string())?;
 
+    let old_target_before =
+        crate::undo::capture_task_row(&conn, &args.old_target_uuid).map_err(|e| e.to_string())?;
+
     let new_depends: Vec<String> =
         old_target.depends.into_iter().filter(|d| d != &args.source_uuid).collect();
     db::task::set_depends(&conn, &args.old_target_uuid, new_depends).map_err(|e| e.to_string())?;
+
+    let old_target_after =
+        crate::undo::capture_task_row(&conn, &args.old_target_uuid).map_err(|e| e.to_string())?;
+    let mut rows = vec![(args.old_target_uuid.clone(), old_target_before, old_target_after)];
 
     if let Some(new_target_uuid) = &args.new_target_uuid {
         let new_target = db::task::get_by_uuid(&conn, new_target_uuid)
@@ -734,11 +764,21 @@ pub fn reconnect_dependency(args: ReconnectDependencyArgs) -> Result<GraphRespon
             .ok_or_else(|| "新的目标任务不存在".to_string())?;
 
         if !new_target.depends.contains(&args.source_uuid) {
+            let new_target_before =
+                crate::undo::capture_task_row(&conn, new_target_uuid).map_err(|e| e.to_string())?;
             let mut depends = new_target.depends;
             depends.push(args.source_uuid.clone());
             db::task::set_depends(&conn, new_target_uuid, depends).map_err(|e| e.to_string())?;
+            let new_target_after =
+                crate::undo::capture_task_row(&conn, new_target_uuid).map_err(|e| e.to_string())?;
+            rows.push((new_target_uuid.clone(), new_target_before, new_target_after));
         }
     }
+
+    undo_state.0.lock().unwrap().push(crate::undo::UndoAction::TaskRow {
+        label: "调整依赖关系".into(),
+        rows,
+    });
 
     build_graph().map_err(|e| e.to_string())
 }
@@ -845,22 +885,44 @@ pub fn delete_tag(name: String) -> Result<GraphResponse, String> {
 
 /// 标记任务完成
 #[tauri::command]
-pub fn done_task(uuid: String) -> Result<GraphResponse, String> {
+pub fn done_task(
+    uuid: String,
+    undo_state: tauri::State<crate::UndoState>,
+) -> Result<GraphResponse, String> {
     let conn = db::open().map_err(|e| e.to_string())?;
 
+    let before = crate::undo::capture_task_row(&conn, &uuid).map_err(|e| e.to_string())?;
     db::task::mark_done(&conn, &uuid).map_err(|e| e.to_string())?;
+    let after = crate::undo::capture_task_row(&conn, &uuid).map_err(|e| e.to_string())?;
+
+    undo_state.0.lock().unwrap().push(crate::undo::UndoAction::TaskRow {
+        label: "完成任务".into(),
+        rows: vec![(uuid, before, after)],
+    });
 
     build_graph().map_err(|e| e.to_string())
 }
 
 /// 批量标记多个任务完成（框选/Ctrl 多选后的批量操作）
 #[tauri::command]
-pub fn done_tasks(uuids: Vec<String>) -> Result<GraphResponse, String> {
+pub fn done_tasks(
+    uuids: Vec<String>,
+    undo_state: tauri::State<crate::UndoState>,
+) -> Result<GraphResponse, String> {
     let conn = db::open().map_err(|e| e.to_string())?;
 
+    let mut rows = Vec::with_capacity(uuids.len());
     for uuid in &uuids {
+        let before = crate::undo::capture_task_row(&conn, uuid).map_err(|e| e.to_string())?;
         db::task::mark_done(&conn, uuid).map_err(|e| e.to_string())?;
+        let after = crate::undo::capture_task_row(&conn, uuid).map_err(|e| e.to_string())?;
+        rows.push((uuid.clone(), before, after));
     }
+
+    undo_state.0.lock().unwrap().push(crate::undo::UndoAction::TaskRow {
+        label: "批量完成任务".into(),
+        rows,
+    });
 
     build_graph().map_err(|e| e.to_string())
 }
@@ -876,22 +938,44 @@ pub struct SetTasksProjectArgs {
 
 /// 批量将多个任务转移到同一个项目下（框选/Ctrl 多选后的批量操作）
 #[tauri::command]
-pub fn set_tasks_project(args: SetTasksProjectArgs) -> Result<GraphResponse, String> {
+pub fn set_tasks_project(
+    args: SetTasksProjectArgs,
+    undo_state: tauri::State<crate::UndoState>,
+) -> Result<GraphResponse, String> {
     let conn = db::open().map_err(|e| e.to_string())?;
 
+    let mut rows = Vec::with_capacity(args.uuids.len());
     for uuid in &args.uuids {
+        let before = crate::undo::capture_task_row(&conn, uuid).map_err(|e| e.to_string())?;
         db::task::set_project(&conn, uuid, args.project.clone()).map_err(|e| e.to_string())?;
+        let after = crate::undo::capture_task_row(&conn, uuid).map_err(|e| e.to_string())?;
+        rows.push((uuid.clone(), before, after));
     }
+
+    undo_state.0.lock().unwrap().push(crate::undo::UndoAction::TaskRow {
+        label: "批量转移项目".into(),
+        rows,
+    });
 
     build_graph().map_err(|e| e.to_string())
 }
 
 /// 取消任务完成，恢复为待办
 #[tauri::command]
-pub fn undone_task(uuid: String) -> Result<GraphResponse, String> {
+pub fn undone_task(
+    uuid: String,
+    undo_state: tauri::State<crate::UndoState>,
+) -> Result<GraphResponse, String> {
     let conn = db::open().map_err(|e| e.to_string())?;
 
+    let before = crate::undo::capture_task_row(&conn, &uuid).map_err(|e| e.to_string())?;
     db::task::mark_pending(&conn, &uuid).map_err(|e| e.to_string())?;
+    let after = crate::undo::capture_task_row(&conn, &uuid).map_err(|e| e.to_string())?;
+
+    undo_state.0.lock().unwrap().push(crate::undo::UndoAction::TaskRow {
+        label: "取消完成".into(),
+        rows: vec![(uuid, before, after)],
+    });
 
     build_graph().map_err(|e| e.to_string())
 }
@@ -1050,22 +1134,44 @@ pub fn delete_time_entry(id: i64) -> Result<GraphResponse, String> {
 
 /// 删除任务
 #[tauri::command]
-pub fn delete_task(uuid: String) -> Result<GraphResponse, String> {
+pub fn delete_task(
+    uuid: String,
+    undo_state: tauri::State<crate::UndoState>,
+) -> Result<GraphResponse, String> {
     let conn = db::open().map_err(|e| e.to_string())?;
 
+    let before = crate::undo::capture_task_row(&conn, &uuid).map_err(|e| e.to_string())?;
     db::task::mark_deleted(&conn, &uuid).map_err(|e| e.to_string())?;
+    let after = crate::undo::capture_task_row(&conn, &uuid).map_err(|e| e.to_string())?;
+
+    undo_state.0.lock().unwrap().push(crate::undo::UndoAction::TaskRow {
+        label: "删除任务".into(),
+        rows: vec![(uuid, before, after)],
+    });
 
     build_graph().map_err(|e| e.to_string())
 }
 
 /// 批量删除多个任务（框选/Ctrl 多选后的批量操作）
 #[tauri::command]
-pub fn delete_tasks(uuids: Vec<String>) -> Result<GraphResponse, String> {
+pub fn delete_tasks(
+    uuids: Vec<String>,
+    undo_state: tauri::State<crate::UndoState>,
+) -> Result<GraphResponse, String> {
     let conn = db::open().map_err(|e| e.to_string())?;
 
+    let mut rows = Vec::with_capacity(uuids.len());
     for uuid in &uuids {
+        let before = crate::undo::capture_task_row(&conn, uuid).map_err(|e| e.to_string())?;
         db::task::mark_deleted(&conn, uuid).map_err(|e| e.to_string())?;
+        let after = crate::undo::capture_task_row(&conn, uuid).map_err(|e| e.to_string())?;
+        rows.push((uuid.clone(), before, after));
     }
+
+    undo_state.0.lock().unwrap().push(crate::undo::UndoAction::TaskRow {
+        label: "批量删除任务".into(),
+        rows,
+    });
 
     build_graph().map_err(|e| e.to_string())
 }

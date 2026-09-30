@@ -400,4 +400,58 @@ mod tests {
         }
         assert_eq!(count, MAX_DEPTH);
     }
+
+    #[test]
+    fn simulated_add_then_modify_then_undo_both_restores_original_state() {
+        let conn = test_conn();
+        let mut stack = UndoStack::default();
+
+        // 模拟 add_task：新建后 push 一条 before=None 的 UndoAction
+        let task = make_task(&conn, "原始描述");
+        let after_add = capture_task_row(&conn, &task.uuid).unwrap();
+        stack.push(UndoAction::TaskRow {
+            label: "新建任务".into(),
+            rows: vec![(task.uuid.clone(), None, after_add)],
+        });
+
+        // 模拟 modify_task：改描述前后各拍一次
+        let before_modify = capture_task_row(&conn, &task.uuid).unwrap();
+        conn.execute(
+            "UPDATE tasks SET description = ?2 WHERE uuid = ?1",
+            params![task.uuid, "改过的描述"],
+        )
+        .unwrap();
+        let after_modify = capture_task_row(&conn, &task.uuid).unwrap();
+        stack.push(UndoAction::TaskRow {
+            label: "编辑任务".into(),
+            rows: vec![(task.uuid.clone(), before_modify, after_modify)],
+        });
+
+        // 撤销一次：应该回到"改过的描述"之前，即"原始描述"
+        let action = stack.pop_undo().unwrap();
+        apply_reverse(&conn, &action).unwrap();
+        assert_eq!(
+            db::task::get_by_uuid(&conn, &task.uuid).unwrap().unwrap().description,
+            "原始描述"
+        );
+        stack.push_redo(action);
+
+        // 再撤销一次：应该整行消失（回到"新建"之前）
+        let action = stack.pop_undo().unwrap();
+        apply_reverse(&conn, &action).unwrap();
+        assert!(db::task::get_by_uuid(&conn, &task.uuid).unwrap().is_none());
+        stack.push_redo(action);
+
+        // 全部重做：应该回到"改过的描述"
+        let action = stack.pop_redo().unwrap();
+        apply_forward(&conn, &action).unwrap();
+        stack.push_undo(action);
+        let action = stack.pop_redo().unwrap();
+        apply_forward(&conn, &action).unwrap();
+        stack.push_undo(action);
+        assert_eq!(
+            db::task::get_by_uuid(&conn, &task.uuid).unwrap().unwrap().description,
+            "改过的描述"
+        );
+    }
 }

@@ -57,7 +57,7 @@ watch(
 const annotationText = ref("");
 
 watch(
-    () => props.task?.uuid,
+    () => `${props.task?.uuid}::${props.task?.annotations?.[0]?.description || ""}`,
     () => {
         annotationText.value = props.task?.annotations?.[0]?.description || "";
     },

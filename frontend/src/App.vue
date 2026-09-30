@@ -18,6 +18,7 @@ import TaskListView from "./components/TaskListView.vue";
 import TaskDetail from "./components/TaskDetail.vue";
 import SettingsModal from "./components/SettingsModal.vue";
 import CommandPalette from "./components/CommandPalette.vue";
+import ShortcutsHelpModal from "./components/ShortcutsHelpModal.vue";
 import TagManagerModal from "./components/TagManagerModal.vue";
 import Dashboard from "./components/Dashboard.vue";
 import ChartsPage from "./components/ChartsPage.vue";
@@ -1501,6 +1502,14 @@ onUnmounted(() => clearInterval(autoRefreshTimer));
             :actions="shortcutActions"
             :shortcuts="settings.shortcuts"
             @close="paletteOpen = false"
+        />
+
+        <!-- 快捷键帮助面板 -->
+        <ShortcutsHelpModal
+            :visible="helpOpen"
+            :actions="shortcutActions"
+            :shortcuts="settings.shortcuts"
+            @close="helpOpen = false"
         />
 
         <!-- 标签管理弹出框 -->

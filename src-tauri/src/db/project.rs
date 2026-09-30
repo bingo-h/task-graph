@@ -163,7 +163,7 @@ pub fn purge_expired(conn: &Connection, retention_days: u32) -> Result<Vec<Strin
 /// 将项目（及其所有子项目、其下任务）移动到新的父项目下；`new_parent` 为
 /// `None` 时移动到顶层。通过整体重写路径前缀实现，同时更新任务的 project
 /// 字段和 projects 表中的路径记录。
-pub fn move_project(conn: &Connection, path: &str, new_parent: Option<&str>) -> Result<()> {
+pub fn move_project(conn: &Connection, path: &str, new_parent: Option<&str>) -> Result<String> {
     let leaf = path
         .rsplit('.')
         .next()
@@ -180,18 +180,20 @@ pub fn move_project(conn: &Connection, path: &str, new_parent: Option<&str>) -> 
         }
     }
 
-    rewrite_project_path(conn, path, &new_path)
+    rewrite_project_path(conn, path, &new_path)?;
+    Ok(new_path)
 }
 
 /// 重命名一个项目：只改自身这一段路径名，父级不变（`new_name` 是单独一段名字，不是完整路径）。
 /// 和 move_project 共享同一套路径重写逻辑，级联更新子项目路径和其下任务的 project 字段。
-pub fn rename_project(conn: &Connection, path: &str, new_name: &str) -> Result<()> {
+pub fn rename_project(conn: &Connection, path: &str, new_name: &str) -> Result<String> {
     let new_path = match path.rsplit_once('.') {
         Some((parent, _)) => format!("{parent}.{new_name}"),
         None => new_name.to_string(),
     };
 
-    rewrite_project_path(conn, path, &new_path)
+    rewrite_project_path(conn, path, &new_path)?;
+    Ok(new_path)
 }
 
 /// 把项目自身及其所有子项目、其下任务的路径，从 `path` 整体重写成 `new_path`

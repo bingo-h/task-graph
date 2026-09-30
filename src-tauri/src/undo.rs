@@ -363,6 +363,49 @@ mod tests {
     }
 
     #[test]
+    fn project_rename_undo_also_restores_child_tasks_project_field() {
+        let conn = test_conn();
+        db::project::create(&conn, "工作", "active").unwrap();
+        let task = db::task::create(
+            &conn,
+            &CreateTaskRequest {
+                description: "任务".into(),
+                project: Some("工作".into()),
+                priority: None,
+                due: None,
+                scheduled: None,
+                started_at: None,
+                tags: vec![],
+                depends: vec![],
+                annotation: None,
+                icon: None,
+                color: None,
+                recur_rule: None,
+            },
+        )
+        .unwrap();
+
+        let new_path = db::project::rename_project(&conn, "工作", "副业").unwrap();
+        assert_eq!(new_path, "副业");
+        assert_eq!(
+            db::task::get_by_uuid(&conn, &task.uuid).unwrap().unwrap().project,
+            Some("副业".to_string())
+        );
+
+        let action = UndoAction::ProjectInverse {
+            label: "重命名项目".into(),
+            undo: ProjectCall::Rename { path: "副业".into(), new_name: "工作".into() },
+            redo: ProjectCall::Rename { path: "工作".into(), new_name: "副业".into() },
+        };
+        apply_reverse(&conn, &action).unwrap();
+
+        assert_eq!(
+            db::task::get_by_uuid(&conn, &task.uuid).unwrap().unwrap().project,
+            Some("工作".to_string())
+        );
+    }
+
+    #[test]
     fn undo_stack_push_clears_redo_but_push_undo_does_not() {
         let mut stack = UndoStack::default();
         let a = UndoAction::TaskRow { label: "a".into(), rows: vec![] };

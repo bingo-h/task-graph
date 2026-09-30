@@ -319,7 +319,10 @@ pub fn get_tasks() -> Result<GraphResponse, String> {
 
 /// 新建项目，允许在没有任何任务的情况下独立创建
 #[tauri::command]
-pub fn create_project(args: CreateProjectArgs) -> Result<GraphResponse, String> {
+pub fn create_project(
+    args: CreateProjectArgs,
+    undo_state: tauri::State<crate::UndoState>,
+) -> Result<GraphResponse, String> {
     let path = args.path.trim();
 
     if path.is_empty() {
@@ -342,12 +345,21 @@ pub fn create_project(args: CreateProjectArgs) -> Result<GraphResponse, String> 
 
     db::project::create(&conn, path, stage).map_err(|e| e.to_string())?;
 
+    undo_state.0.lock().unwrap().push(crate::undo::UndoAction::ProjectInverse {
+        label: "新建项目".into(),
+        undo: crate::undo::ProjectCall::Purge { path: path.to_string() },
+        redo: crate::undo::ProjectCall::Create { path: path.to_string(), stage: stage.to_string() },
+    });
+
     build_graph().map_err(|e| e.to_string())
 }
 
 /// 设置项目所属阶段（计划中 / 进行中）
 #[tauri::command]
-pub fn set_project_stage(args: SetProjectStageArgs) -> Result<GraphResponse, String> {
+pub fn set_project_stage(
+    args: SetProjectStageArgs,
+    undo_state: tauri::State<crate::UndoState>,
+) -> Result<GraphResponse, String> {
     let path = args.path.trim();
 
     if path.is_empty() || path == INBOX_PROJECT {
@@ -362,14 +374,30 @@ pub fn set_project_stage(args: SetProjectStageArgs) -> Result<GraphResponse, Str
 
     let conn = db::open().map_err(|e| e.to_string())?;
 
+    let old_stage = db::project::list_all(&conn)
+        .map_err(|e| e.to_string())?
+        .into_iter()
+        .find(|p| p.path == path)
+        .map(|p| p.stage)
+        .unwrap_or_else(|| STAGE_ACTIVE.to_string());
+
     db::project::set_stage(&conn, path, &args.stage).map_err(|e| e.to_string())?;
+
+    undo_state.0.lock().unwrap().push(crate::undo::UndoAction::ProjectInverse {
+        label: "设置项目阶段".into(),
+        undo: crate::undo::ProjectCall::SetStage { path: path.to_string(), stage: old_stage },
+        redo: crate::undo::ProjectCall::SetStage { path: path.to_string(), stage: args.stage.clone() },
+    });
 
     build_graph().map_err(|e| e.to_string())
 }
 
 /// 设置项目归档状态（归档会级联到所有子项目）
 #[tauri::command]
-pub fn set_project_archived(args: ArchiveProjectArgs) -> Result<GraphResponse, String> {
+pub fn set_project_archived(
+    args: ArchiveProjectArgs,
+    undo_state: tauri::State<crate::UndoState>,
+) -> Result<GraphResponse, String> {
     let path = args.path.trim();
 
     if path.is_empty() || path == INBOX_PROJECT {
@@ -382,14 +410,33 @@ pub fn set_project_archived(args: ArchiveProjectArgs) -> Result<GraphResponse, S
 
     let conn = db::open().map_err(|e| e.to_string())?;
 
+    let old_archived = db::project::list_all(&conn)
+        .map_err(|e| e.to_string())?
+        .into_iter()
+        .find(|p| p.path == path)
+        .map(|p| p.archived)
+        .unwrap_or(false);
+
     db::project::set_archived(&conn, path, args.archived).map_err(|e| e.to_string())?;
+
+    undo_state.0.lock().unwrap().push(crate::undo::UndoAction::ProjectInverse {
+        label: "设置项目归档状态".into(),
+        undo: crate::undo::ProjectCall::SetArchived { path: path.to_string(), archived: old_archived },
+        redo: crate::undo::ProjectCall::SetArchived {
+            path: path.to_string(),
+            archived: args.archived,
+        },
+    });
 
     build_graph().map_err(|e| e.to_string())
 }
 
 /// 将项目移入废纸篓（软删除，级联到所有子项目，可恢复）
 #[tauri::command]
-pub fn trash_project(path: String) -> Result<GraphResponse, String> {
+pub fn trash_project(
+    path: String,
+    undo_state: tauri::State<crate::UndoState>,
+) -> Result<GraphResponse, String> {
     let path = path.trim();
 
     if path.is_empty() || path == INBOX_PROJECT {
@@ -400,12 +447,21 @@ pub fn trash_project(path: String) -> Result<GraphResponse, String> {
 
     db::project::trash(&conn, path).map_err(|e| e.to_string())?;
 
+    undo_state.0.lock().unwrap().push(crate::undo::UndoAction::ProjectInverse {
+        label: "移入废纸篓".into(),
+        undo: crate::undo::ProjectCall::Restore { path: path.to_string() },
+        redo: crate::undo::ProjectCall::Trash { path: path.to_string() },
+    });
+
     build_graph().map_err(|e| e.to_string())
 }
 
 /// 从废纸篓恢复项目
 #[tauri::command]
-pub fn restore_project(path: String) -> Result<GraphResponse, String> {
+pub fn restore_project(
+    path: String,
+    undo_state: tauri::State<crate::UndoState>,
+) -> Result<GraphResponse, String> {
     let path = path.trim();
 
     if path.is_empty() || path == INBOX_PROJECT {
@@ -415,6 +471,12 @@ pub fn restore_project(path: String) -> Result<GraphResponse, String> {
     let conn = db::open().map_err(|e| e.to_string())?;
 
     db::project::restore(&conn, path).map_err(|e| e.to_string())?;
+
+    undo_state.0.lock().unwrap().push(crate::undo::UndoAction::ProjectInverse {
+        label: "从废纸篓恢复".into(),
+        undo: crate::undo::ProjectCall::Trash { path: path.to_string() },
+        redo: crate::undo::ProjectCall::Restore { path: path.to_string() },
+    });
 
     build_graph().map_err(|e| e.to_string())
 }
@@ -445,7 +507,10 @@ pub struct MoveProjectArgs {
 
 /// 移动项目（及其所有子项目、任务）到新的父项目下，或移动到顶层
 #[tauri::command]
-pub fn move_project(args: MoveProjectArgs) -> Result<GraphResponse, String> {
+pub fn move_project(
+    args: MoveProjectArgs,
+    undo_state: tauri::State<crate::UndoState>,
+) -> Result<GraphResponse, String> {
     let path = args.path.trim();
 
     if path.is_empty() || path == INBOX_PROJECT {
@@ -464,7 +529,17 @@ pub fn move_project(args: MoveProjectArgs) -> Result<GraphResponse, String> {
 
     let conn = db::open().map_err(|e| e.to_string())?;
 
-    db::project::move_project(&conn, path, new_parent).map_err(|e| e.to_string())?;
+    let old_parent = path.rsplit_once('.').map(|(parent, _)| parent.to_string());
+    let new_path = db::project::move_project(&conn, path, new_parent).map_err(|e| e.to_string())?;
+
+    undo_state.0.lock().unwrap().push(crate::undo::UndoAction::ProjectInverse {
+        label: "移动项目".into(),
+        undo: crate::undo::ProjectCall::Move { path: new_path.clone(), new_parent: old_parent },
+        redo: crate::undo::ProjectCall::Move {
+            path: path.to_string(),
+            new_parent: new_parent.map(String::from),
+        },
+    });
 
     build_graph().map_err(|e| e.to_string())
 }
@@ -479,7 +554,10 @@ pub struct RenameProjectArgs {
 
 /// 重命名项目（及级联更新其所有子项目路径、其下任务的 project 字段），父级不变
 #[tauri::command]
-pub fn rename_project(args: RenameProjectArgs) -> Result<GraphResponse, String> {
+pub fn rename_project(
+    args: RenameProjectArgs,
+    undo_state: tauri::State<crate::UndoState>,
+) -> Result<GraphResponse, String> {
     let path = args.path.trim();
 
     if path.is_empty() || path == INBOX_PROJECT {
@@ -500,7 +578,17 @@ pub fn rename_project(args: RenameProjectArgs) -> Result<GraphResponse, String> 
 
     let conn = db::open().map_err(|e| e.to_string())?;
 
-    db::project::rename_project(&conn, path, new_name).map_err(|e| e.to_string())?;
+    let old_name = path.rsplit('.').next().unwrap_or(path).to_string();
+    let new_path = db::project::rename_project(&conn, path, new_name).map_err(|e| e.to_string())?;
+
+    undo_state.0.lock().unwrap().push(crate::undo::UndoAction::ProjectInverse {
+        label: "重命名项目".into(),
+        undo: crate::undo::ProjectCall::Rename { path: new_path.clone(), new_name: old_name },
+        redo: crate::undo::ProjectCall::Rename {
+            path: path.to_string(),
+            new_name: new_name.to_string(),
+        },
+    });
 
     build_graph().map_err(|e| e.to_string())
 }

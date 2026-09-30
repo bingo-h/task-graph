@@ -34,3 +34,6 @@ frontend/.vite/
 
 # direnv
 .direnv/
+
+# docs
+docs/superpowers/

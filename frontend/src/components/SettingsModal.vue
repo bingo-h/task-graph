@@ -8,7 +8,7 @@
 -->
 
 <script setup>
-import { ref, computed, watch } from "vue";
+import { ref, computed, watch, onBeforeUnmount } from "vue";
 import SegmentedControl from "./SegmentedControl.vue";
 import { formatDuration, DEFAULT_DURATION_FORMAT } from "../composables/useDuration";
 import { getVersion } from "@tauri-apps/api/app";
@@ -23,6 +23,13 @@ import {
     downloadAndInstallUpdate,
     restartToApply,
 } from "../composables/useUpdater";
+import {
+    buildActions,
+    effectiveBinding,
+    findConflict,
+    formatBindingForDisplay,
+    normalizeKeyEvent,
+} from "../composables/useShortcuts";
 
 const props = defineProps({
     visible: { type: Boolean, required: true },
@@ -40,6 +47,7 @@ const SECTIONS = [
     { key: "appearance", label: "外观" },
     { key: "duration", label: "时长格式" },
     { key: "graph", label: "图谱显示" },
+    { key: "shortcuts", label: "快捷键" },
     { key: "about", label: "关于" },
 ];
 const activeSection = ref("general");
@@ -67,6 +75,102 @@ const colorScheme = ref("");
 const themeMode = ref("light");
 const cornerRadius = ref(10);
 const uiStyle = ref("flat");
+
+// ----------------------------------------
+// 快捷键：改绑 / 冲突检测 / 恢复默认
+// ----------------------------------------
+const shortcutOverrides = ref({}); // 本地编辑副本，保存前不影响 App.vue 的真实 settings
+const recordingActionId = ref(null); // 当前正在"录制"按键的 action id，null 表示没有
+const shortcutConflict = ref(null); // { actionId, conflictWith: action, candidate } 或 null
+
+// 快捷键分区不需要真实的 App.vue 注入（openAdd/currentPage 等 run() 回调这里用不上，
+// 只是借用同一份 buildActions 拿到 id/label/category/defaultKeys），传空函数占位即可
+const shortcutActions = buildActions({
+    openAdd: () => {},
+    focusSearch: () => {},
+    currentPage: { value: "" },
+    showSettings: { value: false },
+    paletteOpen: { value: false },
+    helpOpen: { value: false },
+});
+
+function bindingLabel(action) {
+    return formatBindingForDisplay(effectiveBinding(action, shortcutOverrides.value));
+}
+
+// 录制按键用 document 级监听而不是"聚焦按钮 + @keydown"：WebKitGTK（这个项目在
+// Linux 上用的 webview 引擎）点击 <button> 不一定会给它键盘焦点（跟 Chromium 的默认
+// 行为不一样），指着按钮本身的 @keydown 在这个引擎上不可靠。这里改成跟 IconPicker.vue
+// 已有的"打开时挂 document 监听、关闭时摘掉"同一套模式，不依赖任何元素的焦点状态。
+function startRecording(actionId) {
+    recordingActionId.value = actionId;
+    shortcutConflict.value = null;
+    document.addEventListener("keydown", onRecordKeydown, true);
+}
+
+function stopRecording() {
+    recordingActionId.value = null;
+    document.removeEventListener("keydown", onRecordKeydown, true);
+}
+
+function onRecordKeydown(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    const actionId = recordingActionId.value;
+    if (!actionId) return;
+
+    if (e.key === "Escape") {
+        stopRecording();
+        return;
+    }
+    const candidate = normalizeKeyEvent(e);
+    if (!candidate) return; // 单独按下修饰键，继续等主键
+
+    const conflictWith = findConflict(
+        shortcutActions,
+        shortcutOverrides.value,
+        actionId,
+        candidate,
+    );
+    if (conflictWith) {
+        shortcutConflict.value = { actionId, conflictWith, candidate };
+        stopRecording();
+        return;
+    }
+
+    shortcutOverrides.value = { ...shortcutOverrides.value, [actionId]: candidate };
+    stopRecording();
+}
+
+onBeforeUnmount(() => {
+    document.removeEventListener("keydown", onRecordKeydown, true);
+});
+
+/** 冲突提示里的"改绑给这个"：把原占用者清成显式"无绑定"，候选绑定给新 action */
+function resolveConflictOverwrite() {
+    if (!shortcutConflict.value) return;
+    const { actionId, conflictWith, candidate } = shortcutConflict.value;
+    shortcutOverrides.value = {
+        ...shortcutOverrides.value,
+        [actionId]: candidate,
+        [conflictWith.id]: "",
+    };
+    shortcutConflict.value = null;
+}
+
+function cancelConflict() {
+    shortcutConflict.value = null;
+}
+
+function resetOneShortcut(actionId) {
+    const next = { ...shortcutOverrides.value };
+    delete next[actionId];
+    shortcutOverrides.value = next;
+}
+
+function resetAllShortcuts() {
+    shortcutOverrides.value = {};
+}
 
 const colorSchemeOptions = ref([{ id: "", name: "默认（克制中性）" }]);
 async function loadColorSchemesOnce() {
@@ -177,7 +281,10 @@ const nodeLabelRecur = ref(NODE_LABELS.recur);
 watch(
     () => props.visible,
     (visible) => {
-        if (!visible) return;
+        if (!visible) {
+            stopRecording();
+            return;
+        }
         activeSection.value = "general";
         trashRetentionDays.value = props.settings.trash_retention_days ?? 30;
         fontSize.value = props.settings.font_size ?? 14;
@@ -208,6 +315,9 @@ watch(
             ? props.settings.ui_style
             : "flat";
         loadColorSchemesOnce();
+        shortcutOverrides.value = { ...(props.settings.shortcuts || {}) };
+        recordingActionId.value = null;
+        shortcutConflict.value = null;
     },
 );
 
@@ -279,6 +389,7 @@ function submit() {
         theme_mode: themeMode.value,
         corner_radius: clampStepperInput(cornerRadius.value, 0, 24, 10),
         ui_style: uiStyle.value,
+        shortcuts: shortcutOverrides.value,
     });
 }
 </script>
@@ -744,6 +855,67 @@ function submit() {
                             </div>
                         </template>
 
+                        <!-- 快捷键 -->
+                        <template v-else-if="activeSection === 'shortcuts'">
+                            <div class="form-row">
+                                <label class="form-label">
+                                    自定义快捷键
+                                    <span class="form-hint">
+                                        点击按键框进入录制状态，按下新的组合键即可；Esc
+                                        取消录制。改绑到已被占用的组合键会提示冲突。
+                                    </span>
+                                </label>
+                                <button type="button" class="mode-btn" @click="resetAllShortcuts">
+                                    全部恢复默认
+                                </button>
+                            </div>
+
+                            <div
+                                v-for="action in shortcutActions"
+                                :key="action.id"
+                                class="form-row shortcut-edit-row"
+                            >
+                                <label class="form-label">
+                                    {{ action.label }}
+                                    <span class="form-hint">{{ action.category }}</span>
+                                </label>
+                                <div class="shortcut-edit-controls">
+                                    <button
+                                        type="button"
+                                        class="mode-btn shortcut-key-btn"
+                                        :class="{ active: recordingActionId === action.id }"
+                                        @click="startRecording(action.id)"
+                                    >
+                                        {{
+                                            recordingActionId === action.id
+                                                ? "按下新的组合键…"
+                                                : bindingLabel(action)
+                                        }}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="mode-btn shortcut-reset-btn"
+                                        @click="resetOneShortcut(action.id)"
+                                    >
+                                        恢复默认
+                                    </button>
+                                </div>
+
+                                <div
+                                    v-if="shortcutConflict && shortcutConflict.actionId === action.id"
+                                    class="form-hint shortcut-conflict"
+                                >
+                                    当前绑定给『{{ shortcutConflict.conflictWith.label }}』，
+                                    <button type="button" class="mode-btn" @click="resolveConflictOverwrite">
+                                        改绑给这个
+                                    </button>
+                                    <button type="button" class="mode-btn" @click="cancelConflict">
+                                        取消
+                                    </button>
+                                </div>
+                            </div>
+                        </template>
+
                         <!-- 关于 -->
                         <template v-else-if="activeSection === 'about'">
                             <div class="form-row">
@@ -1140,6 +1312,29 @@ function submit() {
 }
 .update-error {
     color: var(--red, #f7768e);
+}
+
+.shortcut-edit-row {
+    flex-direction: column;
+    align-items: flex-start;
+}
+.shortcut-edit-controls {
+    display: flex;
+    gap: 8px;
+    margin-top: 4px;
+}
+.shortcut-key-btn {
+    min-width: 140px;
+}
+.shortcut-key-btn.active {
+    box-shadow: inset 0 0 0 1.5px var(--blue);
+}
+.shortcut-conflict {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--red);
+    margin-top: 4px;
 }
 
 .modal-footer {

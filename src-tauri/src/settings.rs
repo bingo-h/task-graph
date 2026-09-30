@@ -225,11 +225,7 @@ pub fn validate_shortcut_binding(value: &str) -> bool {
     if main_key.is_empty() {
         return false;
     }
-    if !main_key.chars().all(|c| {
-        c.is_ascii_lowercase()
-            || c.is_ascii_digit()
-            || matches!(c, ',' | '?' | '.' | '/' | '-' | '=' | '[' | ']' | ';' | '\'' | '`' | '\\')
-    }) {
+    if main_key.contains('+') || main_key.chars().any(|c| c.is_whitespace()) {
         return false;
     }
 
@@ -341,5 +337,23 @@ mod tests {
         assert!(!validate_shortcut_binding("shift+mod+n")); // 修饰键顺序错误
         assert!(!validate_shortcut_binding("mod+mod+n")); // 修饰键重复
         assert!(!validate_shortcut_binding("ctrl+n")); // 不是 mod 占位符
+    }
+
+    #[test]
+    fn shortcut_binding_accepts_broader_charset() {
+        // 字符白名单放宽后，任何不含分隔符 "+"、不含空白的主键都该被接受，
+        // 覆盖 Ctrl+Shift+1（"mod+!"）、Ctrl+Shift+-（"mod+shift+_"）这类真实键盘能敲出、
+        // 但旧白名单没收录的符号。
+        assert!(validate_shortcut_binding("mod+!"));
+        assert!(validate_shortcut_binding("mod+shift+_"));
+    }
+
+    #[test]
+    fn shortcut_binding_rejects_delimiter_collision() {
+        // "mod+shift++" 里最后一个 "+" 既是要表达的主键字符，又是分隔符本身，
+        // split('+') 之后主键段是空字符串，结构上仍然是非法绑定——前端已经把
+        // 字面 "+" 归一化成 "plus" token，不会再生成这种字符串，但格式校验本身
+        // 仍要挡住它。
+        assert!(!validate_shortcut_binding("mod+shift++"));
     }
 }

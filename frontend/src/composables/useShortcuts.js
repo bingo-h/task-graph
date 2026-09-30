@@ -18,6 +18,13 @@ export function isMac() {
   return platform.toLowerCase().includes("mac");
 }
 
+// 主键归一化时需要特殊处理的两个字符：空格没有可读的字面量，"+" 本身就是
+// 绑定字符串里连接修饰键的分隔符——如果直接把 "+" 当主键塞进去（比如 Ctrl+Shift+=
+// 敲出的字面 "+"），"mod+shift++" 按 "+" split 出来的最后一段是空字符串，
+// 主键会被解析成空，跟"没有主键"的非法绑定完全撞在一起。映射成不含 "+" 的
+// 单词 token，从源头避免这个分隔符冲突。
+const KEY_ALIASES = { " ": "space", "+": "plus" };
+
 /** 把一次 keydown 事件归一化成绑定字符串；修饰键单独按下（还没配合主键）时返回 null */
 export function normalizeKeyEvent(e) {
   if (["Control", "Shift", "Alt", "Meta"].includes(e.key)) return null;
@@ -30,7 +37,7 @@ export function normalizeKeyEvent(e) {
   if (isLetterOrDigit && e.shiftKey) parts.push("shift");
   if (e.altKey) parts.push("alt");
 
-  const baseKey = e.key.toLowerCase();
+  const baseKey = KEY_ALIASES[e.key] ?? e.key.toLowerCase();
   parts.push(baseKey);
   return parts.join("+");
 }
@@ -51,6 +58,8 @@ export function formatBindingForDisplay(binding) {
       if (part === "mod") return modLabel;
       if (part === "shift") return "Shift";
       if (part === "alt") return isMac() ? "Option" : "Alt";
+      if (part === "space") return "Space";
+      if (part === "plus") return "+";
       return part.toUpperCase();
     })
     .join("+");

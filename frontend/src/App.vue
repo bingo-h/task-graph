@@ -447,6 +447,19 @@ function applyUpdate(data) {
         tagFilter.value = null;
     }
 
+    // 撤销/重做项目结构类操作后，当前筛选的项目路径可能已经不存在了
+    // （比如撤销回"重命名之前"，但筛选还停在改名后的新路径上）——
+    // 不清掉的话看板会突然筛出空集，用户搞不清为什么
+    if (
+        selectedProject.value &&
+        !selectedProject.value.startsWith(constants.STAGE_FILTER_PREFIX) &&
+        selectedProject.value !== constants.INBOX_PROJECT &&
+        selectedProject.value !== constants.TODAY_PROJECT &&
+        !data.projects[selectedProject.value]
+    ) {
+        selectedProject.value = null;
+    }
+
     if (
         selectedUUID.value &&
         !data.nodes.find((n) => n.uuid === selectedUUID.value)

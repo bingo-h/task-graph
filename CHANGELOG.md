@@ -6,6 +6,10 @@
 
 ## [未发布]
 
+### 新增
+
+- **README 补充 Nix Flake 安装指南**：「开发环境启动」章节前新增「使用 Nix Flake（可选）」一节，说明 `nix develop` 进入开发 shell、`nix build` 出构建产物，并注明 `flake.nix` 依赖私有 flake input（`nix-config`），无访问权限的贡献者需改用手动环境搭建方式。
+
 ## [1.3.0] - 2026-09-16
 
 ### 变更

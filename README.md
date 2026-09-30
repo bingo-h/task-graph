@@ -51,6 +51,20 @@
 - pnpm 9+
 - Tauri CLI：`cargo install tauri-cli --version "^2"` 或用 `pnpm tauri`（通过 devDependencies 中的 `@tauri-apps/cli`）
 
+## 使用 Nix Flake（可选）
+
+如果你用 Nix 且已经开启 flakes 实验特性（`nix.conf` 里加 `experimental-features = nix-command flakes`），可以跳过上面手动装环境的步骤：
+
+```bash
+# 进入开发 shell（自动装好 Rust、Node、pnpm、tauri-cli，即上面"环境要求"里列的全部工具）
+nix develop
+
+# 直接构建出包（等价于 cargo tauri build，产物路径见下方"生产构建"）
+nix build
+```
+
+> 注意：`flake.nix` 依赖一个私有 flake input（`nix-config`，通过 `git+ssh://git@github.com/bingo-h/nixos-config` 引用）。如果你不是仓库维护者本人、没有这个私有仓库的访问权限，`nix develop`/`nix build` 会因为拉取不到该 input 而失败，请改用下面"开发环境启动"里的手动方式。
+
 ## 开发环境启动
 
 ```bash

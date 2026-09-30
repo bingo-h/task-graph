@@ -9,6 +9,7 @@
 import { ref, computed, watch, onMounted, onUnmounted } from "vue";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useSlidingIndicator } from "./composables/useSlidingIndicator";
+import { useShortcuts } from "./composables/useShortcuts";
 
 import TaskFormModal from "./components/TaskFormModal.vue";
 import ProjectTree from "./components/ProjectTree.vue";
@@ -115,8 +116,12 @@ const settings = ref({
     theme_mode: "light",
     corner_radius: 10,
     ui_style: "flat",
+    shortcuts: {},
 });
 const showSettings = ref(false);
+// 命令面板 / 快捷键帮助面板：3a 新增，跟 showSettings/showTagManager 同级的弹窗开关状态
+const paletteOpen = ref(false);
+const helpOpen = ref(false);
 
 /** 把字体大小应用到全局 CSS 变量 */
 function applyFontSize(size) {
@@ -252,6 +257,7 @@ function onJumpToTask(uuid) {
 
 // 当前状态
 const selectedUUID = ref(null);
+const projectTreeRef = ref(null); // 用于 useShortcuts 的 search.focus 动作调用子组件暴露的 focusSearch()
 const selectedProject = ref(null);
 const tagFilter = ref(null); // 任务看板按标签筛选，null 表示不筛选
 const hlMode = ref("ancestors"); // 高亮模式
@@ -338,6 +344,19 @@ const activeSessionSeconds = computed(() => {
 // 添加/修改任务
 const showModal = ref(false); // 是否显示添加任务界面
 const modalPrefill = ref(null); // null = 新建，任务对象 = 修改
+
+// 供全局快捷键系统判断"当前是否有任意弹窗/面板打开"——打开时挂起除 Escape 外的
+// 全部全局快捷键，避免背后悄悄触发切视图等操作；覆盖 App.vue 直接持有的几个主要
+// 弹窗开关，TimeEntryNoteModal/ConfirmDialog 这类局部触发的弹窗不在这里的覆盖范围内
+// （它们自己已经有可用的 Esc 关闭逻辑，不受影响）。
+const anyModalOpen = computed(
+    () =>
+        showModal.value ||
+        showSettings.value ||
+        showTagManager.value ||
+        paletteOpen.value ||
+        helpOpen.value,
+);
 
 // 计时记录回忆总结弹窗
 const noteModal = ref({
@@ -1132,6 +1151,18 @@ onMounted(() => {
     loadSettings();
 });
 
+useShortcuts({
+    openAdd,
+    focusSearch: () => projectTreeRef.value?.focusSearch?.(),
+    currentPage,
+    showSettings,
+    paletteOpen,
+    helpOpen,
+    shortcuts: computed(() => settings.value.shortcuts || {}),
+    anyModalOpen,
+    selectedUUID,
+});
+
 // "今日任务"标记、逾期等状态只在每次拉取数据时惰性重新计算（后端没有常驻定时任务），
 // 应用如果一直开着不关、也不做任何触发刷新的操作（比如正好跨过午夜），
 // 界面会一直停留在旧状态。这里跟 Dashboard/ChartsPage 一样加一个定时兜底刷新。
@@ -1352,6 +1383,7 @@ onUnmounted(() => clearInterval(autoRefreshTimer));
         <!-- 主体三栏（任务看板） -->
         <div v-show="currentPage === 'board'" class="main">
             <ProjectTree
+                ref="projectTreeRef"
                 :projects="projects"
                 :planned-roots="plannedProjectRoots"
                 :active-roots="activeProjectRoots"

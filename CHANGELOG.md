@@ -13,6 +13,7 @@
 ### 新增
 
 - **README 补充 Nix Flake 安装指南**：「开发环境启动」章节前新增「使用 Nix Flake（可选）」一节，说明 `nix develop` 进入开发 shell、`nix build` 出构建产物，并注明 `flake.nix` 依赖私有 flake input（`nix-config`），无访问权限的贡献者需改用手动环境搭建方式。
+- **全局快捷键系统 + 命令面板 + 快捷键帮助面板 + 全局任务搜索**：`settings.json` 新增 `shortcuts` 字段（action id -> 归一化按键组合，未设置的沿用内置默认值），新增 `src-tauri/src/settings.rs::validate_shortcut_binding()` 格式校验；前端新增 `composables/useShortcuts.js`（动作注册表 + 归一化/匹配/冲突检测 + 全局 `keydown` 监听，`App.vue` 挂载）、`components/CommandPalette.vue`（`Ctrl+K`）、`components/ShortcutsHelpModal.vue`（`?`/`F1`）；设置弹窗新增"快捷键"分区支持逐项改绑（录制式，含冲突检测与"改绑给这个"/单项及全部恢复默认）；`ProjectTree.vue` 顶部新增全局任务搜索框（`Ctrl+F` 聚焦），`useLayout.js::filterNodes()`/`computeLayout()` 新增 `searchKeyword` 参数，叠加在项目/标签过滤之上，`TaskGraph.vue`/`TaskListView.vue` 同步接入。默认键位：`Ctrl+N` 新建任务、`Ctrl+F` 搜索、`Ctrl+K` 命令面板、`Ctrl+,` 设置、`1`-`4` 切换首页/分析/日历/任务看板、`Esc` 关闭面板/取消选中、`?`/`F1` 帮助。`Ctrl+Z`/`Ctrl+Shift+Z`（撤销/重做）这次只留好动作注册表里的位置，真正的撤销栈逻辑是后续独立子项目。
 
 ## [1.3.0] - 2026-09-16
 

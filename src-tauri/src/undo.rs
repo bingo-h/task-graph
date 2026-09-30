@@ -100,6 +100,10 @@ pub enum UndoAction {
 pub enum ProjectCall {
     Create { path: String, stage: String },
     Purge { path: String },
+    /// 撤销"新建项目"专用逆操作：只精确删这一条项目记录（见
+    /// `db::project::delete_record` 的文档注释），不走 `Purge` 那种 LIKE
+    /// 前缀级联匹配，避免误删无关项目的子树
+    DeleteRecord { path: String },
     Rename { path: String, new_name: String },
     Move { path: String, new_parent: Option<String> },
     SetArchived { path: String, archived: bool },
@@ -113,6 +117,7 @@ impl ProjectCall {
         match self {
             ProjectCall::Create { path, stage } => crate::db::project::create(conn, path, stage),
             ProjectCall::Purge { path } => crate::db::project::purge(conn, path),
+            ProjectCall::DeleteRecord { path } => crate::db::project::delete_record(conn, path),
             ProjectCall::Rename { path, new_name } => {
                 crate::db::project::rename_project(conn, path, new_name).map(|_| ())
             }
@@ -129,19 +134,62 @@ impl ProjectCall {
     }
 }
 
+/// 只把 `from` 和 `to` 两份快照之间真正不同的列，覆写成 `to` 的值——不是
+/// 无差别整行 REPLACE。这样撤销/重做一步操作，不会连带冲掉同一行上由
+/// 其它不在撤销范围内的操作（今日标记、开始计时、重复规则……）造成的改动。
+/// `to` 为 None 删除这一行（撤销"新建"）；这一行当前不存在时（重做"新建"）
+/// 退化成整行 INSERT（此时没有旧值可比较，也没必要比较）。
+fn apply_task_row_diff(
+    conn: &Connection,
+    uuid: &str,
+    from: &Option<TaskRowSnapshot>,
+    to: &Option<TaskRowSnapshot>,
+) -> anyhow::Result<()> {
+    match to {
+        None => {
+            conn.execute("DELETE FROM tasks WHERE uuid = ?1", rusqlite::params![uuid])?;
+        }
+        Some(to_snapshot) => match from {
+            None => {
+                restore_task_row(conn, to_snapshot)?;
+            }
+            Some(from_snapshot) => {
+                let changed: Vec<&str> = to_snapshot
+                    .keys()
+                    .filter(|k| from_snapshot.get(*k) != to_snapshot.get(*k))
+                    .map(|k| k.as_str())
+                    .collect();
+                if changed.is_empty() {
+                    return Ok(());
+                }
+                let set_clause: Vec<String> = changed
+                    .iter()
+                    .enumerate()
+                    .map(|(i, col)| format!("{col} = ?{}", i + 1))
+                    .collect();
+                let sql = format!(
+                    "UPDATE tasks SET {} WHERE uuid = ?{}",
+                    set_clause.join(", "),
+                    changed.len() + 1
+                );
+                let mut values: Vec<rusqlite::types::Value> =
+                    changed.iter().map(|k| json_to_sql_value(&to_snapshot[*k])).collect();
+                values.push(rusqlite::types::Value::Text(uuid.to_string()));
+                conn.execute(&sql, rusqlite::params_from_iter(values))?;
+            }
+        },
+    }
+    Ok(())
+}
+
 fn apply_task_rows(
     conn: &Connection,
     rows: &[(String, Option<TaskRowSnapshot>, Option<TaskRowSnapshot>)],
-    pick: impl Fn(&(String, Option<TaskRowSnapshot>, Option<TaskRowSnapshot>)) -> (&str, &Option<TaskRowSnapshot>),
+    reverse: bool,
 ) -> anyhow::Result<()> {
-    for row in rows {
-        let (uuid, snapshot) = pick(row);
-        match snapshot {
-            Some(s) => restore_task_row(conn, s)?,
-            None => {
-                conn.execute("DELETE FROM tasks WHERE uuid = ?1", rusqlite::params![uuid])?;
-            }
-        }
+    for (uuid, before, after) in rows {
+        let (from, to) = if reverse { (after, before) } else { (before, after) };
+        apply_task_row_diff(conn, uuid, from, to)?;
     }
     Ok(())
 }
@@ -149,9 +197,7 @@ fn apply_task_rows(
 /// 撤销一步操作：任务类覆写回 before（None 表示删行）；项目类调用 undo 字段
 pub fn apply_reverse(conn: &Connection, action: &UndoAction) -> anyhow::Result<()> {
     match action {
-        UndoAction::TaskRow { rows, .. } => {
-            apply_task_rows(conn, rows, |(uuid, before, _after)| (uuid.as_str(), before))
-        }
+        UndoAction::TaskRow { rows, .. } => apply_task_rows(conn, rows, true),
         UndoAction::ProjectInverse { undo, .. } => undo.apply(conn),
     }
 }
@@ -161,9 +207,7 @@ pub fn apply_reverse(conn: &Connection, action: &UndoAction) -> anyhow::Result<(
 /// 对称、逻辑自洽）；项目类调用 redo 字段
 pub fn apply_forward(conn: &Connection, action: &UndoAction) -> anyhow::Result<()> {
     match action {
-        UndoAction::TaskRow { rows, .. } => {
-            apply_task_rows(conn, rows, |(uuid, _before, after)| (uuid.as_str(), after))
-        }
+        UndoAction::TaskRow { rows, .. } => apply_task_rows(conn, rows, false),
         UndoAction::ProjectInverse { redo, .. } => redo.apply(conn),
     }
 }
@@ -403,6 +447,87 @@ mod tests {
             db::task::get_by_uuid(&conn, &task.uuid).unwrap().unwrap().project,
             Some("工作".to_string())
         );
+    }
+
+    #[test]
+    fn create_project_undo_does_not_purge_case_colliding_sibling() {
+        let conn = test_conn();
+        // 既有项目 "work.meetings"，其下挂着一个任务——路径和后面要撤销新建的
+        // "Work" 只有大小写不同，SQLite 的 LIKE 默认对 ASCII 大小写不敏感，
+        // "Work.%" 会误匹配到 "work.meetings"
+        db::project::create(&conn, "work.meetings", "active").unwrap();
+        let existing_task = db::task::create(
+            &conn,
+            &CreateTaskRequest {
+                description: "既有任务".into(),
+                project: Some("work.meetings".into()),
+                priority: None,
+                due: None,
+                scheduled: None,
+                started_at: None,
+                tags: vec![],
+                depends: vec![],
+                annotation: None,
+                icon: None,
+                color: None,
+                recur_rule: None,
+            },
+        )
+        .unwrap();
+
+        // 模拟 create_project("Work") 之后紧接着撤销：undo 字段现在是
+        // DeleteRecord，不再是 Purge
+        db::project::create(&conn, "Work", "active").unwrap();
+        let action = UndoAction::ProjectInverse {
+            label: "新建项目".into(),
+            undo: ProjectCall::DeleteRecord { path: "Work".into() },
+            redo: ProjectCall::Create { path: "Work".into(), stage: "active".into() },
+        };
+        apply_reverse(&conn, &action).unwrap();
+
+        let paths: Vec<String> =
+            db::project::list_all(&conn).unwrap().into_iter().map(|p| p.path).collect();
+        // "Work" 这条记录被精确删除
+        assert!(!paths.contains(&"Work".to_string()));
+        // "work.meetings" 项目记录和它下面的任务完全不受影响
+        assert!(paths.contains(&"work.meetings".to_string()));
+        let reloaded = db::task::get_by_uuid(&conn, &existing_task.uuid).unwrap().unwrap();
+        assert_eq!(reloaded.status.as_str(), "pending");
+        assert_eq!(reloaded.project, Some("work.meetings".to_string()));
+    }
+
+    #[test]
+    fn apply_reverse_preserves_untracked_column_changes_made_in_between() {
+        let conn = test_conn();
+        let task = make_task(&conn, "原始描述");
+
+        // 拍下"编辑描述"这一步操作的 before 快照
+        let before = capture_task_row(&conn, &task.uuid).unwrap();
+        conn.execute(
+            "UPDATE tasks SET description = ?2 WHERE uuid = ?1",
+            params![task.uuid, "改过的描述"],
+        )
+        .unwrap();
+        let after = capture_task_row(&conn, &task.uuid).unwrap();
+
+        // 编辑之后、撤销之前，发生一次不在撤销范围内的操作：标记为"今日任务"
+        conn.execute(
+            "UPDATE tasks SET today_marked_date = ?2 WHERE uuid = ?1",
+            params![task.uuid, "2026-01-01"],
+        )
+        .unwrap();
+
+        let action = UndoAction::TaskRow {
+            label: "编辑任务".into(),
+            rows: vec![(task.uuid.clone(), before, after)],
+        };
+        apply_reverse(&conn, &action).unwrap();
+
+        let restored = db::task::get_by_uuid(&conn, &task.uuid).unwrap().unwrap();
+        // 描述正确回退
+        assert_eq!(restored.description, "原始描述");
+        // 但"今日标记"这个未被追踪的改动不应该被整行覆写冲掉
+        assert_eq!(restored.today_marked_date, Some("2026-01-01".to_string()));
     }
 
     #[test]

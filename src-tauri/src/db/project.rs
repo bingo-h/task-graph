@@ -129,6 +129,17 @@ pub fn purge(conn: &Connection, path: &str) -> Result<()> {
     Ok(())
 }
 
+/// 撤销"新建项目"专用：只精确删这一条项目记录本身，不做 db::project::purge
+/// 那种 LIKE 前缀级联匹配。db::project::purge 是给用户在废纸篓里点"彻底删除"
+/// 用的，SQLite 的 LIKE 对 ASCII 大小写不敏感、且 %/_ 是通配符——如果撤销
+/// "新建项目"也复用它，遇到新建的项目路径恰好和别的项目路径发生 LIKE 碰撞
+/// （大小写、或路径里带 %/_），会把无关项目的整棵子树误删。新建项目这一刻
+/// 必然还没有任何子项目/任务挂在它下面，精确删这一行就足够、也更安全。
+pub fn delete_record(conn: &Connection, path: &str) -> Result<()> {
+    conn.execute("DELETE FROM projects WHERE path = ?1", params![path])?;
+    Ok(())
+}
+
 /// 清理废纸篓中已超过保留期限的项目，返回被彻底删除的项目路径列表。
 /// `retention_days` 为 0 表示关闭自动清理。
 pub fn purge_expired(conn: &Connection, retention_days: u32) -> Result<Vec<String>> {

@@ -347,7 +347,7 @@ pub fn create_project(
 
     undo_state.0.lock().unwrap().push(crate::undo::UndoAction::ProjectInverse {
         label: "新建项目".into(),
-        undo: crate::undo::ProjectCall::Purge { path: path.to_string() },
+        undo: crate::undo::ProjectCall::DeleteRecord { path: path.to_string() },
         redo: crate::undo::ProjectCall::Create { path: path.to_string(), stage: stage.to_string() },
     });
 

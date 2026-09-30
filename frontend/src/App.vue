@@ -25,7 +25,7 @@ import ChartsPage from "./components/ChartsPage.vue";
 import CalendarPage from "./components/CalendarPage.vue";
 import TimeEntryNoteModal from "./components/TimeEntryNoteModal.vue";
 import ConfirmDialog from "./components/ConfirmDialog.vue";
-import { confirmDialog } from "./composables/useConfirm";
+import { confirmDialog, confirmState } from "./composables/useConfirm";
 import { computeHighlight, wouldCreateCycle } from "./composables/useLayout";
 import constants from "./config/constants";
 import {
@@ -349,16 +349,19 @@ const showModal = ref(false); // 是否显示添加任务界面
 const modalPrefill = ref(null); // null = 新建，任务对象 = 修改
 
 // 供全局快捷键系统判断"当前是否有任意弹窗/面板打开"——打开时挂起除 Escape 外的
-// 全部全局快捷键，避免背后悄悄触发切视图等操作；覆盖 App.vue 直接持有的几个主要
-// 弹窗开关，TimeEntryNoteModal/ConfirmDialog 这类局部触发的弹窗不在这里的覆盖范围内
-// （它们自己已经有可用的 Esc 关闭逻辑，不受影响）。
+// 全部全局快捷键，避免背后悄悄触发切视图等操作；覆盖 App.vue 直接持有的全部弹窗
+// 开关，包括 noteModal（计时记录回忆总结）和 confirmState（自绘确认弹窗，
+// useConfirm.js 的全局单例状态）——这两个最初被漏掉过，导致它们打开时按 1-4
+// 这类全局快捷键仍会在背后悄悄切换主页面。
 const anyModalOpen = computed(
     () =>
         showModal.value ||
         showSettings.value ||
         showTagManager.value ||
         paletteOpen.value ||
-        helpOpen.value,
+        helpOpen.value ||
+        noteModal.value.visible ||
+        confirmState.visible,
 );
 
 // 计时记录回忆总结弹窗

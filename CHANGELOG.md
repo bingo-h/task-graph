@@ -6,6 +6,10 @@
 
 ## [未发布]
 
+### 变更
+
+- **README 移除过期的界面预览截图**：`README.md`「界面结构」一节的 `preview/preview.png` 引用先摘掉，改成一行占位说明；发现造测试数据时 DAG 图里同一行的两个节点之间连线会绕远路而不是走直线（dagre 布局/D3 渲染层的问题），排完版再重新截图替换。
+
 ### 新增
 
 - **README 补充 Nix Flake 安装指南**：「开发环境启动」章节前新增「使用 Nix Flake（可选）」一节，说明 `nix develop` 进入开发 shell、`nix build` 出构建产物，并注明 `flake.nix` 依赖私有 flake input（`nix-config`），无访问权限的贡献者需改用手动环境搭建方式。

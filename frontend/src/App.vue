@@ -6,7 +6,7 @@
 -->
 
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted } from "vue";
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from "vue";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useSlidingIndicator } from "./composables/useSlidingIndicator";
 import { useShortcuts } from "./composables/useShortcuts";
@@ -1159,7 +1159,13 @@ onMounted(() => {
 
 const { actions: shortcutActions } = useShortcuts({
     openAdd,
-    focusSearch: () => projectTreeRef.value?.focusSearch?.(),
+    // 搜索框在 ProjectTree 里，而 ProjectTree 所在的容器是 v-show="currentPage === 'board'"——
+    // 不在看板页时它是 display:none，直接 .focus() 是空操作。先切到看板页，
+    // 等 Vue 把 DOM 更新完（v-show 生效）再聚焦，否则聚焦的是还没显示出来的元素。
+    focusSearch: () => {
+        currentPage.value = "board";
+        nextTick(() => projectTreeRef.value?.focusSearch?.());
+    },
     currentPage,
     showSettings,
     paletteOpen,

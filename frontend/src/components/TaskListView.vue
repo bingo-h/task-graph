@@ -22,6 +22,7 @@ const props = defineProps({
     selected: { type: String, default: null },
     projectFilter: { type: String, default: null },
     tagFilter: { type: String, default: null },
+    searchKeyword: { type: String, default: "" },
     projects: { type: Object, default: () => ({}) },
     tags: { type: Object, default: () => ({}) }, // 标签名 -> { name, color, task_count }
 });
@@ -31,7 +32,7 @@ const emit = defineEmits(["select", "done", "undone", "clear-tag-filter"]);
 // 和图谱共用同一套项目/标签筛选逻辑，两种视图看到的任务范围完全一致；
 // 后端返回时已经按紧迫度降序排好，这里不用再重新排序
 const filteredNodes = computed(() =>
-    filterNodes(props.nodes, props.projectFilter, props.projects).filter(
+    filterNodes(props.nodes, props.projectFilter, props.projects, props.searchKeyword).filter(
         (n) => !props.tagFilter || n.tags?.includes(props.tagFilter),
     ),
 );

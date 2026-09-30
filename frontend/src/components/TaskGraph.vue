@@ -44,6 +44,7 @@ const props = defineProps({
     highlightSet: { type: Object, default: () => new Set() }, // Set(uuid)
     projectFilter: { type: String, default: null },
     tagFilter: { type: String, default: null }, // 按标签名过滤，和 projectFilter 同时生效取交集
+    searchKeyword: { type: String, default: "" }, // 全局任务搜索关键字，叠加在项目/标签过滤之上
     projects: { type: Object, default: () => ({}) }, // 项目路径 -> ProjectNode，按分类哨兵值筛选时用
     tags: { type: Object, default: () => ({}) }, // 标签名 -> { name, color, task_count }
     multiSelected: { type: Object, default: () => new Set() }, // Set(uuid)，框选/Ctrl 多选的任务
@@ -190,6 +191,7 @@ function render() {
         // today-order 模式下 rank 列的含义完全不同（是手动排的今日顺序，不是依赖层级），
         // 这里的同层纵向排序只在真实依赖图视图里生效
         props.mode === "today-order" ? [] : props.siblingOrderEdges,
+        props.searchKeyword,
     );
 
     if (nodes.length === 0) {
@@ -1079,6 +1081,7 @@ watch(
         () => props.dependsEdges,
         () => props.projectFilter,
         () => props.tagFilter,
+        () => props.searchKeyword,
         () => props.selected,
         () => props.highlightSet,
         () => props.multiSelected,

@@ -46,6 +46,7 @@ export function nodeHeightFor(detailLineCount) {
  * @param {number} [nodeHeight] - 当前应使用的节点高度（由显示设置决定的详情行数算出），默认按 4 行算
  * @param {Array} [siblingOrderEdges] - DAG 视图里同一 rank 列内任务的手动纵向顺序边
  *   [{source, target}]，source 排在 target 上面，dagre 布局完成后用来覆盖同列节点的默认纵向顺序
+ * @param {string} [searchKeyword] - 任务标题关键字搜索，叠加在项目/标签过滤之上
  * @returns {{ nodes: Array, edges: Array }}
  *   nodes 每项附加 { x, y } 坐标（节点中心点）
  *   edges 每项附加 { points } 折线控制点数组
@@ -58,9 +59,10 @@ export function computeLayout(
   projects = {},
   nodeHeight = nodeHeightFor(4),
   siblingOrderEdges = [],
+  searchKeyword = "",
 ) {
-  // 按项目、标签过滤（两者同时指定时取交集）
-  const visibleNodes = filterNodes(nodes, projectFilter, projects).filter(
+  // 按项目、标签、搜索关键字过滤（同时指定时取交集）
+  const visibleNodes = filterNodes(nodes, projectFilter, projects, searchKeyword).filter(
     (n) => !tagFilter || n.tags?.includes(tagFilter),
   );
   const visibleUUIDs = new Set(visibleNodes.map((n) => n.uuid));
@@ -232,7 +234,7 @@ function patchEdgeEndpoints(layoutEdges, movedY) {
 }
 
 /**
- * 按项目路径过滤节点
+ * 按项目路径过滤节点，可选叠加标题关键字搜索
  * @description
  *  null：显示全部
  *  "无项目"：只显示无项目归属的任务
@@ -242,27 +244,28 @@ function patchEdgeEndpoints(layoutEdges, movedY) {
  * @param {Array} nodes - 所有任务
  * @param {String} projectFilter - 项目过滤
  * @param {Object} projects - 项目路径 -> ProjectNode 字典，按分类哨兵值筛选时用来查每个任务所属项目的 group
+ * @param {String} [searchKeyword] - 标题关键字，叠加在项目过滤之上，不区分大小写子串匹配；留空不生效
  */
-export function filterNodes(nodes, projectFilter, projects = {}) {
-  if (!projectFilter) return nodes;
-
-  if (projectFilter === config.INBOX_PROJECT) {
-    return nodes.filter((n) => !n.project);
-  }
-
-  if (projectFilter === config.TODAY_PROJECT) {
-    return nodes.filter((n) => n.is_today);
-  }
-
-  if (projectFilter.startsWith(config.STAGE_FILTER_PREFIX)) {
+export function filterNodes(nodes, projectFilter, projects = {}, searchKeyword = "") {
+  let result;
+  if (!projectFilter) {
+    result = nodes;
+  } else if (projectFilter === config.INBOX_PROJECT) {
+    result = nodes.filter((n) => !n.project);
+  } else if (projectFilter === config.TODAY_PROJECT) {
+    result = nodes.filter((n) => n.is_today);
+  } else if (projectFilter.startsWith(config.STAGE_FILTER_PREFIX)) {
     const group = projectFilter.slice(config.STAGE_FILTER_PREFIX.length);
-    return nodes.filter((n) => n.project && projects[n.project]?.group === group);
+    result = nodes.filter((n) => n.project && projects[n.project]?.group === group);
+  } else {
+    result = nodes.filter(
+      (n) => n.project === projectFilter || n.project?.startsWith(projectFilter + "."),
+    );
   }
 
-  return nodes.filter(
-    (n) =>
-      n.project === projectFilter || n.project?.startsWith(projectFilter + "."),
-  );
+  const keyword = searchKeyword.trim().toLowerCase();
+  if (!keyword) return result;
+  return result.filter((n) => n.description?.toLowerCase().includes(keyword));
 }
 
 /**

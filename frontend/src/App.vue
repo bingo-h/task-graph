@@ -260,6 +260,7 @@ function onJumpToTask(uuid) {
 // 当前状态
 const selectedUUID = ref(null);
 const projectTreeRef = ref(null); // 用于 useShortcuts 的 search.focus 动作调用子组件暴露的 focusSearch()
+const searchKeyword = ref(""); // 全局任务搜索关键字，ProjectTree 里的搜索框 v-model 到这里
 const selectedProject = ref(null);
 const tagFilter = ref(null); // 任务看板按标签筛选，null 表示不筛选
 const hlMode = ref("ancestors"); // 高亮模式
@@ -1394,6 +1395,7 @@ onUnmounted(() => clearInterval(autoRefreshTimer));
                 :selected="selectedProject"
                 :today-count="todayCount"
                 :board-view-mode="boardViewMode"
+                :search-keyword="searchKeyword"
                 @select="selectedProject = $event"
                 @create-project="onCreateProject"
                 @toggle-archive="onToggleArchive"
@@ -1404,6 +1406,7 @@ onUnmounted(() => clearInterval(autoRefreshTimer));
                 @move-project="onMoveProject"
                 @rename-project="onRenameProject"
                 @update:board-view-mode="boardViewMode = $event"
+                @update:search-keyword="searchKeyword = $event"
             />
 
             <div class="board-center">
@@ -1417,6 +1420,7 @@ onUnmounted(() => clearInterval(autoRefreshTimer));
                     :highlight-set="highlightSet"
                     :project-filter="selectedProject"
                     :tag-filter="tagFilter"
+                    :search-keyword="searchKeyword"
                     :projects="projects"
                     :tags="tags"
                     :multi-selected="multiSelectedUUIDs"
@@ -1444,6 +1448,7 @@ onUnmounted(() => clearInterval(autoRefreshTimer));
                     :selected="selectedUUID"
                     :project-filter="selectedProject"
                     :tag-filter="tagFilter"
+                    :search-keyword="searchKeyword"
                     :projects="projects"
                     :tags="tags"
                     @select="onGraphSelect"

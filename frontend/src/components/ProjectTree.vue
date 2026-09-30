@@ -25,6 +25,7 @@ const props = defineProps({
     todayCount: { type: Number, default: 0 },
     // 任务看板中间面板当前是导图还是列表模式，标题栏放个切换按钮，状态本身由 App.vue 持有
     boardViewMode: { type: String, default: "graph" },
+    searchKeyword: { type: String, default: "" },
 });
 
 const emit = defineEmits([
@@ -38,7 +39,17 @@ const emit = defineEmits([
     "move-project",
     "rename-project",
     "update:boardViewMode",
+    "update:search-keyword",
 ]);
+
+const searchInputRef = ref(null);
+
+function focusSearch() {
+    searchInputRef.value?.focus();
+    searchInputRef.value?.select();
+}
+
+defineExpose({ focusSearch });
 
 const collapsed = ref(new Set());
 
@@ -388,6 +399,23 @@ function selectToday() {
             </div>
         </div>
 
+        <!-- 全局任务搜索：叠加在项目筛选之上，纯前端内存过滤标题子串 -->
+        <div class="tree-search-row">
+            <input
+                ref="searchInputRef"
+                :value="searchKeyword"
+                type="text"
+                class="tree-search-input"
+                placeholder="搜索任务标题…"
+                @input="emit('update:search-keyword', $event.target.value)"
+                @keydown.esc="
+                    $event.target.value = '';
+                    emit('update:search-keyword', '');
+                    $event.target.blur();
+                "
+            />
+        </div>
+
         <!-- 新建项目输入框 -->
         <div v-if="showNewProjectInput" class="new-project-row">
             <input
@@ -630,6 +658,24 @@ function selectToday() {
 .new-project-btn:hover {
     color: var(--blue);
     border-color: var(--blue);
+}
+
+/* 全局任务搜索输入行 */
+.tree-search-row {
+    padding: 6px 10px;
+}
+.tree-search-input {
+    width: 100%;
+    padding: 5px 8px;
+    border-radius: var(--radius-sm);
+    background: var(--bg-dark);
+    box-shadow: inset 0 0 0 1px var(--border);
+    font-size: 0.85rem;
+    color: var(--fg);
+}
+.tree-search-input:focus {
+    outline: none;
+    box-shadow: inset 0 0 0 1px var(--blue);
 }
 
 /* 新建项目输入行 */

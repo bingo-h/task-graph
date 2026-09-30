@@ -483,7 +483,10 @@ pub fn restore_project(
 
 /// 彻底删除项目：级联删除该项目及所有子项目下的任务，不可恢复
 #[tauri::command]
-pub fn purge_project(path: String) -> Result<GraphResponse, String> {
+pub fn purge_project(
+    path: String,
+    undo_state: tauri::State<crate::UndoState>,
+) -> Result<GraphResponse, String> {
     let path = path.trim();
 
     if path.is_empty() || path == INBOX_PROJECT {
@@ -493,6 +496,8 @@ pub fn purge_project(path: String) -> Result<GraphResponse, String> {
     let conn = db::open().map_err(|e| e.to_string())?;
 
     db::project::purge(&conn, path).map_err(|e| e.to_string())?;
+
+    undo_state.0.lock().unwrap().clear();
 
     build_graph().map_err(|e| e.to_string())
 }

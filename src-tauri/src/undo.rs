@@ -256,6 +256,13 @@ impl UndoStack {
             self.undo.remove(0);
         }
     }
+
+    /// 清空撤销/重做栈——彻底删除（purge_project）之后调用，避免后续 Ctrl+Z
+    /// 用旧的快照/逆操作把已经被用户明确确认永久删除的数据复活回来
+    pub fn clear(&mut self) {
+        self.undo.clear();
+        self.redo.clear();
+    }
 }
 
 #[cfg(test)]
@@ -567,6 +574,18 @@ mod tests {
             count += 1;
         }
         assert_eq!(count, MAX_DEPTH);
+    }
+
+    #[test]
+    fn undo_stack_clear_empties_both_undo_and_redo() {
+        let mut stack = UndoStack::default();
+        stack.push(UndoAction::TaskRow { label: "a".into(), rows: vec![] });
+        stack.push_redo(UndoAction::TaskRow { label: "b".into(), rows: vec![] });
+
+        stack.clear();
+
+        assert!(stack.pop_undo().is_none());
+        assert!(stack.pop_redo().is_none());
     }
 
     #[test]

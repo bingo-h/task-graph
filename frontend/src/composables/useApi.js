@@ -254,3 +254,13 @@ export async function removeTodayOrderEdge(fromUuid, toUuid) {
 export async function reorderSiblings(uuids) {
   return call("reorder_siblings", { uuids });
 }
+
+/** 撤销最近一步操作；没有可撤销的操作时后端直接返回当前图，不报错。 */
+export async function undo() {
+  return call("undo");
+}
+
+/** 重做最近一步被撤销的操作；没有可重做的操作时后端直接返回当前图，不报错。 */
+export async function redo() {
+  return call("redo");
+}

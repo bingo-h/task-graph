@@ -75,9 +75,20 @@ export function formatBindingForDisplay(binding) {
  * @param {import('vue').Ref<boolean>} refs.showSettings
  * @param {import('vue').Ref<boolean>} refs.paletteOpen
  * @param {import('vue').Ref<boolean>} refs.helpOpen
+ * @param {Function} refs.onUndo - 撤销最近一步操作
+ * @param {Function} refs.onRedo - 重做最近一步被撤销的操作
  */
 export function buildActions(refs) {
-  const { openAdd, focusSearch, currentPage, showSettings, paletteOpen, helpOpen } = refs;
+  const {
+    openAdd,
+    focusSearch,
+    currentPage,
+    showSettings,
+    paletteOpen,
+    helpOpen,
+    onUndo,
+    onRedo,
+  } = refs;
 
   return [
     { id: "task.new", label: "新建任务", category: "任务", run: () => openAdd(), defaultKeys: "mod+n" },
@@ -89,6 +100,8 @@ export function buildActions(refs) {
     { id: "view.calendar", label: "切换到日历", category: "视图", run: () => { currentPage.value = "calendar"; }, defaultKeys: "3" },
     { id: "view.board", label: "切换到任务看板", category: "视图", run: () => { currentPage.value = "board"; }, defaultKeys: "4" },
     { id: "help.shortcuts", label: "快捷键帮助", category: "帮助", run: () => { helpOpen.value = true; }, defaultKeys: "?" },
+    { id: "edit.undo", label: "撤销", category: "编辑", run: () => onUndo(), defaultKeys: "mod+z" },
+    { id: "edit.redo", label: "重做", category: "编辑", run: () => onRedo(), defaultKeys: "mod+shift+z" },
   ];
 }
 

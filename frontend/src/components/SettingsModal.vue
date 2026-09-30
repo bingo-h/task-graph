@@ -98,6 +98,8 @@ const shortcutActions = buildActions({
     showSettings: { value: false },
     paletteOpen: { value: false },
     helpOpen: { value: false },
+    onUndo: () => {},
+    onRedo: () => {},
 });
 
 function bindingLabel(action) {

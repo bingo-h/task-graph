@@ -69,6 +69,8 @@ import {
     addTodayOrderEdge,
     removeTodayOrderEdge,
     reorderSiblings,
+    undo,
+    redo,
 } from "./composables/useApi";
 
 // 无边框窗口：自定义标题栏控制
@@ -687,6 +689,32 @@ async function onRenameTag(oldTag, newTag) {
 }
 
 /**
+ * 撤销最近一步操作
+ *
+ * @description 由 useShortcuts 的 edit.undo 动作触发
+ */
+async function onUndo() {
+    try {
+        applyUpdate(await undo());
+    } catch (e) {
+        error.value = e.message;
+    }
+}
+
+/**
+ * 重做最近一步被撤销的操作
+ *
+ * @description 由 useShortcuts 的 edit.redo 动作触发
+ */
+async function onRedo() {
+    try {
+        applyUpdate(await redo());
+    } catch (e) {
+        error.value = e.message;
+    }
+}
+
+/**
  * 设置标签颜色
  *
  * @description 由 TagManagerModal 的 @set-color 事件触发
@@ -1170,6 +1198,8 @@ const { actions: shortcutActions } = useShortcuts({
     showSettings,
     paletteOpen,
     helpOpen,
+    onUndo,
+    onRedo,
     shortcuts: computed(() => settings.value.shortcuts || {}),
     anyModalOpen,
     selectedUUID,

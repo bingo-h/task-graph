@@ -9,6 +9,7 @@
 ### 变更
 
 - **README 移除过期的界面预览截图**：`README.md`「界面结构」一节的 `preview/preview.png` 引用先摘掉，改成一行占位说明；发现造测试数据时 DAG 图里同一行的两个节点之间连线会绕远路而不是走直线（dagre 布局/D3 渲染层的问题），排完版再重新截图替换。
+- **快捷键系统整分支收尾修复**：`frontend/src/composables/useShortcuts.js::handleGlobalShortcut()` 里 Esc 兜底清除选中的分支补上 `!isTypingTarget(e.target)` 判断，修复了在任务详情备注 `<textarea>` 等文本输入框内按 Esc 会连带清空当前选中任务（进而丢失未保存备注内容）的问题；`normalizeKeyEvent()`/`formatBindingForDisplay()` 新增 `KEY_ALIASES`（空格 → `space`、字面 `+` → `plus`），避免归一化后的绑定字符串出现跟修饰键分隔符 `+` 冲突的字面 `+`。`App.vue` 的 `anyModalOpen` 计算属性补上 `noteModal.value.visible`/`confirmState.visible`（原来漏挂起"计时记录回忆总结"弹窗和自绘确认弹窗，这两个打开时按 `1`-`4` 等全局快捷键仍会在背后悄悄切换页面）；`focusSearch` 回调改成先切到任务看板页（`currentPage.value = "board"`）、`nextTick` 之后再聚焦搜索框，修复非看板页（默认的首页等）下 `Ctrl+F` 因目标输入框 `display:none` 而完全无效的问题。`src-tauri/src/settings.rs::validate_shortcut_binding()` 的主键字符白名单换成更宽松的判断（只要求不含分隔符 `+`、不含空白），修复 `Ctrl+Shift+1` 等归一化后含符号的合法组合键在改绑时被拒绝、导致整个设置保存请求静默失败的问题，新增 `shortcut_binding_accepts_broader_charset`/`shortcut_binding_rejects_delimiter_collision` 两个测试用例。`SettingsModal.vue`/`TaskFormModal.vue`/`TagManagerModal.vue`/`TimeEntryNoteModal.vue` 四个弹窗补上 `ConfirmDialog.vue` 同款的"打开时把焦点塞进弹窗内部 + 遮罩层 `@keydown.esc`"逻辑（`SettingsModal.vue`/`TagManagerModal.vue` 聚焦遮罩层自身并加 `tabindex="-1"`；`TaskFormModal.vue` 顺带补全了模板里此前已写了 `ref="inputRef"` 但脚本里从未声明、因此从未真正生效的任务描述输入框聚焦；`TimeEntryNoteModal.vue` 聚焦标题输入框），此前这四个弹窗按 Esc 完全没有反应。连带给 `TaskFormModal.vue`/`TagManagerModal.vue` 里原有的标签改名输入框 `@keydown.esc.prevent` 补上 `.stop`，避免改名时按 Esc 的事件冒泡触发新加的遮罩层 Esc 处理器、意外关掉整个弹窗（`TaskFormModal.vue` 场景下会连带丢失整份未提交的任务表单）。
 
 ### 新增
 

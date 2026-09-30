@@ -1,9 +1,12 @@
 //! 通用撤销/重做栈。
 //!
 //! 任务类操作（新建/编辑/删除/完成/依赖）走"行快照"：操作前后各拍一次
-//! `tasks` 表整行快照，撤销=覆写回 before（before=None 表示这行原本不存在，
-//! 撤销时直接删掉），重做=覆写回 after。动态读取全部列，不逐列硬编码结构体，
-//! 这样以后 `tasks` 表加新列不需要同步改这里。
+//! `tasks` 表整行快照，撤销/重做时只把 before/after 两份快照之间**真正变化的列**
+//! 覆写过去（`apply_task_row_diff`），不是无差别整行覆写——这样同一行上由其它
+//! 不在撤销范围内的操作（今日标记、开始计时、重复规则……）造成的改动不会被连带
+//! 冲掉。before=None 表示这行原本不存在（新建），撤销时直接整行删掉；这一行当前
+//! 不存在时（重做新建）没有旧值可比较，退化成整行 INSERT。动态读取全部列，
+//! 不逐列硬编码结构体，这样以后 `tasks` 表加新列不需要同步改这里。
 //!
 //! 项目结构类操作（改名/移动/归档/阶段/废纸篓/新建）走"逆操作"：`rename_project`/
 //! `move_project` 会级联影响整棵子树、且改名本身会改变 `projects.path` 这个主键，
@@ -194,7 +197,8 @@ fn apply_task_rows(
     Ok(())
 }
 
-/// 撤销一步操作：任务类覆写回 before（None 表示删行）；项目类调用 undo 字段
+/// 撤销一步操作：任务类只把变化的列覆写回 before（None 表示删行，见
+/// `apply_task_row_diff`）；项目类调用 undo 字段
 pub fn apply_reverse(conn: &Connection, action: &UndoAction) -> anyhow::Result<()> {
     match action {
         UndoAction::TaskRow { rows, .. } => apply_task_rows(conn, rows, true),

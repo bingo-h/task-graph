@@ -599,18 +599,27 @@ async function onMoveProject(path, newParent) {
  */
 async function onRenameProject(path, newName) {
     try {
-        applyUpdate(await renameProject(path, newName));
-
         // 项目路径整体变了，如果正好在看这个项目（或它的某个子项目），
-        // 把筛选也同步换成新路径，不然改完名字看着的图谱会突然变空
+        // 把筛选也同步换成新路径，不然改完名字看着的图谱会突然变空——
+        // 这段判断必须在 applyUpdate 之前做完：applyUpdate 里"清理已经不
+        // 存在的 selectedProject"那段逻辑（Fix 3 新加的）会先把还停在旧路径
+        // 上的 selectedProject 置空，如果等 applyUpdate 跑完再判断
+        // selectedProject.value === path，永远不会命中
         const dotIndex = path.lastIndexOf(".");
         const parent = dotIndex === -1 ? null : path.slice(0, dotIndex);
         const newPath = parent ? `${parent}.${newName}` : newName;
 
+        let nextSelectedProject = null;
         if (selectedProject.value === path) {
-            selectedProject.value = newPath;
+            nextSelectedProject = newPath;
         } else if (selectedProject.value?.startsWith(`${path}.`)) {
-            selectedProject.value = newPath + selectedProject.value.slice(path.length);
+            nextSelectedProject = newPath + selectedProject.value.slice(path.length);
+        }
+
+        applyUpdate(await renameProject(path, newName));
+
+        if (nextSelectedProject !== null) {
+            selectedProject.value = nextSelectedProject;
         }
     } catch (e) {
         error.value = e.message;

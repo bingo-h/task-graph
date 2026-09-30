@@ -13,7 +13,6 @@
 ### 新增
 
 - **README 补充 Nix Flake 安装指南**：「开发环境启动」章节前新增「使用 Nix Flake（可选）」一节，说明 `nix develop` 进入开发 shell、`nix build` 出构建产物，并注明 `flake.nix` 依赖私有 flake input（`nix-config`），无访问权限的贡献者需改用手动环境搭建方式。
-- **设置弹窗新增"快捷键"分区，支持改绑/冲突检测/恢复默认**：`SettingsModal.vue` 的 `SECTIONS` 新增 `shortcuts` 分区（位于"图谱显示"和"关于"之间），列出 `useShortcuts.js::buildActions()` 里注册的全部动作，逐项显示当前生效绑定（`effectiveBinding()` + `formatBindingForDisplay()`）。点击某一项的按键框进入"录制"状态：不依赖按钮获得键盘焦点，而是挂一个 `document` 级别、capture 阶段的 `keydown` 监听器（`startRecording()`/`stopRecording()`/`onRecordKeydown()`），因为本项目 Linux 开发环境用的 WebKitGTK webview 引擎点击 `<button>` 不一定会给它键盘焦点，做法沿用 `IconPicker.vue` 已有的"打开挂监听、关闭摘监听"模式；按 Esc 取消录制，按下新组合键后用 `findConflict()` 校验是否被其它动作占用，占用则弹出冲突提示（"改绑给这个"会把原占用者的绑定显式设为空字符串 `""`，跟"未在覆盖表里"是两种不同状态；"取消"则放弃这次改绑）。每项另有独立的"恢复默认"（`resetOneShortcut()`，从本地覆盖表里删除该项 key），分区顶部有"全部恢复默认"（`resetAllShortcuts()`，整个覆盖表清空）。编辑过程中的绑定先存在组件本地状态 `shortcutOverrides`，点击弹窗"保存"时才随其它设置字段一起以 `shortcuts` 字段整体提交；弹窗关闭（无论是保存后还是点"取消"/"×"中途关闭）都会通过 `watch(() => props.visible, ...)` 的分支调用 `stopRecording()` 清理掉可能残留的 `document` 监听器——这个弹窗组件在 `App.vue` 里常驻挂载，只有内部 `v-if="visible"` 控制显隐，不能只指望 `onBeforeUnmount`（虽然也加了一份兜底）。
 
 ## [1.3.0] - 2026-09-16
 

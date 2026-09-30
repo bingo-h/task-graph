@@ -17,6 +17,7 @@ import TaskGraph from "./components/TaskGraph.vue";
 import TaskListView from "./components/TaskListView.vue";
 import TaskDetail from "./components/TaskDetail.vue";
 import SettingsModal from "./components/SettingsModal.vue";
+import CommandPalette from "./components/CommandPalette.vue";
 import TagManagerModal from "./components/TagManagerModal.vue";
 import Dashboard from "./components/Dashboard.vue";
 import ChartsPage from "./components/ChartsPage.vue";
@@ -1151,7 +1152,7 @@ onMounted(() => {
     loadSettings();
 });
 
-useShortcuts({
+const { actions: shortcutActions } = useShortcuts({
     openAdd,
     focusSearch: () => projectTreeRef.value?.focusSearch?.(),
     currentPage,
@@ -1492,6 +1493,14 @@ onUnmounted(() => clearInterval(autoRefreshTimer));
             @close="showSettings = false"
             @save="onSaveSettings"
             @update:highlight-mode="hlMode = $event"
+        />
+
+        <!-- 命令面板 -->
+        <CommandPalette
+            :visible="paletteOpen"
+            :actions="shortcutActions"
+            :shortcuts="settings.shortcuts"
+            @close="paletteOpen = false"
         />
 
         <!-- 标签管理弹出框 -->

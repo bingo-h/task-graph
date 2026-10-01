@@ -6,6 +6,10 @@
 
 ## [未发布]
 
+### 变更
+
+- **`flake.nix` 改为引用公开仓库 `nix-libs`**：`mkTauriShell`/`mkTauriPackage` 原来通过私有仓库 `nix-config`（`git+ssh://git@github.com/bingo-h/nixos-config`，需要 SSH 访问权限）提供，现在改成引用新拆分出来的公开仓库 `github:bingo-h/nix-libs`（input 改名为 `nix-libs`），这样其他人 clone 本项目后可以直接 `nix build`/`nix develop`，不再需要私有仓库权限。
+
 ### 修复
 
 - **修正 Nix flake 打包的 `pnpmDepsHash` 过期**：`flake.nix` 里硬编码的 `pnpmDepsHash` 还是 1.3.0 清理前端脚手架（删 `typescript`/`vue-tsc`/`@vue/typescript-plugin` 依赖）之前算出来的旧值，`frontend/pnpm-lock.yaml` 更新后没有同步重算，导致下游（如 nixos-config）用 flake input 方式构建本项目时在 `fetchPnpmDeps` 这步报 `hash mismatch` 直接失败。换成按当前 `frontend/pnpm-lock.yaml` 重新计算出的哈希（`sha256-vxiXJS/OFKaNyQb5Yk/fAHGJl4tVxbFS0WeNuhRVBvc=`）。

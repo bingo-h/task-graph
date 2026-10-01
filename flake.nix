@@ -8,8 +8,8 @@
       url = "github:oxalica/rust-overlay";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    nix-config = {
-      url = "git+ssh://git@github.com/bingo-h/nixos-config";
+    nix-libs = {
+      url = "github:bingo-h/nix-libs";
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };
@@ -19,7 +19,7 @@
       self,
       nixpkgs,
       rust-overlay,
-      nix-config,
+      nix-libs,
       ...
     }:
     let
@@ -27,7 +27,7 @@
       pkgs = import nixpkgs { inherit system; };
     in
     {
-      devShells.${system}.default = nix-config.lib.mkTauriShell {
+      devShells.${system}.default = nix-libs.lib.mkTauriShell {
         inherit pkgs rust-overlay;
         # extraBuildInputs = with pkgs; [ ];
         # crossSystems = [
@@ -48,7 +48,7 @@
 
           cargoToml = fromTOML (builtins.readFile "${src}/src-tauri/Cargo.toml");
         in
-        nix-config.lib.mkTauriPackage {
+        nix-libs.lib.mkTauriPackage {
           inherit pkgs src;
           pname = cargoToml.package.name; # 修改为项目包名称
           version = cargoToml.package.version;

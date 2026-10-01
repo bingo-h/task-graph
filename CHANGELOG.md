@@ -6,6 +6,10 @@
 
 ## [未发布]
 
+### 修复
+
+- **修正 Nix flake 打包的 `pnpmDepsHash` 过期**：`flake.nix` 里硬编码的 `pnpmDepsHash` 还是 1.3.0 清理前端脚手架（删 `typescript`/`vue-tsc`/`@vue/typescript-plugin` 依赖）之前算出来的旧值，`frontend/pnpm-lock.yaml` 更新后没有同步重算，导致下游（如 nixos-config）用 flake input 方式构建本项目时在 `fetchPnpmDeps` 这步报 `hash mismatch` 直接失败。换成按当前 `frontend/pnpm-lock.yaml` 重新计算出的哈希（`sha256-vxiXJS/OFKaNyQb5Yk/fAHGJl4tVxbFS0WeNuhRVBvc=`）。
+
 ### 变更
 
 - **撤销/重做栈整分支收尾修复**：撤销"新建项目"原来复用 `db::project::purge()`（"彻底删除"用的函数，内部按 `LIKE '{path}.%'` 级联匹配子项目/任务）作为逆操作，SQLite 的 `LIKE` 对 ASCII 大小写不敏感、`%`/`_` 又是通配符，撤销新建的项目路径一旦跟既有项目路径发生大小写/通配符碰撞（如新建 `"Work"`、已存在 `"work.meetings"`），会连带误删无关项目的整棵子树；新增 `db::project::delete_record()` 只精确删这一条项目记录本身，`src-tauri/src/undo.rs` 新增 `ProjectCall::DeleteRecord` 变体，`commands::create_project` 的 `undo` 字段改用它。`purge_project`（废纸篓"彻底删除"）此前不接触撤销栈，彻底删除之后如果栈里还留着更早的记录，按 Ctrl+Z 仍可能把已经明确确认永久删除的数据复活回来；`UndoStack` 新增 `clear()` 方法，`purge_project` 新增 `undo_state` 参数并在 `db::project::purge()` 之后调用它。任务行撤销/重做原来是对 `tasks` 表整行 `INSERT OR REPLACE`，如果被追踪字段的 before/after 快照之间恰好发生过其它不在撤销范围内的改动（今日标记、开始计时、重复规则……），会被连带覆写冲掉；新增 `apply_task_row_diff()` 改成只对比 before/after 快照、只覆写真正变化的列，`apply_task_rows()` 相应从"取值闭包"改成 `reverse: bool` 方向标志。`App.vue::applyUpdate()` 新增清理逻辑，撤销/重做项目结构类操作后，如果当前筛选的 `selectedProject`（排除三个哨兵值）已经不在刷新后的 `data.projects` 里就清空，避免看板突然筛出空集且没有提示；这段清理会在项目改名时先于 `onRenameProject()` 自身"筛选跟着新路径走"的逻辑把 `selectedProject` 置空，导致改名后筛选被重置成"全部"而不是跟到新名字，`onRenameProject()` 改成在调用 `applyUpdate()` 之前就算好要跟去的新路径，`applyUpdate()` 跑完之后再应用，覆盖掉它的清理动作。`TaskDetail.vue` 里同步备注输入框的 `watch` 原来只在切换任务（`props.task?.uuid` 变化）时才重新读取，任务本身数据变化（如 Ctrl+Z 撤销了一次描述编辑）不会触发，导致输入框显示撤销前的旧文本，且之后失焦保存会把这份旧文本悄悄存回去（相当于把刚撤销的操作又重做一遍）；watch 依据改成 `` `${uuid}::${description}` `` 拼接的字符串（不用数组字面量，避免每次无关刷新都触发）。

@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!--
+    task-graph 应用图标源文件 —— Linux 铺满版（1024×1024，浅色拟态拨盘）
+    用途：生成 icon.png / 32x32.png / 128x128.png / 128x128@2x.png（Linux 窗口图标与 deb/rpm/AppImage 图标）
+    与 icon-macos.svg 的画法完全相同，区别只在封装：主体铺满整张画布（无透明边距、无投影），
+    因为 Linux 桌面的图标惯例是铺满，阴影由桌面环境自己绘制；留边距会让图标比别的应用小一圈。
+    生成：渲染成 1024×1024 透明 PNG 后，cargo tauri icon <png> -o <临时目录>，再拷回 src-tauri/icons/
+  -->
+  <defs>
+    <path id="body" d="M655.36 0 c129.036 0 193.554 0 242.839 25.112 a230.4 230.4 0 0 1 100.688 100.688 c25.112 49.285 25.112 113.803 25.112 242.839 l0 286.72 c0 129.036 0 193.554 -25.112 242.839 a230.4 230.4 0 0 1 -100.688 100.688 c-49.285 25.112 -113.803 25.112 -242.839 25.112 l-286.72 0 c-129.036 0 -193.554 0 -242.839 -25.112 a230.4 230.4 0 0 1 -100.688 -100.688 c-25.112 -49.285 -25.112 -113.803 -25.112 -242.839 l0 -286.72 c0 -129.036 0 -193.554 25.112 -242.839 a230.4 230.4 0 0 1 100.688 -100.688 c49.285 -25.112 113.803 -25.112 242.839 -25.112 Z"/>
+    <clipPath id="clip"><use href="#body"/></clipPath>
+    
+    <linearGradient id="rim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.65"/><stop offset="0.3" stop-color="#fff" stop-opacity="0"/>
+      <stop offset="0.75" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity="0.2"/>
+    </linearGradient>
+    
+  <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f3f6fb"/><stop offset="1" stop-color="#d9e0ec"/></linearGradient>
+  <radialGradient id="disc" cx="0.3" cy="0.26" r="0.9"><stop offset="0" stop-color="#fbfcff"/><stop offset="1" stop-color="#dbe1ed"/></radialGradient>
+  <linearGradient id="well" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#d2d9e6"/><stop offset="1" stop-color="#f2f5fa"/></linearGradient>
+  <linearGradient id="gb" gradientUnits="userSpaceOnUse" x1="390" y1="690" x2="640" y2="335"><stop offset="0" stop-color="#4f6bff"/><stop offset="1" stop-color="#8250df"/></linearGradient>
+  <filter id="raised" filterUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024" color-interpolation-filters="sRGB">
+    <feGaussianBlur in="SourceAlpha" stdDeviation="26" result="b"/>
+    <feOffset in="b" dx="16" dy="22" result="dko"/><feFlood flood-color="#8d9ab3" flood-opacity="0.75"/><feComposite in2="dko" operator="in" result="dk"/>
+    <feOffset in="b" dx="-14" dy="-14" result="lto"/><feFlood flood-color="#fff" flood-opacity="0.95"/><feComposite in2="lto" operator="in" result="lt"/>
+    <feMerge><feMergeNode in="lt"/><feMergeNode in="dk"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  <filter id="well-in" filterUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024" color-interpolation-filters="sRGB">
+    <feComponentTransfer in="SourceAlpha" result="inv"><feFuncA type="table" tableValues="1 0"/></feComponentTransfer>
+    <feGaussianBlur in="inv" stdDeviation="14" result="ib"/>
+    <feOffset in="ib" dx="12" dy="14" result="do"/><feFlood flood-color="#8d9ab3" flood-opacity="0.85"/>
+    <feComposite in2="do" operator="in" result="dc"/><feComposite in="dc" in2="SourceAlpha" operator="in" result="dark"/>
+    <feOffset in="ib" dx="-10" dy="-10" result="lo"/><feFlood flood-color="#fff" flood-opacity="0.95"/>
+    <feComposite in2="lo" operator="in" result="lc"/><feComposite in="lc" in2="SourceAlpha" operator="in" result="light"/>
+    <feMerge><feMergeNode in="SourceGraphic"/><feMergeNode in="dark"/><feMergeNode in="light"/></feMerge></filter>
+  <filter id="gsh" filterUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024" color-interpolation-filters="sRGB">
+    <feGaussianBlur in="SourceAlpha" stdDeviation="8"/><feOffset dx="0" dy="10" result="o"/>
+    <feFlood flood-color="#4f6bff" flood-opacity="0.4"/><feComposite in2="o" operator="in" result="s"/>
+    <feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  <filter id="glowf" filterUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024" color-interpolation-filters="sRGB"><feGaussianBlur stdDeviation="18"/></filter>
+  </defs>
+  
+  <use href="#body" fill="url(#bg)"/>
+  <g clip-path="url(#clip)"><g transform="translate(512 512) scale(1.24272) translate(-512 -512)">
+  <circle cx="512" cy="512" r="300" fill="url(#disc)" filter="url(#raised)"/>
+  <circle cx="512" cy="512" r="216" fill="url(#well)" filter="url(#well-in)"/>
+  <g transform="translate(512 512) scale(1.14) translate(-512 -512)">
+    
+    <g filter="url(#gsh)">
+      <path d="M402 512 C458 512 452 418 512 418 C572 418 566 512 622 512 M402 512 C458 512 452 606 512 606 C572 606 566 512 622 512" fill="none" stroke="url(#gb)" stroke-width="18" stroke-linecap="round"/>
+      <circle cx="402" cy="512" r="40" fill="url(#gb)"/>
+      <circle cx="512" cy="418" r="30" fill="url(#gb)"/>
+      <circle cx="512" cy="606" r="30" fill="url(#gb)"/>
+      <circle cx="622" cy="512" r="40" fill="url(#gb)"/>
+    </g>
+    <circle cx="402" cy="512" r="14" fill="#fff" fill-opacity="0.92"/>
+    <circle cx="622" cy="512" r="14" fill="#fff" fill-opacity="0.92"/>
+  </g></g></g>
+  <use href="#body" fill="none" stroke="url(#rim)" stroke-width="6" clip-path="url(#clip)"/>
+</svg>

@@ -1,15 +1,19 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
   <!--
-    task-graph 应用图标源文件 —— Linux 铺满版（1024×1024，浅色拟态拨盘）
+    task-graph 应用图标源文件 —— Linux 版（1024×1024，浅色拟态拨盘）
     用途：生成 icon.png / 32x32.png / 128x128.png / 128x128@2x.png（Linux 窗口图标与 deb/rpm/AppImage 图标）
-    与 icon-macos.svg 的画法完全相同，区别只在封装：主体铺满整张画布（无透明边距、无投影），
-    因为 Linux 桌面的图标惯例是铺满，阴影由桌面环境自己绘制；留边距会让图标比别的应用小一圈。
+    与 icon-macos.svg 的画法完全相同，区别只在封装：主体占画布 90%（四周各留约 5%），
+    投影更轻（下沉 6、模糊 16、黑 22%）。macOS 规范版主体只占 80%，放到 Linux 上显得偏小；
+    完全铺满画布（100%）又显得太大，所以取中间值。比例由 final.mjs 的 LINUX_FILL 控制。
     生成：渲染成 1024×1024 透明 PNG 后，cargo tauri icon <png> -o <临时目录>，再拷回 src-tauri/icons/
   -->
   <defs>
-    <path id="body" d="M655.36 0 c129.036 0 193.554 0 242.839 25.112 a230.4 230.4 0 0 1 100.688 100.688 c25.112 49.285 25.112 113.803 25.112 242.839 l0 286.72 c0 129.036 0 193.554 -25.112 242.839 a230.4 230.4 0 0 1 -100.688 100.688 c-49.285 25.112 -113.803 25.112 -242.839 25.112 l-286.72 0 c-129.036 0 -193.554 0 -242.839 -25.112 a230.4 230.4 0 0 1 -100.688 -100.688 c-25.112 -49.285 -25.112 -113.803 -25.112 -242.839 l0 -286.72 c0 -129.036 0 -193.554 25.112 -242.839 a230.4 230.4 0 0 1 100.688 -100.688 c49.285 -25.112 113.803 -25.112 242.839 -25.112 Z"/>
+    <path id="body" transform="translate(51.2 51.2)" d="M589.824 0 c116.132 0 174.199 0 218.555 22.601 a207.36 207.36 0 0 1 90.62 90.62 c22.601 44.357 22.601 102.423 22.601 218.555 l0 258.048 c0 116.132 0 174.199 -22.601 218.555 a207.36 207.36 0 0 1 -90.62 90.62 c-44.357 22.601 -102.423 22.601 -218.555 22.601 l-258.048 0 c-116.132 0 -174.199 0 -218.555 -22.601 a207.36 207.36 0 0 1 -90.62 -90.62 c-22.601 -44.357 -22.601 -102.423 -22.601 -218.555 l0 -258.048 c0 -116.132 0 -174.199 22.601 -218.555 a207.36 207.36 0 0 1 90.62 -90.62 c44.357 -22.601 102.423 -22.601 218.555 -22.601 Z"/>
     <clipPath id="clip"><use href="#body"/></clipPath>
-    
+    <filter id="mac-shadow" x="-10%" y="-10%" width="120%" height="125%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="8"/><feOffset dy="6" result="o"/>
+      <feFlood flood-color="#000" flood-opacity="0.22"/><feComposite in2="o" operator="in"/>
+    </filter>
     <linearGradient id="rim" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0" stop-color="#fff" stop-opacity="0.65"/><stop offset="0.3" stop-color="#fff" stop-opacity="0"/>
       <stop offset="0.75" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity="0.2"/>
@@ -38,9 +42,9 @@
     <feMerge><feMergeNode in="s"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
   <filter id="glowf" filterUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024" color-interpolation-filters="sRGB"><feGaussianBlur stdDeviation="18"/></filter>
   </defs>
-  
+  <use href="#body" fill="#000" filter="url(#mac-shadow)"/>
   <use href="#body" fill="url(#bg)"/>
-  <g clip-path="url(#clip)"><g transform="translate(512 512) scale(1.24272) translate(-512 -512)">
+  <g clip-path="url(#clip)"><g transform="translate(512 512) scale(1.11845) translate(-512 -512)">
   <circle cx="512" cy="512" r="300" fill="url(#disc)" filter="url(#raised)"/>
   <circle cx="512" cy="512" r="216" fill="url(#well)" filter="url(#well-in)"/>
   <g transform="translate(512 512) scale(1.14) translate(-512 -512)">

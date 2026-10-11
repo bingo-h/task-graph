@@ -1,0 +1,91 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!--
+    task-graph 应用图标源文件（1024×1024，macOS 图标规范 + 拟态立体风格）
+    - 主体：824×824 连续曲率圆角矩形（squircle），居中，四周各留 100px 透明边距
+    - 外部：仅 macOS 标准向下投影（拟态的"左上亮影"只做在主体内部，避免深色背景下发白光晕）
+    - 内部：底板微凸；连线是凹槽；三个节点是凸起的软球
+    - 配色：底板沿用应用深色拟态外壳 #2b2f3a，节点沿用原图标的两蓝一白
+  -->
+  <defs>
+    <!-- macOS 标准投影：下沉 10、模糊 20（σ=10）、黑 30% -->
+    <filter id="mac-shadow" x="-10%" y="-10%" width="120%" height="125%" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="10" stdDeviation="10" flood-color="#000" flood-opacity="0.3"/>
+    </filter>
+
+    <!-- 底板微凸：左上内侧亮边 + 右下内侧暗边 -->
+    <filter id="body-bevel" x="-10%" y="-10%" width="120%" height="120%" color-interpolation-filters="sRGB">
+      <feComponentTransfer in="SourceAlpha" result="inv"><feFuncA type="table" tableValues="1 0"/></feComponentTransfer>
+      <feGaussianBlur in="inv" stdDeviation="9" result="invb"/>
+      <feOffset in="invb" dx="8" dy="8" result="hi-off"/>
+      <feFlood flood-color="#fff" flood-opacity="0.16"/>
+      <feComposite in2="hi-off" operator="in" result="hi-col"/>
+      <feComposite in="hi-col" in2="SourceAlpha" operator="in" result="hi"/>
+      <feOffset in="invb" dx="-8" dy="-8" result="sh-off"/>
+      <feFlood flood-color="#000" flood-opacity="0.35"/>
+      <feComposite in2="sh-off" operator="in" result="sh-col"/>
+      <feComposite in="sh-col" in2="SourceAlpha" operator="in" result="sh"/>
+      <feMerge><feMergeNode in="SourceGraphic"/><feMergeNode in="hi"/><feMergeNode in="sh"/></feMerge>
+    </filter>
+
+    <!-- 凹槽：左上内侧深色阴影 -->
+    <filter id="inset" filterUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024" color-interpolation-filters="sRGB">
+      <feComponentTransfer in="SourceAlpha" result="inv"><feFuncA type="table" tableValues="1 0"/></feComponentTransfer>
+      <feGaussianBlur in="inv" stdDeviation="5" result="invb"/>
+      <feOffset in="invb" dx="5" dy="6" result="off"/>
+      <feFlood flood-color="#000" flood-opacity="0.75"/>
+      <feComposite in2="off" operator="in" result="col"/>
+      <feComposite in="col" in2="SourceAlpha" operator="in" result="shadow"/>
+      <feMerge><feMergeNode in="SourceGraphic"/><feMergeNode in="shadow"/></feMerge>
+    </filter>
+
+    <filter id="soft-1" filterUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024">
+      <feGaussianBlur stdDeviation="1.2"/>
+    </filter>
+
+    <!-- 凸起：右下深色外阴影 + 左上亮色外阴影（拟态双向阴影） -->
+    <filter id="raised" filterUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024" color-interpolation-filters="sRGB">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="10" result="b"/>
+      <feOffset in="b" dx="10" dy="13" result="dk-off"/>
+      <feFlood flood-color="#000" flood-opacity="0.6"/>
+      <feComposite in2="dk-off" operator="in" result="dk"/>
+      <feOffset in="b" dx="-8" dy="-8" result="lt-off"/>
+      <feFlood flood-color="#fff" flood-opacity="0.11"/>
+      <feComposite in2="lt-off" operator="in" result="lt"/>
+      <feMerge><feMergeNode in="lt"/><feMergeNode in="dk"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+
+    <linearGradient id="body-fill" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#363b49"/>
+      <stop offset="1" stop-color="#232731"/>
+    </linearGradient>
+    <radialGradient id="blue" cx="0.36" cy="0.3" r="0.8">
+      <stop offset="0" stop-color="#63a8ff"/>
+      <stop offset="0.55" stop-color="#1a73e8"/>
+      <stop offset="1" stop-color="#1257b8"/>
+    </radialGradient>
+    <radialGradient id="white" cx="0.36" cy="0.3" r="0.8">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.6" stop-color="#e4e9f3"/>
+      <stop offset="1" stop-color="#bdc6d9"/>
+    </radialGradient>
+
+    <path id="rail" d="M349 346 H656 V676 H349" fill="none" stroke-width="32" stroke-linecap="round" stroke-linejoin="round"/>
+    <path id="body" transform="translate(100 100)" d="M527.36 0 c103.834 0 155.751 0 195.41 20.207 a185.4 185.4 0 0 1 81.023 81.023 c20.207 39.659 20.207 91.576 20.207 195.41 l0 230.72 c0 103.834 0 155.751 -20.207 195.41 a185.4 185.4 0 0 1 -81.023 81.023 c-39.659 20.207 -91.576 20.207 -195.41 20.207 l-230.72 0 c-103.834 0 -155.751 0 -195.41 -20.207 a185.4 185.4 0 0 1 -81.023 -81.023 c-20.207 -39.659 -20.207 -91.576 -20.207 -195.41 l0 -230.72 c0 -103.834 0 -155.751 20.207 -195.41 a185.4 185.4 0 0 1 81.023 -81.023 c39.659 -20.207 91.576 -20.207 195.41 -20.207 Z"/>
+  </defs>
+
+  <!-- 1. macOS 投影 -->
+  <use href="#body" fill="#2b2f3a" filter="url(#mac-shadow)"/>
+  <!-- 2. 底板（微凸） -->
+  <use href="#body" fill="url(#body-fill)" filter="url(#body-bevel)"/>
+
+  <!-- 3. 连线凹槽：右下亮边 + 槽身（带内阴影） -->
+  <use href="#rail" stroke="#fff" stroke-opacity="0.12" transform="translate(2.5 3.5)" filter="url(#soft-1)"/>
+  <use href="#rail" stroke="#1d2029" filter="url(#inset)"/>
+
+  <!-- 4. 节点（凸起软球） -->
+  <g filter="url(#raised)">
+    <circle cx="349" cy="346" r="72" fill="url(#blue)"/>
+    <circle cx="349" cy="676" r="72" fill="url(#blue)"/>
+    <circle cx="656" cy="512" r="92" fill="url(#white)"/>
+  </g>
+</svg>

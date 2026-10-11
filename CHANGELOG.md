@@ -6,6 +6,8 @@
 
 ## [未发布]
 
+## [1.3.1] - 2026-10-11
+
 ### 变更
 
 - **`flake.nix` 改为引用公开仓库 `nix-libs`**：`mkTauriShell`/`mkTauriPackage` 原来通过私有仓库 `nix-config`（`git+ssh://git@github.com/bingo-h/nixos-config`，需要 SSH 访问权限）提供，现在改成引用新拆分出来的公开仓库 `github:bingo-h/nix-libs`（input 改名为 `nix-libs`）。

@@ -6,24 +6,18 @@
 
 ## [未发布]
 
-### 变更
-
-- **应用图标重新设计为"拟态拨盘"（浅色版），并修复 Linux 上图标比其他应用小一圈的问题**：1.3.1 的"深灰底 + 折线节点"图标被替换。新图标是浅色拟态底板（渐变 `#f3f6fb` → `#d9e0ec`，跟应用浅色拟态外壳 `html[data-ui-style="neumorphism"]` 的 `--shell-bg: #e8ecf3` 同一色系）上一个凸起的圆盘（半径 300），盘中嵌一个凹陷的圆槽（半径 216），槽里是品牌渐变（`#4f6bff` → `#8250df`）的"菱形 DAG"（一个起点分成两路并行路径再汇合，4 个节点，起终点节点里各有一个白色圆点）。图案选菱形而不是 Y 形，是因为 Y 形跟 Android 的"分享"图标太像。整个图案相对原始构图放大了约 14%，提升 16/32px 小尺寸下的可读性。
-  - **Linux 图标变小的原因与修法**：1.3.1 为了符合 macOS 规范，所有平台统一用了"824/1024 主体 + 四周 100px 透明边距 + 向下投影"的封装，而 Linux 桌面（GNOME/KDE 等）的图标主体通常比 macOS 规范占得更满，所以同样的文件放到 Linux 上就显得比别的应用小一圈。现在按平台拆成两种封装，画法完全相同、只有封装不同：Linux 用到的 4 个 PNG（`src-tauri/icons/icon.png`、`32x32.png`、`128x128.png`、`128x128@2x.png`）改用**主体占画布 90% 的版本**（四周各留约 5% 边距，图案同比例放大，投影更轻：下沉 6、模糊 16、黑 22%）；`icon.icns`（macOS）仍用**macOS 规范版**（主体 824/1024 ≈ 80% 居中、四周 100px 边距、标准向下投影）。中间那版我先试过完全铺满画布（100%），结果又显得太大，所以取中间值 90%；这个比例由生成脚本里的一个参数控制，不合适可以再调。
-  - **源文件**：`src-tauri/icons/source/icon.svg` 拆成 `icon-macos.svg`（macOS 规范版）和 `icon-linux.svg`（Linux 90% 版），文件头注释写明了用途、规范参数和重新生成的方法（渲染成 1024 透明 PNG 后用 `cargo tauri icon <png> -o <临时目录>`，再按用途拷回 `src-tauri/icons/`）。
-  - **有意保留未动**：Windows 相关文件（`icon.ico`、各 `Square*Logo.png`、`StoreLogo.png`）仍是跟 `icon.icns` 同款的"带边距 + 投影"的 macOS 规范版（上一轮选择"全平台统一"的结果），没有跟着 Linux 一起调大，Windows 上如果也觉得偏小再单独处理；`tauri.conf.json` 的 `bundle.icon` 列表不变；`frontend/public/favicon.ico` 没动；只打包了浅色版，没做 macOS 26 的自动深浅切换（需要 Icon Composer 的 `.icon` 格式），深色版画法相同、只换配色，需要时可以直接再生成。
-  - **验证范围**：脚本核对了 1024 两种封装的 alpha 通道（macOS 版实心主体恰为 824px 居中、四角透明、投影不越界；Linux 版主体 920px ≈ 90%、边距 52px、四角透明、投影不越界），仓库里最终的 `icon.png`（512）主体 460/512、`Square310x310Logo.png` 主体 248/310；看了 32 到 256px 在浅色和深色背景上的缩小效果；`touch src/lib.rs` 后 `cargo check` 重新编译通过。没有在 macOS/Linux 桌面实机上看过。
-
-## [1.3.1] - 2026-10-11
+## [1.3.1] - 2026-10-13
 
 ### 变更
 
 - **`flake.nix` 改为引用公开仓库 `nix-libs`**：`mkTauriShell`/`mkTauriPackage` 原来通过私有仓库 `nix-config`（`git+ssh://git@github.com/bingo-h/nixos-config`，需要 SSH 访问权限）提供，现在改成引用新拆分出来的公开仓库 `github:bingo-h/nix-libs`（input 改名为 `nix-libs`）。
-- **应用图标改为符合 macOS 图标规范 + 拟态立体风格**：此前的图标是铺满整张 512×512 画布的深色圆角方块，没有透明边距也没有阴影，放进 macOS Dock 会比规范尺寸的图标大一圈。现在按 1024×1024 画布重绘：主体是 824×824 的连续曲率圆角矩形（squircle，路径由 Figma corner-smoothing 算法生成，圆角 185.4、平滑度 0.6），居中，四周各留 100px 透明边距，主体外只有 macOS 标准的向下投影（下沉 10px、模糊 20px、黑 30%）；拟态的"左上亮影"有意只做在主体内部，不放到主体外，避免深色 Dock 上出现发白光晕。内部质感沿用应用自己的深色拟态外壳语言：底板 `#2b2f3a`（与 `style.css` 里 `html[data-ui-style="neumorphism"][data-theme-mode="dark"]` 的 `--shell-bg` 同色）加微凸的渐变与内侧高光/暗边，连线改成凹槽（inset 阴影 + 右下亮边），三个节点改成凸起的软球（双向阴影 + 径向渐变）。图案和配色沿用原图标（两蓝一白三个节点 + 折线连线）；有两处为适配新规格做的小调整：三个节点半径略放大（蓝 64→72、白 82→92，连线宽 30→32），补偿主体缩到 80% 后小尺寸（16/32px）下节点偏小的可读性；整个图案右移 32px 对齐画布中心（原图标图案偏左，右侧留白明显更大）。
-  - 新增矢量源文件 `src-tauri/icons/source/icon.svg`（1024×1024）：此前仓库里只有位图，没有源文件，以后改图标改它再重新生成即可。
-  - 重新生成 `src-tauri/icons/` 下现有的全部 16 个文件（`icon.icns`、`icon.ico`、`icon.png`、`32x32.png`、`128x128.png`、`128x128@2x.png`、各 `Square*Logo.png`、`StoreLogo.png`），由 `cargo tauri icon` 从该 SVG 渲染出的 1024 透明 PNG 生成。按选择全平台统一采用 macOS 样式，因此 Windows 磁贴、Linux 窗口图标也带留白和阴影，视觉上比之前小一圈。`icon.icns` 含 16/32/64/128/256/512/1024 各档及 @2x 变体。
-  - 有意保留未动：`tauri.conf.json` 的 `bundle.icon` 列表和各文件尺寸不变；`cargo tauri icon` 额外产出的 `android/`、`ios/`、`64x64.png` 没有采用（仓库原本就没有这些）；`frontend/public/favicon.ico`（网页 favicon，不是应用图标）没动；没有做 macOS 26 Liquid Glass 的分层图标（Icon Composer `.icon` 格式）。
-  - 验证范围：脚本核对了 1024/512 两版的 alpha 通道（实心主体恰为 824/410px 居中、四角透明、投影不越界）、`.icns` 内各档尺寸、`cargo check` 能正常解析新图标；没有在 macOS 实机上看过 Dock 效果。
+- **应用图标重新设计为符合 macOS 规范的"拟态拨盘"，并按平台区分封装**：此前（1.3.0）的图标是铺满整张 512×512 画布的深色圆角方块，没有透明边距也没有阴影，放进 macOS Dock 会比规范尺寸的图标大一圈；Linux 桌面上则需要比 macOS 更满的主体占比。现在按 1024×1024 画布重绘。图案是浅色拟态底板（渐变 `#f3f6fb` → `#d9e0ec`，跟应用浅色拟态外壳 `html[data-ui-style="neumorphism"]` 的 `--shell-bg: #e8ecf3` 同一色系）上一个凸起的圆盘（半径 300，双向阴影），盘中嵌一个凹陷的圆槽（半径 216，inset 阴影），槽里是品牌渐变（`#4f6bff` → `#8250df`）的"菱形 DAG"（一个起点分成两路并行路径再汇合，4 个节点，起终点节点里各有一个白色圆点）。图案选菱形而不是 Y 形，是因为 Y 形跟 Android 的"分享"图标太像；整个图案相对初始构图放大约 14%，提升 16/32px 小尺寸下的可读性。画法在两种封装下完全相同，只有主体占比和投影不同：
+  - **macOS 规范封装**（`icon.icns`，以及 Windows 用的 `icon.ico`、各 `Square*Logo.png`、`StoreLogo.png`）：主体是 824×824 的连续曲率圆角矩形（squircle，路径由 Figma corner-smoothing 算法生成，圆角 185.4、平滑度 0.6），居中，四周各留 100px 透明边距，主体外只有 macOS 标准的向下投影（下沉 10px、模糊 20px、黑 30%）；拟态的"左上亮影"有意只做在主体内部，不放到主体外，避免深色 Dock 上出现发白光晕。`icon.icns` 含 16/32/64/128/256/512/1024 各档及 @2x 变体。
+  - **Linux 封装**（`src-tauri/icons/icon.png`（512）、`32x32.png`、`128x128.png`、`128x128@2x.png`（256））：主体占画布 90%（四周各留约 5% 边距，图案同比例放大，投影更轻：下沉 6px、模糊 16px、黑 22%）。原因：Linux 桌面（GNOME/KDE 等）的图标主体通常比 macOS 规范占得更满，用 80% 的 macOS 版放上去会比别的应用小一圈；试过完全铺满画布（100%）又显得太大，所以取 90%。
+  - **源文件**：新增 `src-tauri/icons/source/icon-macos.svg`（macOS 规范封装）和 `icon-linux.svg`（Linux 封装），此前仓库里只有位图、没有源文件；文件头注释写明了用途、规范参数和重新生成的方法（渲染成 1024×1024 透明 PNG 后用 `cargo tauri icon <png> -o <临时目录>`，再按用途拷回 `src-tauri/icons/`）。两个 SVG 由一个临时脚本生成，该脚本没有入库，以后改图标直接改 SVG 即可。
+  - **有意保留未动**：Windows 相关文件仍是跟 `icon.icns` 同款的"带边距 + 投影"的 macOS 规范版（没有跟着 Linux 一起调大，Windows 上如果觉得偏小再单独处理）；`tauri.conf.json` 的 `bundle.icon` 列表不变；`cargo tauri icon` 额外产出的 `android/`、`ios/`、`64x64.png` 没有采用（仓库原本就没有这些）；`frontend/public/favicon.ico`（网页 favicon，不是应用图标）没动；只打包了浅色版，没做 macOS 26 的自动深浅切换（需要 Icon Composer 的 `.icon` 格式），深色版画法相同、只换配色，需要时可以再生成。
+  - **验证范围**：脚本核对了 1024 两种封装的 alpha 通道（macOS 版实心主体恰为 824px 居中、四角透明、投影不越界；Linux 版主体 920px ≈ 90%、边距 52px、四角透明、投影不越界），仓库里最终的 `icon.png`（512）主体 460/512、`Square310x310Logo.png` 主体 248/310、`.icns` 各档尺寸；看了 32 到 256px 在浅色和深色背景上的缩小效果；`touch src/lib.rs` 后 `cargo check` 重新编译通过。没有在 macOS/Linux 桌面实机上看过。
+  - **关于重打 tag**：`v1.3.1` 于 2026-10-11 首次发布，当时的图标是早期的深色"折线节点"版本；2026-10-13 删除原 tag 与 GitHub Release，在包含当前图标的提交上重新打了同名 tag，版本号不变。装过首次发布的 1.3.1 的用户，因为版本号相同，不会通过应用内更新收到新图标，需要手动下载安装。
 
 ### 修复
 

@@ -59,7 +59,7 @@
           extraBuildInputs = with pkgs; [ sqlite ];
 
           # 第一次先用 fakeHash 跑,拿到真实哈希后替换
-          pnpmDepsHash = "";
+          pnpmDepsHash = "sha256-URhB4JTWMsVt+pPL1swsRAFYLl8fO/NC474bV+KXL34=";
           # npmDepsHash = "sha256-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx=";
         };
     };

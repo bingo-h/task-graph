@@ -6,6 +6,14 @@
 
 ## [未发布]
 
+### 变更
+
+- **合并 dependabot 的两个依赖升级**：
+  - `src-tauri/Cargo.lock`：`rustls` 0.23.43 → 0.23.46。`Cargo.toml` 没有直接依赖 `rustls`（它是传递依赖），所以只有 lockfile 变了。
+  - `frontend/package.json`：`devDependencies.vite` 的版本范围 `^8.2.1` → `^8.2.4`，`frontend/pnpm-lock.yaml` 里实际解析出的版本 8.2.2 → 8.2.4。
+  - **验证范围**：合并后在 `nix develop` 环境里用全新的 target 目录跑 `cargo test`（40 个测试全部通过）；`pnpm install --frozen-lockfile` 后 `pnpm run build` 构建通过。没有跑起来应用做手动验证。
+  - **有意保留未动**：`flake.nix` 的 `pnpmDepsHash` 没有重算——vite 升级改了 `frontend/pnpm-lock.yaml`，该哈希很可能已经过期，下游用 flake input 构建时可能报 `hash mismatch`，需要另行更新。
+
 ## [1.3.1] - 2026-10-13
 
 ### 变更

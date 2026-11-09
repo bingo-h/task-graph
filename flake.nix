@@ -29,7 +29,7 @@
     {
       devShells.${system}.default = nix-libs.lib.mkTauriShell {
         inherit pkgs rust-overlay;
-        # extraBuildInputs = with pkgs; [ ];
+        extraBuildInputs = with pkgs; [ sqlite ];
         # crossSystems = [
         #     nixpkgs.lib.systems.examples.aarch64-multiplatform
         #     nixpkgs.lib.systems.examples.wasm32

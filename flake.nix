@@ -29,7 +29,7 @@
     {
       devShells.${system}.default = nix-libs.lib.mkTauriShell {
         inherit pkgs rust-overlay;
-        extraBuildInputs = with pkgs; [ sqlite ];
+        # extraBuildInputs = with pkgs; [ ];
         # crossSystems = [
         #     nixpkgs.lib.systems.examples.aarch64-multiplatform
         #     nixpkgs.lib.systems.examples.wasm32
@@ -55,6 +55,8 @@
 
           srcTauriDir = "src-tauri";
           frontendDir = "frontend";
+
+          extraBuildInputs = with pkgs; [ sqlite ];
 
           # 第一次先用 fakeHash 跑,拿到真实哈希后替换
           pnpmDepsHash = "sha256-vxiXJS/OFKaNyQb5Yk/fAHGJl4tVxbFS0WeNuhRVBvc=";

@@ -29,10 +29,10 @@ importers:
     devDependencies:
       '@vitejs/plugin-vue':
         specifier: ^6.0.8
-        version: 6.0.8(vite@8.2.2)(vue@3.5.42(typescript@6.0.3))
+        version: 6.0.8(vite@8.2.4)(vue@3.5.42(typescript@6.0.3))
       vite:
-        specifier: ^8.2.1
-        version: 8.2.2
+        specifier: ^8.2.4
+        version: 8.2.4
 
 packages:
 
@@ -498,8 +498,8 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
-  vite@8.2.2:
-    resolution: {integrity: sha512-cFKLV/PRgAUlIRm5WjMjJ86jrftzpqcgH+Us+DS8mI3CDNiH30Whrz8uHL3+MOLPAgqbMBAqWdAHAphOAM+z/Q==}
+  vite@8.2.4:
+    resolution: {integrity: sha512-lfauXnrf2x0p+UoA+wXh0dgFWnUjCyG6Js95KBkgaCwUU9k0DAHI4W6Q0WCx+h+5g+Alce1y4Zi2QjjK0UvGBw==}
     engines: {node: ^20.19.0 || >=22.12.0}
     hasBin: true
     peerDependencies:
@@ -631,10 +631,10 @@ snapshots:
     dependencies:
       '@tauri-apps/api': 2.11.1
 
-  '@vitejs/plugin-vue@6.0.8(vite@8.2.2)(vue@3.5.42(typescript@6.0.3))':
+  '@vitejs/plugin-vue@6.0.8(vite@8.2.4)(vue@3.5.42(typescript@6.0.3))':
     dependencies:
       '@rolldown/pluginutils': 1.0.1
-      vite: 8.2.2
+      vite: 8.2.4
       vue: 3.5.42(typescript@6.0.3)
 
   '@vue/compiler-core@3.5.42':
@@ -972,7 +972,7 @@ snapshots:
   typescript@6.0.3:
     optional: true
 
-  vite@8.2.2:
+  vite@8.2.4:
     dependencies:
       lightningcss: 1.33.0
       picomatch: 4.0.7

@@ -7,10 +7,7 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    nix-libs = {
-      url = "github:bingo-h/nix-libs";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
+    nix-libs.url = "github:bingo-h/nix-libs";
   };
 
   outputs =
